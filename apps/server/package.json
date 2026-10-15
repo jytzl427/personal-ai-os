@@ -1,0 +1,32 @@
+{
+  "name": "@paios/server",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "bin": {
+    "paios": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx watch src/main.ts serve",
+    "start": "pnpm build && node dist/main.js serve",
+    "serve": "tsx src/main.ts serve",
+    "mcp": "tsx src/main.ts mcp",
+    "test": "node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@paios/api-types": "workspace:*",
+    "@paios/core": "workspace:*",
+    "@paios/db": "workspace:*",
+    "hono": "^4.7.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  }
+}

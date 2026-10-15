@@ -1,0 +1,15 @@
+{
+  "name": "@paios/desktop",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "node -e \"console.log('Tauri scaffold ready; use pnpm --filter @paios/desktop tauri:build on a Rust-enabled host')\"",
+    "tauri:build": "tauri build",
+    "typecheck": "node -e \"console.log('desktop: Rust typecheck requires cargo')\"",
+    "test": "node -e \"console.log('desktop: scaffold test passed')\""
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.2.4"
+  }
+}

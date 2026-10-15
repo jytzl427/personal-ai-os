@@ -1,0 +1,18 @@
+{
+  "name": "personal-ai-os",
+  "private": true,
+  "version": "2.0.0",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "concurrently -k \"pnpm --filter @paios/server dev\" \"pnpm --filter @paios/web dev\"",
+    "build": "pnpm -r build",
+    "mcp": "pnpm --filter @paios/server mcp",
+    "start": "pnpm --filter @paios/web build && pnpm --filter @paios/server start",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2"
+  }
+}

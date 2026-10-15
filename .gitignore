@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+.data/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Rust & Tauri build caches
+target/
+**/target/
+src-tauri/target/
+
+# Package manager & local databases
+.pnpm-store/
+.paios/
+release/
+*.old.exe
