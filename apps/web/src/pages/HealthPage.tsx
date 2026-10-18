@@ -89,11 +89,33 @@ export function HealthPage() {
     }
   }
 
+  const latestWeight = logs.find((r) => r.weight_kg != null)?.weight_kg;
+  const latestSleep = logs[0] ? sleepLabel(logs[0]) : "—";
+  const recentUndisciplined = logs.slice(0, 7).filter((r) => Boolean(r.disciplined)).length;
+
   return (
     <div className="page-stack page-health">
-      <PageHeader meta="长期记录，不自动归档" title="健康" />
+      <PageHeader meta="长期记录 · 晨起空腹体重与睡眠自律底盘" title="健康" />
       {error ? <div className="notice error">{error}</div> : null}
       {message ? <div className="notice">{message}</div> : null}
+
+      <div className="status-strip">
+        <div className="status-chip">
+          <span className="muted">最新空腹体重</span>
+          <strong>{latestWeight ? `${latestWeight} kg` : "—"}</strong>
+        </div>
+        <div className="status-chip">
+          <span className="muted">昨夜睡眠</span>
+          <strong>{latestSleep}</strong>
+        </div>
+        <div className="status-chip">
+          <span className="muted">近 7 天不自律</span>
+          <strong style={{ color: recentUndisciplined > 1 ? "var(--danger)" : "var(--ok)" }}>
+            {recentUndisciplined} 天
+          </strong>
+        </div>
+      </div>
+
       <section className="table-panel database-panel health-table-panel">
         <DatabaseTable
           empty="还没有健康记录。"
@@ -102,16 +124,15 @@ export function HealthPage() {
             { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteRecord(row.log_date)} /> },
             { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
             { key: "bed", label: "上床", className: "col-time", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
-            { key: "sleep", label: "睡眠时间", className: "col-time", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
+            { key: "sleep", label: "睡眠时长", className: "col-time", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
             { key: "wake", label: "起床", className: "col-time", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void save(row.log_date, { wake_local: value || null })} /> },
-            { key: "weight", label: "今日空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void save(row.log_date, { weight_kg: value })} /> },
-            { key: "exercise", label: "运动内容", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动内容" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void save(row.log_date, { exercise_note: value }); }} /> },
+            { key: "weight", label: "空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void save(row.log_date, { weight_kg: value })} /> },
+            { key: "exercise", label: "运动与消耗", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动、体能消耗…" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void save(row.log_date, { exercise_note: value }); }} /> },
             { key: "disciplined", label: "是否不自律", className: "col-disciplined", render: (row) => <Checkbox ariaLabel={`${formatDate(row.log_date)} 是否不自律`} checked={Boolean(row.disciplined)} onChange={(checked) => void save(row.log_date, { disciplined: checked })} /> }
           ]}
           footer={logs.some((row) => row.log_date === today) ? undefined : <AddRowButton label="记录今天" onClick={() => void addToday()} />}
         />
       </section>
-      <p className="stats-slot">周体重、睡眠与自律趋势将放在这里。</p>
     </div>
   );
 }

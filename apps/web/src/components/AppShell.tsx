@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { apiJson } from "../lib/api.js";
 import { activeNavName, navigation, pageTitle, type Route } from "../lib/route.js";
+import {
+  AlertIcon,
+  ArchiveIcon,
+  ArrowRightIcon,
+  FinanceIcon,
+  HealthIcon,
+  PlansIcon,
+  ProjectsIcon,
+  SettingsIcon,
+  TasksIcon,
+  TodayIcon
+} from "./Icons.js";
 
 type AttentionSummary = {
   date: string;
@@ -8,6 +20,29 @@ type AttentionSummary = {
   phase_label: string;
   items: string[];
 };
+
+function getNavIcon(label: string) {
+  switch (label) {
+    case "今日":
+      return <TodayIcon />;
+    case "任务":
+      return <TasksIcon />;
+    case "项目":
+      return <ProjectsIcon />;
+    case "财务":
+      return <FinanceIcon />;
+    case "健康":
+      return <HealthIcon />;
+    case "计划与复盘":
+      return <PlansIcon />;
+    case "归档":
+      return <ArchiveIcon />;
+    case "设置":
+      return <SettingsIcon />;
+    default:
+      return <TasksIcon />;
+  }
+}
 
 export function AppShell({
   route,
@@ -40,7 +75,9 @@ export function AppShell({
 
   useEffect(() => {
     loadAttention();
-    const onVisible = () => { if (document.visibilityState === "visible") loadAttention(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadAttention();
+    };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     const timer = window.setInterval(loadAttention, 5 * 60 * 1000);
@@ -55,34 +92,69 @@ export function AppShell({
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span aria-hidden="true" className="brand-mark" />
-          <span>Personal AI OS</span>
+          <div className="brand-logo" aria-hidden="true">
+            <span className="brand-logo-inner" />
+          </div>
+          <div className="brand-info">
+            <span className="brand-title">Personal AI OS</span>
+            <span className="brand-badge">Local Core</span>
+          </div>
         </div>
+
         <nav aria-label="主导航" className="main-nav">
-          {navigation.map((item) => (
-            <button
-              className={item.label === currentNav ? "nav-item active" : "nav-item"}
-              key={item.label}
-              onClick={() => onNavigate(item.route)}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
+          <div className="nav-section-label">核心工作台</div>
+          {navigation.map((item) => {
+            const isActive = item.label === currentNav;
+            return (
+              <button
+                className={isActive ? "nav-item active" : "nav-item"}
+                key={item.label}
+                onClick={() => onNavigate(item.route)}
+                type="button"
+              >
+                <span className="nav-icon">{getNavIcon(item.label)}</span>
+                <span className="nav-label">{item.label}</span>
+                {isActive ? <span className="nav-active-indicator" /> : null}
+              </button>
+            );
+          })}
         </nav>
-        <div className="sidebar-footer">本地 · 单用户</div>
+
+        <div className="sidebar-footer">
+          <div className="system-status-pill">
+            <span className="status-dot-pulse" aria-hidden="true" />
+            <span className="status-text">本地离线 · 安全隔离</span>
+          </div>
+        </div>
       </aside>
+
       <main className="main-content">
         {attention?.items.length ? (
           <div className="attention-banner">
-            <div>
-              <strong>{attention.phase_label}检查</strong>
-              <p>{attention.items.join("；")}。软件关闭期间不会主动联系你。</p>
+            <div className="attention-icon" aria-hidden="true">
+              <AlertIcon />
             </div>
-            <button className="secondary-button" onClick={() => onNavigate({ name: "plans", tab: "daily-plan" })} type="button">查看计划与复盘</button>
+            <div className="attention-content">
+              <div className="attention-header">
+                <strong>{attention.phase_label}状态提醒</strong>
+              </div>
+              <p className="attention-text">
+                {attention.items.join("；")}。软件关闭期间不会主动打扰你。
+              </p>
+            </div>
+            <button
+              className="attention-action-button"
+              onClick={() => onNavigate({ name: "plans", tab: "daily-plan" })}
+              type="button"
+            >
+              <span>查看计划与复盘</span>
+              <ArrowRightIcon />
+            </button>
           </div>
         ) : null}
-        <div className="page-view" key={window.location.hash}>{children}</div>
+        <div className="page-view" key={window.location.hash}>
+          {children}
+        </div>
       </main>
     </div>
   );

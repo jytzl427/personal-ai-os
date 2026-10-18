@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DeleteButton } from "../components/DeleteButton.js";
+import { PlusIcon, SendIcon, SparklesIcon } from "../components/Icons.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
 import type { Route } from "../lib/route.js";
 
@@ -184,7 +185,9 @@ export function ButlerPage({ conversationId, onNavigate }: { conversationId: str
       <aside className="conversation-list">
         <div className="conversation-heading">
           <h2>对话</h2>
-          <button className="primary-button" onClick={() => void newConversation()} type="button">新对话</button>
+          <button className="primary-button" onClick={() => void newConversation()} type="button">
+            <PlusIcon /> 新对话
+          </button>
         </div>
         {conversations.map((item) => (
           <div className={item.id === conversationId ? "conversation-item active" : "conversation-item"} key={item.id}>
@@ -231,8 +234,12 @@ export function ButlerPage({ conversationId, onNavigate }: { conversationId: str
           />
           <input accept="image/*" hidden onChange={(event) => chooseFile(event.target.files?.[0])} ref={fileRef} type="file" />
           <button aria-label="添加图片" className="secondary-button" onClick={() => fileRef.current?.click()} type="button">图片</button>
-          <button className="secondary-button" disabled={busy} onClick={() => void sendText(PHASE_CHECK_PROMPT, { title: "时段检查" })} type="button">时段检查</button>
-          <button className="primary-button" onClick={() => busy ? cancelSend() : void send()} type="button">{busy ? "取消" : "发送"}</button>
+          <button className="secondary-button" disabled={busy} onClick={() => void sendText(PHASE_CHECK_PROMPT, { title: "时段检查" })} type="button">
+            <SparklesIcon /> 时段检查
+          </button>
+          <button className="primary-button" onClick={() => busy ? cancelSend() : void send()} type="button">
+            {busy ? "取消" : <><SendIcon /> 发送</>}
+          </button>
         </div>
       </section>
     </div>

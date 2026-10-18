@@ -8,6 +8,8 @@ import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { PropertySelect } from "../components/PropertySelect.js";
 import { ReadOnlyPlanCard } from "../components/ReadOnlyPlanCard.js";
+import { SegmentedControl } from "../components/SegmentedControl.js";
+import { CalendarIcon } from "../components/Icons.js";
 import type { TagTone } from "../components/Tag.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
 import type { Route } from "../lib/route.js";
@@ -114,16 +116,27 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
   return (
     <div className="page-stack page-tasks">
       <PageHeader meta={view === "tasks" ? (loading ? "读取中…" : sortedTasks.length + " 条未归档") : undefined} title="任务">
-        <div className="task-view-switch" role="tablist">
-          <button className={view === "tasks" ? "secondary-button active" : "secondary-button"} onClick={() => setView("tasks")} role="tab" type="button">任务数据库</button>
-          <button className={view === "recurring" ? "secondary-button active" : "secondary-button"} onClick={() => setView("recurring")} role="tab" type="button">周期任务</button>
-        </div>      </PageHeader>
+        <SegmentedControl
+          ariaLabel="任务视图"
+          options={[
+            { value: "tasks", label: "任务数据库" },
+            { value: "recurring", label: "周期任务" }
+          ]}
+          value={view}
+          onChange={(val) => setView(val as "tasks" | "recurring")}
+        />
+      </PageHeader>
       <div className="task-page-toolbar">
         <div className="task-plan-buttons">
-          <button className="secondary-button" onClick={() => setPlanCard("daily")} type="button">每日计划</button>
-          <button className="secondary-button" onClick={() => setPlanCard("stage")} type="button">阶段计划</button>
+          <button className="secondary-button" onClick={() => setPlanCard("daily")} type="button">
+            <CalendarIcon /> 每日计划
+          </button>
+          <button className="secondary-button" onClick={() => setPlanCard("stage")} type="button">
+            <CalendarIcon /> 阶段计划
+          </button>
         </div>
-      </div>      {planCard ? <ReadOnlyPlanCard kind={planCard} onClose={() => setPlanCard(null)} /> : null}
+      </div>
+      {planCard ? <ReadOnlyPlanCard kind={planCard} onClose={() => setPlanCard(null)} /> : null}
       {view === "recurring" ? <RecurringTasksPage onNavigate={onNavigate} /> : null}
       {view === "tasks" && error ? <div className="notice error">{error}</div> : null}
       {view === "tasks" ? <>
@@ -156,7 +169,7 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               label: "任务名称",
               className: "col-title",
               render: (task) => (
-                <div className="task-title-cell">
+                <div className={`task-title-cell ${task.status === "done" ? "is-done" : ""}`}>
                   <CellText
                     autoFocus={focusTaskId === task.id}
                     autoGrow

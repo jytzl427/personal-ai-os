@@ -5,6 +5,7 @@ import { DateField, formatDate } from "../components/DateField.js";
 import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { Tag, type TagTone } from "../components/Tag.js";
+import { PlusIcon } from "../components/Icons.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
 import type { Route } from "../lib/route.js";
 
@@ -197,7 +198,7 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
           <input checked={profitable} onChange={(event) => setProfitable(event.target.checked)} type="checkbox" /> 盈利项目
         </label>
         <button className="primary-button" onClick={() => void addProject()} type="button">
-          新建项目
+          <PlusIcon /> 新建项目
         </button>
       </section>
 
@@ -582,7 +583,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             )}
 
             <button className="database-add-button project-task-create-button" onClick={() => void addCheckpoint()} type="button">
-              ＋ 添加验收节点
+              <PlusIcon /> 添加验收节点
             </button>
           </section>
         </>

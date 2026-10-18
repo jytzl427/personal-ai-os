@@ -11,6 +11,7 @@ import { PlansReviewsPage } from "./pages/PlansReviewsPage.js";
 import { TasksPage } from "./pages/TasksPage.js";
 import { TaskDetailPage } from "./pages/TaskDetailPage.js";
 import { RecurringTaskTemplatePage } from "./pages/RecurringTaskTemplatePage.js";
+import { TodayPage } from "./pages/TodayPage.js";
 import type { Route } from "./lib/route.js";
 
 export default function App() {
@@ -25,6 +26,8 @@ export default function App() {
 
 function Page({ route, onNavigate }: { route: Route; onNavigate: (route: Route) => void }) {
   switch (route.name) {
+    case "today":
+      return <TodayPage onNavigate={onNavigate} />;
     case "tasks":
       return <TasksPage initialTab={route.tab} onNavigate={onNavigate} />;
     case "task":

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Tag } from "./Tag.js";
+import { CloseIcon } from "./Icons.js";
 import { apiJson } from "../lib/api.js";
 import { parseTaskBlocks, richTextToPlainText, type TaskBlock } from "./RichTextBlockEditor.js";
 import { formatDate, todayYmd } from "../lib/dates.js";
@@ -104,18 +106,39 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
             <p className="eyebrow">{kind === "daily" ? "今日计划" : "阶段计划"}</p>
             <h2>{kind === "daily" ? "每日计划" : "阶段计划"}</h2>
           </div>
-          <button aria-label="关闭计划卡片" className="plan-card-close" onClick={onClose} type="button">×</button>
+          <button aria-label="关闭计划卡片" className="plan-card-close" onClick={onClose} type="button">
+            <CloseIcon />
+          </button>
         </div>
         {loading ? <p className="muted">正在读取计划…</p> : null}
         {error ? <div className="notice error">{error}</div> : null}
         {!loading && !error && kind === "daily" ? (
           daily?.plan ? <div className="plan-card-body">
-            <div className="plan-card-meta"><span>{formatDate(daily.plan.plan_date)}</span><span>{daily.plan.status === "confirmed" ? "已确认" : "草稿"}</span></div>
+            <div className="plan-card-meta">
+              <span>{formatDate(daily.plan.plan_date)}</span>
+              <Tag size="sm" tone={daily.plan.status === "confirmed" ? "success" : "neutral"}>
+                {daily.plan.status === "confirmed" ? "已确认" : "草稿"}
+              </Tag>
+            </div>
             {readablePlanText(daily.plan.plan_text) ? <PlanRichText value={daily.plan.plan_text} /> : <p className="muted">今天还没有填写计划。</p>}
           </div> : <p className="muted">今天还没有填写计划。</p>
         ) : null}
         {!loading && !error && kind === "stage" ? (
-          stages.length === 0 ? <p className="muted">目前没有阶段周期计划。</p> : <div className="plan-card-stage-list">{stages.map((stage) => <article className="plan-card-stage" key={stage.id}><div className="plan-card-meta"><strong>{formatDate(stage.period_start)}—{formatDate(stage.period_end)}</strong><span>{stage.status === "confirmed" ? "已确认" : stage.status === "executed" ? "已执行" : "草稿"}</span></div>{readablePlanText(stage.plan_text) ? <PlanRichText value={stage.plan_text} /> : <p className="muted">这个周期还没有填写计划。</p>}</article>)}</div>
+          stages.length === 0 ? <p className="muted">目前没有阶段周期计划。</p> : (
+            <div className="plan-card-stage-list">
+              {stages.map((stage) => (
+                <article className="plan-card-stage" key={stage.id}>
+                  <div className="plan-card-meta">
+                    <strong>{formatDate(stage.period_start)} — {formatDate(stage.period_end)}</strong>
+                    <Tag size="sm" tone={stage.status === "confirmed" ? "success" : stage.status === "executed" ? "info" : "neutral"}>
+                      {stage.status === "confirmed" ? "已确认" : stage.status === "executed" ? "已执行" : "草稿"}
+                    </Tag>
+                  </div>
+                  {readablePlanText(stage.plan_text) ? <PlanRichText value={stage.plan_text} /> : <p className="muted">这个周期还没有填写计划。</p>}
+                </article>
+              ))}
+            </div>
+          )
         ) : null}
         <p className="plan-card-readonly">只读查看 · 如需修改，请进入计划与复盘</p>
       </section>

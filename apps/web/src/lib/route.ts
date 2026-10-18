@@ -1,4 +1,5 @@
 export type Route =
+  | { name: "today" }
   | { name: "tasks"; tab?: "tasks" | "recurring" }
   | { name: "task"; id: string }
   | { name: "recurring-task"; id: string }
@@ -31,7 +32,8 @@ export function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeSegment);
   const [first, second, third] = path;
 
-  if (!first || first === "today") return { name: "tasks" };
+  if (first === "today") return { name: "today" };
+  if (!first) return { name: "tasks" };
   if (first === "tasks" && second === "recurring") return { name: "tasks", tab: "recurring" };
   if (first === "tasks" && second) return { name: "task", id: second };
   if (first === "recurring-tasks" && second) return { name: "recurring-task", id: second };
@@ -64,6 +66,7 @@ export function parseHash(hash: string): Route {
 
 export function toHash(route: Route): string {
   switch (route.name) {
+    case "today": return "#/today";
     case "tasks": return route.tab === "recurring" ? "#/tasks/recurring" : "#/tasks";
     case "task": return "#/tasks/" + encodeURIComponent(route.id);
     case "recurring-task": return "#/recurring-tasks/" + encodeURIComponent(route.id);
@@ -96,6 +99,7 @@ export const navigation: NavItem[] = [
 ];
 
 export function activeNavName(route: Route): string {
+  if (route.name === "today") return "今日";
   if (route.name === "project") return "项目";
   if (route.name === "task") return "任务";
   if (route.name === "recurring-task") return "任务";
@@ -108,6 +112,7 @@ export function activeNavName(route: Route): string {
 }
 
 export function pageTitle(route: Route): string {
+  if (route.name === "today") return "今日";
   if (route.name === "task") return "任务详情";
   if (route.name === "recurring-task") return "周期任务模板";
   if (route.name === "project") return "项目详情";
