@@ -1289,7 +1289,6 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .money-edit { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .money-cell { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 .finance-table { min-width: 900px; }
-.health-table-panel .database-table { min-width: 520px; }
 .finance-table-heading { padding: 20px 36px 12px; border-bottom: 0; }
 .finance-balance { text-align: right; color: var(--ink-3); font-size: 12.5px; }
 .finance-balance strong { display: block; color: var(--ink); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -2310,10 +2309,15 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .review-open-button:hover, .review-preview-button:hover { color: var(--accent); }
 .review-detail-field { margin-top: 16px; }
 .review-detail-field .review-editor { min-height: 260px; width: 100%; }
-.health-table-panel .database-table { min-width: 620px; width: 100%; }
+.health-table-panel .database-table { min-width: 860px; width: 100%; }
+.health-table-panel .col-delete { width: 34px; }
+.health-table-panel .col-date { width: 110px; }
+.health-table-panel .col-time { width: 92px; }
+.health-table-panel .col-number { width: 110px; min-width: 100px; text-align: center; }
+.health-table-panel .col-memo { width: auto; min-width: 220px; }
 .health-table-panel .col-disciplined { width: 95px; min-width: 95px; text-align: center; }
 .sleep-duration { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.weight-input { width: 78px; text-align: center; font-variant-numeric: tabular-nums; }
+.weight-input { width: 100%; max-width: 84px; text-align: center; font-variant-numeric: tabular-nums; margin: 0 auto; display: block; }
 
 @media (max-width: 900px) {
   .account-gallery { margin-left: 16px; margin-right: 16px; }

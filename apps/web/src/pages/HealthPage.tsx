@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AddRowButton } from "../components/AddRowButton.js";
 import { CellText } from "../components/CellText.js";
 import { Checkbox } from "../components/Checkbox.js";
@@ -36,14 +36,21 @@ function sleepLabel(row: Health) {
 
 export function HealthPage() {
   const [logs, setLogs] = useState<Health[]>([]);
+  const logsRef = useRef<Health[]>(logs);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const today = todayYmd();
 
+  useEffect(() => {
+    logsRef.current = logs;
+  }, [logs]);
+
   async function load() {
     try {
       const result = await apiJson<{ health: Health[] }>(`/health?from=${shiftYmd(today, -90)}&to=${today}`);
-      setLogs([...result.health].sort((left, right) => right.log_date.localeCompare(left.log_date)));
+      const sorted = [...result.health].sort((left, right) => right.log_date.localeCompare(left.log_date));
+      logsRef.current = sorted;
+      setLogs(sorted);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "健康记录加载失败");
     }
@@ -53,21 +60,47 @@ export function HealthPage() {
 
   async function save(date: string, patch: Partial<Health>) {
     try {
-      const current = logs.find((row) => row.log_date === date) ?? { log_date: date };
+      const current = logsRef.current.find((row) => row.log_date === date) ?? { log_date: date };
       const next = { ...current, ...patch };
-      const duration = sleepMinutes(next.bedtime_local, next.wake_local);
-      const result = await apiJson<{ health: Health }>(`/health/${date}`, jsonRequest("PUT", {
-        weight_kg: next.weight_kg ?? null,
-        bedtime_local: next.bedtime_local || null,
-        wake_local: next.wake_local || null,
-        sleep_duration_minutes: duration,
-        exercise_note: next.exercise_note ?? null,
-        disciplined: next.disciplined === null || next.disciplined === undefined ? null : Boolean(next.disciplined)
-      }));
+      if ("bedtime_local" in patch || "wake_local" in patch) {
+        next.sleep_duration_minutes = sleepMinutes(next.bedtime_local, next.wake_local);
+      }
+
+      const updatedLogs = (() => {
+        const rows = logsRef.current;
+        const exists = rows.some((row) => row.log_date === date);
+        return (exists ? rows.map((row) => row.log_date === date ? next : row) : [next, ...rows])
+          .sort((left, right) => right.log_date.localeCompare(left.log_date));
+      })();
+      logsRef.current = updatedLogs;
+      setLogs(updatedLogs);
+
+      const payload: Record<string, unknown> = {};
+      if ("weight_kg" in patch) {
+        payload.weight_kg = patch.weight_kg ?? null;
+      }
+      if ("bedtime_local" in patch) {
+        payload.bedtime_local = patch.bedtime_local || null;
+      }
+      if ("wake_local" in patch) {
+        payload.wake_local = patch.wake_local || null;
+      }
+      if ("bedtime_local" in patch || "wake_local" in patch) {
+        payload.sleep_duration_minutes = next.sleep_duration_minutes;
+      }
+      if ("exercise_note" in patch) {
+        payload.exercise_note = patch.exercise_note ?? null;
+      }
+      if ("disciplined" in patch) {
+        payload.disciplined = patch.disciplined === null || patch.disciplined === undefined ? null : Boolean(patch.disciplined);
+      }
+
+      const result = await apiJson<{ health: Health }>(`/health/${date}`, jsonRequest("PUT", payload));
       const saved = { ...result.health, log_date: date };
       setLogs((rows) => {
-        const exists = rows.some((row) => row.log_date === date);
-        return (exists ? rows.map((row) => row.log_date === date ? saved : row) : [saved, ...rows]).sort((left, right) => right.log_date.localeCompare(left.log_date));
+        const nextRows = rows.map((row) => row.log_date === date ? { ...row, ...saved } : row);
+        logsRef.current = nextRows;
+        return nextRows;
       });
       setError(null);
     } catch (reason: unknown) {
@@ -76,13 +109,15 @@ export function HealthPage() {
   }
 
   async function addToday() {
-    if (!logs.some((row) => row.log_date === today)) await save(today, { log_date: today });
+    if (!logsRef.current.some((row) => row.log_date === today)) await save(today, { log_date: today });
   }
 
   async function deleteRecord(date: string) {
     try {
       await apiJson(`/health/${date}`, { method: "DELETE" });
-      setLogs((rows) => rows.filter((row) => row.log_date !== date));
+      const nextRows = logsRef.current.filter((row) => row.log_date !== date);
+      logsRef.current = nextRows;
+      setLogs(nextRows);
       setMessage("已删除这条健康记录");
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "健康记录删除失败");
@@ -139,18 +174,89 @@ export function HealthPage() {
 
 function TimeCell({ value, ariaLabel, onCommit }: { value: string; ariaLabel: string; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  return <input aria-label={ariaLabel} className="cell-input time-input" max="23:59" min="00:00" onBlur={() => onCommit(draft)} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setDraft(value); event.currentTarget.blur(); } if (event.key === "Enter") event.currentTarget.blur(); }} step={60} type="time" value={draft} />;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current && document.activeElement !== inputRef.current) {
+      setDraft(value);
+    }
+  }, [value]);
+
+  return (
+    <input
+      ref={inputRef}
+      aria-label={ariaLabel}
+      className="cell-input time-input"
+      max="23:59"
+      min="00:00"
+      onFocus={() => {
+        isFocusedRef.current = true;
+      }}
+      onBlur={() => {
+        isFocusedRef.current = false;
+        onCommit(draft);
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+        if (event.key === "Enter") event.currentTarget.blur();
+      }}
+      step={60}
+      type="time"
+      value={draft}
+    />
+  );
 }
 
 function WeightCell({ value, ariaLabel, onCommit }: { value?: number | null; ariaLabel: string; onCommit: (value: number | null) => void }) {
   const [draft, setDraft] = useState(value === null || value === undefined ? "" : String(value));
-  useEffect(() => setDraft(value === null || value === undefined ? "" : String(value)), [value]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current && document.activeElement !== inputRef.current) {
+      setDraft(value === null || value === undefined ? "" : String(value));
+    }
+  }, [value]);
+
   function commit() {
-    if (!draft.trim()) { onCommit(null); return; }
+    isFocusedRef.current = false;
+    if (!draft.trim()) {
+      onCommit(null);
+      return;
+    }
     const next = Number(draft);
-    if (Number.isFinite(next) && next > 0 && next <= 500) onCommit(next);
-    else setDraft(value === null || value === undefined ? "" : String(value));
+    if (Number.isFinite(next) && next > 0 && next <= 500) {
+      onCommit(next);
+    } else {
+      setDraft(value === null || value === undefined ? "" : String(value));
+    }
   }
-  return <input aria-label={ariaLabel} className="cell-input weight-input" inputMode="decimal" onBlur={commit} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setDraft(value === null || value === undefined ? "" : String(value)); event.currentTarget.blur(); } if (event.key === "Enter") event.currentTarget.blur(); }} placeholder="kg" value={draft} />;
+
+  return (
+    <input
+      ref={inputRef}
+      aria-label={ariaLabel}
+      className="cell-input weight-input"
+      inputMode="decimal"
+      onFocus={() => {
+        isFocusedRef.current = true;
+      }}
+      onBlur={commit}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setDraft(value === null || value === undefined ? "" : String(value));
+          event.currentTarget.blur();
+        }
+        if (event.key === "Enter") event.currentTarget.blur();
+      }}
+      placeholder="kg"
+      value={draft}
+    />
+  );
 }

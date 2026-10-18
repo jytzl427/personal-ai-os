@@ -21,13 +21,29 @@ export function CellText({
 }) {
   const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => setDraft(value), [value]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    const isFocused =
+      isFocusedRef.current ||
+      document.activeElement === textareaRef.current ||
+      document.activeElement === inputRef.current;
+    if (!isFocused) {
+      setDraft(value);
+    }
+  }, [value]);
+
   useEffect(() => {
     if (!multiline || !autoGrow || !textareaRef.current) return;
     textareaRef.current.style.height = "auto";
     textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
   }, [autoGrow, draft, multiline]);
-  const commit = () => onCommit(draft);
+
+  const commit = () => {
+    isFocusedRef.current = false;
+    onCommit(draft);
+  };
   const classNames = ["cell-input", multiline ? "memo-input" : "", className].filter(Boolean).join(" ");
 
   if (multiline) {
@@ -36,6 +52,9 @@ export function CellText({
         aria-label={ariaLabel}
         autoFocus={autoFocus}
         className={classNames}
+        onFocus={() => {
+          isFocusedRef.current = true;
+        }}
         onBlur={commit}
         onChange={(event) => setDraft(event.target.value)}
         onInput={(event) => {
@@ -60,9 +79,13 @@ export function CellText({
 
   return (
     <input
+      ref={inputRef}
       aria-label={ariaLabel}
       autoFocus={autoFocus}
       className={classNames}
+      onFocus={() => {
+        isFocusedRef.current = true;
+      }}
       onBlur={commit}
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => {
