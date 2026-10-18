@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release Desktop Binary
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Web
+        run: pnpm --filter @paios/web build
+
+      - name: Build Desktop Release
+        run: |
+          cd apps/desktop
+          npx tauri build --no-bundle
+
+      - name: Prepare Release Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-release"
+          Copy-Item "apps/desktop/src-tauri/target/release/paios-desktop.exe" -Destination "dist-release/Personal-AI-OS.exe"
+          Compress-Archive -Path "dist-release/Personal-AI-OS.exe" -DestinationPath "dist-release/Personal-AI-OS-windows-x64.zip" -Force
+
+      - name: Publish Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-release/Personal-AI-OS-windows-x64.zip
+            dist-release/Personal-AI-OS.exe

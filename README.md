@@ -5,10 +5,19 @@
 当前状态：本地单用户 Windows 应用已进入可用阶段。数据库、页面、MCP、页内管家计划/复盘/项目推进闭环和单文件 EXE 均已落地。收尾项（统一业务网关抽取、外部 Agent 长流程、前端 E2E、安装包）见 [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md)。
 
 - 接手请先读：[交付手册](docs/交付手册.md)
-- 形态：本机 Web（默认 `127.0.0.1:4738`），同一套界面由 Tauri 打成单文件 EXE
 - `docs/PLAN.md` 和 `docs/plans/` 是历史设计，不是当前待办
 
-## 本地运行
+## 📥 快速下载（免安装绿色版）
+
+无需安装 Node.js 或 Rust 环境，直接下载解压即可开箱即用：
+
+👉 **[前往最新发行版页面 (GitHub Releases v1.1)](https://github.com/jytzl427/personal-ai-os/releases/tag/v1.1)**
+- **推荐下载**：[`Personal-AI-OS-v1.1-windows-x64.zip`](https://github.com/jytzl427/personal-ai-os/releases/download/v1.1/Personal-AI-OS-v1.1-windows-x64.zip)（仅 36.5 MB，解压直接双击运行）
+- **单文件可执行程序**：[`Personal-AI-OS.exe`](https://github.com/jytzl427/personal-ai-os/releases/download/v1.1/Personal-AI-OS.exe)
+
+---
+
+## 🛠️ 从源码开发与本地运行
 
 需要 Node 20+ 和 pnpm。
 
