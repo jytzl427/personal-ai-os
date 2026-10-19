@@ -2685,6 +2685,48 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   color: #2e7d32;
   font-weight: 600;
 }
+.completed-projects-section > .section-heading h2 {
+  color: var(--pine-dark, #154e3f);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.completed-projects-section > .section-heading h2::before {
+  content: "🏆";
+  font-size: 15px;
+}
+.project-card.is-completed {
+  background: linear-gradient(180deg, #fbfdfc 0%, #f4f8f5 100%);
+  border-color: rgba(21, 78, 63, 0.22);
+  box-shadow: 0 2px 8px rgba(21, 78, 63, 0.05);
+}
+.project-card.is-completed:hover {
+  border-color: #154e3f;
+  box-shadow: 0 4px 16px rgba(21, 78, 63, 0.12);
+}
+.project-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.project-card-profit-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(30, 126, 52, 0.09);
+  color: #1e7e34;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border: 1px solid rgba(30, 126, 52, 0.2);
+}
+.project-card-profit-badge.negative {
+  background: rgba(211, 47, 47, 0.09);
+  color: #d32f2f;
+  border-color: rgba(211, 47, 47, 0.2);
+}
 
 @media (max-width: 900px) {
   .project-advancement-meta-panel,

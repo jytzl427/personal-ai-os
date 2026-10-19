@@ -25,6 +25,7 @@ type Project = {
   archive_requested?: number | boolean;
   archived_at?: string | null;
   row_version?: number;
+  finance?: ProjectFinance;
 };
 
 type ProjectTask = {
@@ -60,14 +61,14 @@ const statusLabels: Record<string, string> = {
   planned: "规划中",
   active: "进行中",
   paused: "暂停",
-  done: "已完成",
+  done: "历史完结",
   abandoned: "已放弃",
 };
 
 const maintenanceStatusLabels: Record<string, string> = {
   active: "平稳运营中",
   paused: "暂停维护",
-  done: "已关停",
+  done: "历史完结",
 };
 
 const categoryLabels: Record<string, string> = {
@@ -136,37 +137,64 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
     }
   }
 
-  const advancementProjects = projects.filter((p) => !isMaintenanceProject(p.category));
-  const maintenanceProjects = projects.filter((p) => isMaintenanceProject(p.category));
+  const completedProjects = projects.filter((p) => p.status === "done");
+  const advancementProjects = projects.filter((p) => p.status !== "done" && !isMaintenanceProject(p.category));
+  const maintenanceProjects = projects.filter((p) => p.status !== "done" && isMaintenanceProject(p.category));
 
   function renderProjectCard(project: Project) {
     const isMaint = isMaintenanceProject(project.category);
+    const isCompleted = project.status === "done";
+    const netCents = project.finance?.net_cents ?? 0;
+    const hasFinance = Boolean(project.benefit_enabled && project.finance);
+
     return (
-      <article className="project-card" key={project.id}>
+      <article className={`project-card ${isCompleted ? "is-completed" : ""}`} key={project.id}>
         <button className="project-card-open" onClick={() => onNavigate({ name: "project", id: project.id })} type="button">
           <div className="project-card-top">
-            <Tag tone={statusTone(project.status)}>
-              {isMaint
-                ? (maintenanceStatusLabels[project.status ?? "active"] ?? project.status ?? "平稳运营中")
-                : (statusLabels[project.status ?? "idea"] ?? project.status ?? "想法")}
-            </Tag>
+            <div className="project-card-tags">
+              <Tag tone={statusTone(project.status)}>
+                {isCompleted
+                  ? "历史完结"
+                  : isMaint
+                  ? (maintenanceStatusLabels[project.status ?? "active"] ?? project.status ?? "平稳运营中")
+                  : (statusLabels[project.status ?? "idea"] ?? project.status ?? "想法")}
+              </Tag>
+              {isCompleted ? (
+                <span className="project-card-category-tag">
+                  {categoryLabels[project.category ?? "advancement"] ?? "推进项目"}
+                </span>
+              ) : null}
+            </div>
+            {hasFinance ? (
+              <span className={`project-card-profit-badge ${netCents >= 0 ? "positive" : "negative"}`}>
+                净收益 {netCents >= 0 ? "+" : ""}{(netCents / 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 元
+              </span>
+            ) : null}
           </div>
           <h3>{project.name}</h3>
           <p>
             {isMaint
-              ? (project.description || "尚未设定运营策略。")
-              : (project.target_result || project.description || "尚未设定总目标。")}
+              ? (project.description || (isCompleted ? "项目已平稳运营圆满收官。" : "尚未设定运营策略。"))
+              : (project.target_result || project.description || (isCompleted ? "交付目标已圆满达成收官。" : "尚未设定总目标。"))}
           </p>
           <div className="project-card-meta">
-            <span>{categoryLabels[project.category ?? "advancement"] ?? project.category ?? "推进项目"}</span>
+            {!isCompleted ? (
+              <span>{categoryLabels[project.category ?? "advancement"] ?? project.category ?? "推进项目"}</span>
+            ) : null}
             <span>{project.started_at ? "启动 " + formatDate(project.started_at) : "未设启动时间"}</span>
-            {!isMaint && (
-              <span>{project.target_date ? "预计 " + formatDate(project.target_date) : "未设预计完成"}</span>
+            {isCompleted ? (
+              <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
+            ) : (
+              <>
+                {!isMaint && (
+                  <span>{project.target_date ? "预计 " + formatDate(project.target_date) : "未设预计完成"}</span>
+                )}
+                {!isMaint && project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
+                {project.benefit_enabled ? <span>盈利核算</span> : null}
+              </>
             )}
-            {!isMaint && project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
-            {project.benefit_enabled ? <span>盈利核算</span> : null}
           </div>
-          {!isMaint ? (
+          {!isMaint && !isCompleted ? (
             <div className="progress-track"><span style={{ width: `${Math.max(0, Math.min(100, project.progress_manual ?? 0))}%` }} /></div>
           ) : null}
         </button>
@@ -232,6 +260,22 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
               <div className="panel database-empty">暂无维护项目。</div>
             ) : null}
             {maintenanceProjects.map(renderProjectCard)}
+          </div>
+        </section>
+
+        <section className="project-group-section completed-projects-section">
+          <div className="section-heading">
+            <div>
+              <h2>历史完结项目</h2>
+              <span className="page-meta">圆满收官的里程碑项目，成果永久留存与复盘纪念</span>
+            </div>
+            <span className="page-meta">{completedProjects.length} 个</span>
+          </div>
+          <div className="project-gallery">
+            {completedProjects.length === 0 && !loading ? (
+              <div className="panel database-empty">暂无历史完结项目。项目圆满收官后，可在此永久留存复盘与查看成果。</div>
+            ) : null}
+            {completedProjects.map(renderProjectCard)}
           </div>
         </section>
       </div>
@@ -308,7 +352,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
         const allDone = nextTasks.length > 0 && nextTasks.every((t) => t.status === "done");
         if (allDone && data.project.status !== "done") {
           const confirmComplete = window.confirm(
-            "所有验收节点均已验收通过！\n是否将项目整体标记为“已完成”，并自动填入今天作为实际完成时间？"
+            "所有验收节点均已验收通过！\n是否将项目整体标记为“历史完结”，并自动填入今天作为实际完成时间？"
           );
           if (confirmComplete) {
             const todayStr = new Date().toISOString().slice(0, 10);
@@ -364,6 +408,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
         category: draft.category,
         status: draft.status,
         started_at: draft.started_at || null,
+        end_date: draft.end_date || null,
         benefit_enabled: draft.benefit_enabled === "1",
         archive_requested: draft.archive_requested === "1",
         row_version: data.project.row_version,
@@ -373,7 +418,6 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
       } else {
         payload.target_result = draft.target_result;
         payload.target_date = draft.target_date || null;
-        payload.end_date = draft.end_date || null;
       }
 
       const result = await apiJson<{ project: Project }>(`/projects/${encodeURIComponent(id)}`, jsonRequest("PATCH", payload));
@@ -478,7 +522,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                   <option value="planned">规划中</option>
                   <option value="active">进行中</option>
                   <option value="paused">暂停</option>
-                  <option value="done">已完成</option>
+                  <option value="done">历史完结</option>
                   <option value="abandoned">已放弃</option>
                 </select>
               </label>
@@ -629,7 +673,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <select className="select-input" onChange={(event) => setDraft({ ...draft, status: event.target.value })} value={draft.status ?? "active"}>
                   <option value="active">平稳运营中</option>
                   <option value="paused">暂停维护</option>
-                  <option value="done">已关停</option>
+                  <option value="done">历史完结</option>
                 </select>
               </label>
 
@@ -638,13 +682,29 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <DateField ariaLabel="项目启动时间" onChange={(value) => setDraft({ ...draft, started_at: value })} value={draft.started_at} />
               </label>
 
-              <label className="check-field" style={{ alignSelf: "flex-end", paddingBottom: "8px" }}>
+              <label className="form-field">
+                <span>完结时间</span>
+                <DateField ariaLabel="项目完结时间" onChange={(value) => setDraft({ ...draft, end_date: value })} value={draft.end_date} />
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: "20px", alignItems: "center", marginBottom: "16px" }}>
+              <label className="check-field">
                 <input
                   checked={draft.benefit_enabled === "1"}
                   onChange={(event) => setDraft({ ...draft, benefit_enabled: event.target.checked ? "1" : "0" })}
                   type="checkbox"
                 />
                 开启盈利核算
+              </label>
+
+              <label className="check-field project-archive-check">
+                <input
+                  checked={draft.archive_requested === "1"}
+                  onChange={(event) => setDraft({ ...draft, archive_requested: event.target.checked ? "1" : "0" })}
+                  type="checkbox"
+                />
+                归档项目（需同时设置实际完结时间）
               </label>
             </div>
 
