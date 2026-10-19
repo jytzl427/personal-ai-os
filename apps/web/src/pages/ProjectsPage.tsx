@@ -4,7 +4,7 @@ import { CellText } from "../components/CellText.js";
 import { DateField, formatDate } from "../components/DateField.js";
 import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
-import { Tag, type TagTone } from "../components/Tag.js";
+import { MarkdownView } from "../components/MarkdownView.js";
 import { PlusIcon } from "../components/Icons.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
 import type { Route } from "../lib/route.js";
@@ -66,7 +66,9 @@ const statusLabels: Record<string, string> = {
 };
 
 const maintenanceStatusLabels: Record<string, string> = {
-  active: "平稳运营中",
+  high_energy: "高投入维护",
+  active: "平稳维护",
+  low_energy: "低精力维护",
   paused: "暂停维护",
   done: "历史完结",
 };
@@ -83,11 +85,112 @@ function isMaintenanceProject(category?: string | null): boolean {
   return category === "maintenance" || category === "long_term";
 }
 
-function statusTone(status?: string): TagTone {
-  if (status === "done") return "success";
-  if (status === "active") return "info";
-  if (status === "abandoned") return "danger";
-  return "neutral";
+function formatDateCompact(d?: string | null): string {
+  if (!d) return "--";
+  const clean = d.slice(0, 10).replace(/-/g, ".");
+  const parts = clean.split(".");
+  if (parts.length === 3) {
+    return `${parts[1]}.${parts[2]}`;
+  }
+  return clean;
+}
+
+function getCountdownBadge(targetDateStr?: string | null, isDone?: boolean) {
+  if (isDone) {
+    return { text: "✓ 已收官", tone: "done" };
+  }
+  if (!targetDateStr) {
+    return { text: "未设截止", tone: "muted" };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateStr);
+  target.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { text: `⚠️ 超期 ${Math.abs(diffDays)} 天`, tone: "overdue" };
+  }
+  if (diffDays === 0) {
+    return { text: "🔥 今天截止", tone: "due-today" };
+  }
+  if (diffDays <= 3) {
+    return { text: `⏳ 剩 ${diffDays} 天`, tone: "urgent" };
+  }
+  return { text: `⏳ 剩 ${diffDays} 天`, tone: "normal" };
+}
+
+function renderStatusPill(status: string | undefined, isMaint: boolean, isCompleted: boolean) {
+  if (isCompleted || status === "done") {
+    return (
+      <span className="status-pill status-pill-done">
+        <span className="status-pill-trophy">🏆</span> 历史完结
+      </span>
+    );
+  }
+  if (isMaint) {
+    if (status === "high_energy") {
+      return (
+        <span className="status-pill status-pill-high">
+          <span className="status-pill-icon">🔥</span> 高投入维护
+        </span>
+      );
+    }
+    if (status === "low_energy") {
+      return (
+        <span className="status-pill status-pill-low">
+          <span className="status-pill-dot" /> 低精力维护
+        </span>
+      );
+    }
+    if (status === "paused") {
+      return (
+        <span className="status-pill status-pill-paused">
+          <span className="status-pill-dot" /> 暂停维护
+        </span>
+      );
+    }
+    return (
+      <span className="status-pill status-pill-steady">
+        <span className="status-pill-dot pulsing" /> 平稳维护
+      </span>
+    );
+  }
+
+  // Advancement
+  if (status === "active") {
+    return (
+      <span className="status-pill status-pill-active">
+        <span className="status-pill-dot pulsing" /> 进行中
+      </span>
+    );
+  }
+  if (status === "planned") {
+    return (
+      <span className="status-pill status-pill-planned">
+        <span className="status-pill-dot" /> 规划中
+      </span>
+    );
+  }
+  if (status === "paused") {
+    return (
+      <span className="status-pill status-pill-paused">
+        <span className="status-pill-dot" /> 暂停
+      </span>
+    );
+  }
+  if (status === "abandoned") {
+    return (
+      <span className="status-pill status-pill-abandoned">
+        <span className="status-pill-dot" /> 已放弃
+      </span>
+    );
+  }
+  return (
+    <span className="status-pill status-pill-idea">
+      <span className="status-pill-dot" /> 想法
+    </span>
+  );
 }
 
 export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => void }) {
@@ -146,19 +249,15 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
     const isCompleted = project.status === "done";
     const netCents = project.finance?.net_cents ?? 0;
     const hasFinance = Boolean(project.benefit_enabled && project.finance);
+    const countdown = getCountdownBadge(project.target_date, isCompleted);
+    const progressVal = Math.max(0, Math.min(100, project.progress_manual ?? 0));
 
     return (
       <article className={`project-card ${isCompleted ? "is-completed" : ""}`} key={project.id}>
         <button className="project-card-open" onClick={() => onNavigate({ name: "project", id: project.id })} type="button">
           <div className="project-card-top">
             <div className="project-card-tags">
-              <Tag tone={statusTone(project.status)}>
-                {isCompleted
-                  ? "历史完结"
-                  : isMaint
-                  ? (maintenanceStatusLabels[project.status ?? "active"] ?? project.status ?? "平稳运营中")
-                  : (statusLabels[project.status ?? "idea"] ?? project.status ?? "想法")}
-              </Tag>
+              {renderStatusPill(project.status, isMaint, isCompleted)}
               {isCompleted ? (
                 <span className="project-card-category-tag">
                   {categoryLabels[project.category ?? "advancement"] ?? "推进项目"}
@@ -177,26 +276,39 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
               ? (project.description || (isCompleted ? "项目已平稳运营圆满收官。" : "尚未设定运营策略。"))
               : (project.target_result || project.description || (isCompleted ? "交付目标已圆满达成收官。" : "尚未设定总目标。"))}
           </p>
-          <div className="project-card-meta">
-            {!isCompleted ? (
-              <span>{categoryLabels[project.category ?? "advancement"] ?? project.category ?? "推进项目"}</span>
-            ) : null}
-            <span>{project.started_at ? "启动 " + formatDate(project.started_at) : "未设启动时间"}</span>
-            {isCompleted ? (
-              <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
-            ) : (
-              <>
-                {!isMaint && (
-                  <span>{project.target_date ? "预计 " + formatDate(project.target_date) : "未设预计完成"}</span>
-                )}
-                {!isMaint && project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
-                {project.benefit_enabled ? <span>盈利核算</span> : null}
-              </>
-            )}
-          </div>
           {!isMaint && !isCompleted ? (
-            <div className="progress-track"><span style={{ width: `${Math.max(0, Math.min(100, project.progress_manual ?? 0))}%` }} /></div>
-          ) : null}
+            <div className="project-time-capsule">
+              <div className="time-capsule-row">
+                <span className="time-capsule-span">
+                  📅 {formatDateCompact(project.started_at)} ─ {formatDateCompact(project.target_date)}
+                </span>
+                <span className={`time-capsule-badge tone-${countdown.tone}`}>
+                  {countdown.text}
+                </span>
+              </div>
+              <div className="time-capsule-track">
+                <div className="time-capsule-bar" style={{ width: `${progressVal}%` }} />
+              </div>
+              <div className="time-capsule-footer">
+                <span className="time-capsule-pct">完成度 {progressVal}%</span>
+              </div>
+            </div>
+          ) : (
+            <div className="project-card-meta">
+              {!isCompleted ? (
+                <span>{categoryLabels[project.category ?? "advancement"] ?? project.category ?? "推进项目"}</span>
+              ) : null}
+              <span>{project.started_at ? "启动 " + formatDate(project.started_at) : "未设启动时间"}</span>
+              {isCompleted ? (
+                <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
+              ) : (
+                <>
+                  {project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
+                  {project.benefit_enabled ? <span>盈利核算</span> : null}
+                </>
+              )}
+            </div>
+          )}
         </button>
         <DeleteButton label={`删除项目 ${project.name}`} onClick={() => void deleteProject(project.id)} />
       </article>
@@ -298,6 +410,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   const [savingNotes, setSavingNotes] = useState(false);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [activity, setActivity] = useState("");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
 
   function load() {
     apiJson<{
@@ -470,11 +583,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               : (data.project.target_result || "尚未设定任务总目标。")}
           </p>
         </div>
-        <Tag tone={statusTone(data.project.status)}>
-          {isMaint
-            ? (maintenanceStatusLabels[data.project.status ?? "active"] ?? data.project.status ?? "平稳运营中")
-            : (statusLabels[data.project.status ?? "idea"] ?? data.project.status ?? "想法")}
-        </Tag>
+        {renderStatusPill(data.project.status, isMaint, data.project.status === "done")}
       </section>
 
       {error ? <div className="notice error">{error}</div> : null}
@@ -671,7 +780,9 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               <label className="form-field">
                 <span>运行状态</span>
                 <select className="select-input" onChange={(event) => setDraft({ ...draft, status: event.target.value })} value={draft.status ?? "active"}>
-                  <option value="active">平稳运营中</option>
+                  <option value="high_energy">高投入维护</option>
+                  <option value="active">平稳维护</option>
+                  <option value="low_energy">低精力维护</option>
                   <option value="paused">暂停维护</option>
                   <option value="done">历史完结</option>
                 </select>
@@ -724,20 +835,58 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               <div className="panel-heading project-detail-heading">
                 <div>
                   <h2>维护备忘与 SOP</h2>
-                  <span className="page-meta">记录固定维护标准、账号/服务器配置与巡检要点</span>
+                  <span className="page-meta">记录固定维护标准、账号/配置与巡检要点（支持 Markdown）</span>
                 </div>
-                <span className="muted">{savingNotes ? "保存中…" : "随时记录"}</span>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setIsEditingNotes((prev) => !prev)}
+                    style={{ fontSize: "12px", padding: "4px 10px" }}
+                    type="button"
+                  >
+                    {isEditingNotes ? "👁️ 预览渲染" : "✏️ 编辑 SOP"}
+                  </button>
+                  <span className="muted">{savingNotes ? "保存中…" : "随时记录"}</span>
+                </div>
               </div>
-              <AutoGrowTextarea
-                ariaLabel="维护备忘与 SOP"
-                className="cell-input memo-input large-textarea auto-grow-textarea"
-                onChange={(value) => setWorkspace({ ...workspace, notes: value })}
-                placeholder="记录账号密码、巡检周期、故障处理 SOP、维护要点..."
-                value={workspace.notes ?? ""}
-              />
-              <button className="secondary-button" onClick={() => void saveWorkspaceNotes()} style={{ marginTop: "12px" }} type="button">
-                {savingNotes ? "保存中…" : "保存备忘与 SOP"}
-              </button>
+              {isEditingNotes ? (
+                <>
+                  <AutoGrowTextarea
+                    ariaLabel="维护备忘与 SOP"
+                    className="cell-input memo-input large-textarea auto-grow-textarea md-editor-textarea"
+                    onChange={(value) => setWorkspace({ ...workspace, notes: value })}
+                    placeholder="使用 Markdown 记录账号密码、巡检周期、故障处理 SOP、维护要点...&#10;支持 # 标题、- 列表、**粗体**、`代码` 等"
+                    value={workspace.notes ?? ""}
+                  />
+                  <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                    <button
+                      className="primary-button"
+                      onClick={async () => {
+                        await saveWorkspaceNotes();
+                        setIsEditingNotes(false);
+                      }}
+                      type="button"
+                    >
+                      {savingNotes ? "保存中…" : "保存并完成"}
+                    </button>
+                    <button
+                      className="secondary-button"
+                      onClick={() => setIsEditingNotes(false)}
+                      type="button"
+                    >
+                      返回预览
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="sop-markdown-wrapper"
+                  onClick={() => setIsEditingNotes(true)}
+                  title="点击开始编辑 SOP"
+                >
+                  <MarkdownView content={workspace.notes ?? ""} />
+                </div>
+              )}
             </article>
 
             <article className="panel project-detail-panel">

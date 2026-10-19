@@ -1351,8 +1351,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const data = parsed.data;
     const id = randomUUID();
     const timestamp = now();
+    const initialStatus = data.status ?? (data.category === "maintenance" || data.category === "long_term" ? "active" : "idea");
     const create = context.database.transaction(() => {
-      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'idea', ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
+      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
       const template = projectTemplate(data.template ?? data.category ?? "mid");
       context.database.prepare("INSERT INTO project_workspaces (project_id, introduction, goals, updated_at) VALUES (?, ?, ?, ?)").run(id, template.description, template.default_goal, timestamp);
     });

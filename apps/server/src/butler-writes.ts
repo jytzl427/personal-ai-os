@@ -204,8 +204,9 @@ function writeProject(database: PaiosDatabase, raw: unknown): ButlerWriteOutcome
   if (data.parent_id && !database.prepare("SELECT 1 FROM projects WHERE id = ? AND archived_at IS NULL").get(data.parent_id)) return { source: "项目创建", error: "上级项目不存在" };
   const id = randomUUID();
   const timestamp = now();
+  const initialStatus = data.status ?? (data.category === "maintenance" || data.category === "long_term" ? "active" : "idea");
   database.transaction(() => {
-    database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'idea', ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
+    database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
     const templateText = data.template ?? data.category ?? "mid";
     const template = templateText === "small" ? "小型项目：适合几天到几周完成的具体制作或实验。" : templateText === "long_term" ? "长期/大型项目：适合长期建设、持续维护和逐步产生回报。" : "中型/阶段性项目：适合学习、阶段建设和数周到数月完成。";
     const goal = templateText === "small" ? "明确交付物、完成条件和最小步骤。" : templateText === "long_term" ? "明确长期方向、阶段目标和维护节奏。" : "明确本阶段交付结果，并拆成可执行任务。";

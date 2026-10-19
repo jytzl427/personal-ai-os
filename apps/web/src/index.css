@@ -2728,6 +2728,253 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   border-color: rgba(211, 47, 47, 0.2);
 }
 
+/* ================= 状态胶囊标签体系 ================= */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.status-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: currentColor;
+}
+.status-pill-dot.pulsing {
+  box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
+  animation: status-pulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+@keyframes status-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(46, 125, 50, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+}
+
+.status-pill-active {
+  background: rgba(30, 126, 52, 0.1);
+  color: #1e7e34;
+  border-color: rgba(30, 126, 52, 0.25);
+}
+.status-pill-planned {
+  background: rgba(224, 122, 95, 0.1);
+  color: #c45d3e;
+  border-color: rgba(224, 122, 95, 0.25);
+}
+.status-pill-idea {
+  background: rgba(85, 110, 140, 0.1);
+  color: #486581;
+  border-color: rgba(85, 110, 140, 0.22);
+}
+.status-pill-steady {
+  background: rgba(21, 78, 63, 0.1);
+  color: #154e3f;
+  border-color: rgba(21, 78, 63, 0.25);
+}
+.status-pill-high {
+  background: rgba(230, 81, 0, 0.1);
+  color: #e65100;
+  border-color: rgba(230, 81, 0, 0.25);
+}
+.status-pill-low {
+  background: rgba(0, 150, 136, 0.1);
+  color: #00796b;
+  border-color: rgba(0, 150, 136, 0.25);
+}
+.status-pill-paused {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.22);
+}
+.status-pill-done {
+  background: linear-gradient(135deg, rgba(21, 78, 63, 0.12) 0%, rgba(212, 175, 55, 0.15) 100%);
+  color: #154e3f;
+  border-color: rgba(212, 175, 55, 0.35);
+  font-weight: 700;
+}
+.status-pill-abandoned {
+  background: rgba(150, 150, 150, 0.1);
+  color: #777;
+  border-color: rgba(150, 150, 150, 0.2);
+}
+
+/* ================= 推进项目时间窗与倒计时胶囊（方案 B） ================= */
+.project-time-capsule {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--surface-2, #f5f8f6);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.time-capsule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+}
+.time-capsule-span {
+  color: var(--ink-2, #475569);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.time-capsule-badge {
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.time-capsule-badge.tone-normal {
+  background: rgba(30, 126, 52, 0.1);
+  color: #1e7e34;
+}
+.time-capsule-badge.tone-urgent {
+  background: rgba(230, 81, 0, 0.12);
+  color: #e65100;
+}
+.time-capsule-badge.tone-due-today {
+  background: rgba(211, 47, 47, 0.12);
+  color: #d32f2f;
+}
+.time-capsule-badge.tone-overdue {
+  background: rgba(211, 47, 47, 0.15);
+  color: #b71c1c;
+  font-weight: 800;
+}
+.time-capsule-badge.tone-done {
+  background: rgba(21, 78, 63, 0.12);
+  color: #154e3f;
+}
+.time-capsule-badge.tone-muted {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+.time-capsule-track {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.time-capsule-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #154e3f 0%, #2e7d32 100%);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+.time-capsule-footer {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 11px;
+  color: var(--ink-3, #94a3b8);
+  font-weight: 600;
+}
+
+/* ================= 维护备忘与 SOP Markdown 渲染样式 ================= */
+.sop-markdown-wrapper {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 16px 18px;
+  min-height: 180px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sop-markdown-wrapper:hover {
+  border-color: var(--pine, #154e3f);
+  box-shadow: 0 2px 8px rgba(21, 78, 63, 0.06);
+}
+.markdown-rendered {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink, #1e293b);
+}
+.markdown-rendered.is-empty {
+  color: var(--ink-3, #94a3b8);
+  font-style: italic;
+  padding: 30px 0;
+  text-align: center;
+}
+.markdown-rendered h2.md-h1 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 12px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  color: var(--pine-dark, #154e3f);
+}
+.markdown-rendered h3.md-h2 {
+  font-size: 14.5px;
+  font-weight: 700;
+  margin: 10px 0 4px;
+  color: var(--ink, #1e293b);
+}
+.markdown-rendered h4.md-h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  color: var(--ink-2, #475569);
+}
+.markdown-rendered p.md-paragraph {
+  margin: 6px 0;
+}
+.markdown-rendered ul.md-list,
+.markdown-rendered ol.md-list {
+  margin: 6px 0 10px 20px;
+  padding: 0;
+}
+.markdown-rendered li {
+  margin: 3px 0;
+}
+.markdown-rendered pre.md-code-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: #0f172a;
+  margin: 8px 0;
+}
+.markdown-rendered code.md-inline-code {
+  background: rgba(21, 78, 63, 0.08);
+  color: #154e3f;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+.markdown-rendered blockquote.md-blockquote {
+  border-left: 3px solid var(--pine, #154e3f);
+  padding: 4px 12px;
+  margin: 8px 0;
+  color: var(--ink-2, #475569);
+  background: rgba(21, 78, 63, 0.04);
+  border-radius: 0 4px 4px 0;
+}
+.markdown-rendered hr.md-hr {
+  border: 0;
+  border-top: 1px solid var(--line, #e2e8f0);
+  margin: 12px 0;
+}
+.markdown-rendered a.md-link {
+  color: var(--pine, #154e3f);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @media (max-width: 900px) {
   .project-advancement-meta-panel,
   .project-maintenance-meta-panel,
