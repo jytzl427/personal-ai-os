@@ -95,6 +95,24 @@ function formatDateCompact(d?: string | null): string {
   return clean;
 }
 
+function formatActivityTime(isoStr?: string | null): { date: string; time: string } {
+  if (!isoStr) return { date: "--", time: "" };
+  try {
+    const d = new Date(isoStr);
+    if (Number.isNaN(d.getTime())) return { date: isoStr.slice(0, 10).replace(/-/g, "."), time: "" };
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return {
+      date: `${d.getFullYear()}.${month}.${day}`,
+      time: `${hours}:${minutes}`,
+    };
+  } catch {
+    return { date: isoStr.slice(0, 10).replace(/-/g, "."), time: "" };
+  }
+}
+
 function getCountdownBadge(targetDateStr?: string | null, isDone?: boolean) {
   if (isDone) {
     return { text: "✓ 已收官", tone: "done" };
@@ -410,6 +428,8 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   const [savingNotes, setSavingNotes] = useState(false);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [activity, setActivity] = useState("");
+  const [isMilestone, setIsMilestone] = useState(false);
+  const [savingActivity, setSavingActivity] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
   function load() {
@@ -500,13 +520,29 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   }
 
   async function addActivity() {
-    if (!activity.trim()) return;
+    if (!activity.trim() || savingActivity) return;
+    setSavingActivity(true);
     try {
-      await apiJson(`/projects/${encodeURIComponent(id)}/activities`, jsonRequest("POST", { content: activity.trim() }));
+      await apiJson(
+        `/projects/${encodeURIComponent(id)}/activities`,
+        jsonRequest("POST", { content: activity.trim(), important: isMilestone })
+      );
       setActivity("");
+      setIsMilestone(false);
       load();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "重大事件记录失败");
+    } finally {
+      setSavingActivity(false);
+    }
+  }
+
+  async function deleteActivity(activityId: string) {
+    try {
+      await apiJson(`/projects/${encodeURIComponent(id)}/activities/${encodeURIComponent(activityId)}`, { method: "DELETE" });
+      load();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "重大事件删除失败");
     }
   }
 
@@ -896,29 +932,86 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                   <span className="page-meta">仅记录架构调整、战略变动或关键维护事件时间线</span>
                 </div>
               </div>
-              <div className="project-activity-add" style={{ display: "flex", gap: "8px", alignItems: "flex-end", marginBottom: "16px" }}>
+              <div className="project-activity-composer">
                 <AutoGrowTextarea
-                  ariaLabel="记录重大事件"
-                  className="cell-input memo-input auto-grow-textarea"
+                  ariaLabel="记录重大维护事件"
+                  className="activity-composer-textarea"
                   onChange={setActivity}
-                  placeholder="记录重大事件（例如：完成服务器迁移、调整个税申报方案等）"
+                  onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      void addActivity();
+                    }
+                  }}
+                  placeholder="记录关键架构调整、业务策略变动、重要故障复盘或关键里程碑…&#10;（支持 Ctrl+Enter 快捷提交）"
                   value={activity}
                 />
-                <button className="secondary-button" onClick={() => void addActivity()} style={{ whiteSpace: "nowrap" }} type="button">
-                  记录事件
-                </button>
+                <div className="activity-composer-footer">
+                  <label className="activity-milestone-toggle">
+                    <input
+                      checked={isMilestone}
+                      onChange={(e) => setIsMilestone(e.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>🌟 标记为重大历史里程碑</span>
+                  </label>
+                  <button
+                    className="primary-button activity-submit-btn"
+                    disabled={!activity.trim() || savingActivity}
+                    onClick={() => void addActivity()}
+                    type="button"
+                  >
+                    {savingActivity ? "记录中…" : "➕ 记录事件"}
+                  </button>
+                </div>
               </div>
+
               {data.activities?.length ? (
-                <div className="simple-list">
-                  {data.activities.map((item) => (
-                    <div className="simple-list-row" key={item.id}>
-                      <span>{item.content}</span>
-                      <small>{new Date(item.created_at).toLocaleDateString("zh-CN")}</small>
-                    </div>
-                  ))}
+                <div className="project-activity-stream">
+                  {data.activities.map((item, idx) => {
+                    const isLast = idx === (data.activities?.length ?? 0) - 1;
+                    const isImportant = Boolean(item.important);
+                    const timeInfo = formatActivityTime(item.created_at);
+                    return (
+                      <div className={`activity-timeline-item ${isImportant ? "is-milestone" : ""}`} key={item.id}>
+                        <div className="activity-timeline-axis">
+                          <div className={`activity-node-dot ${isImportant ? "dot-milestone" : ""}`}>
+                            {isImportant ? "★" : null}
+                          </div>
+                          {!isLast && <div className="activity-axis-line" />}
+                        </div>
+                        <div className="activity-card">
+                          <div className="activity-card-header">
+                            <div className="activity-header-left">
+                              <span className="activity-time-badge">
+                                📅 {timeInfo.date} <span className="activity-time-clock">{timeInfo.time}</span>
+                              </span>
+                              {isImportant ? (
+                                <span className="activity-milestone-pill">
+                                  🌟 重大里程碑
+                                </span>
+                              ) : null}
+                            </div>
+                            <DeleteButton
+                              label="删除此条事件记录"
+                              message="确定删除此条重大维护事件记录吗？此操作不可撤销。"
+                              onClick={() => void deleteActivity(item.id)}
+                            />
+                          </div>
+                          <div className="activity-card-body">
+                            {item.content}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="muted">还没有重大维护事件记录。</p>
+                <div className="activity-empty-state">
+                  <span className="activity-empty-icon">📜</span>
+                  <p>暂无重大维护事件记录</p>
+                  <span className="muted">用于沉淀关键战略升级、技术改造、故障排查与里程碑节点</span>
+                </div>
               )}
             </article>
           </div>

@@ -5,13 +5,15 @@ export function AutoGrowTextarea({
   placeholder,
   className = "",
   ariaLabel,
-  onChange
+  onChange,
+  onKeyDown
 }: {
   value: string;
   placeholder?: string;
   className?: string;
   ariaLabel?: string;
   onChange: (value: string) => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -29,6 +31,7 @@ export function AutoGrowTextarea({
       className={className}
       onChange={(event) => onChange(event.target.value)}
       onInput={(event) => resize(event.currentTarget)}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       ref={textareaRef}
       rows={1}

@@ -1482,6 +1482,18 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     return c.json({ ok: true, activities: projectActivities(context.database, projectId) }, 201);
   });
 
+  app.delete("/api/v1/projects/:id/activities/:activityId", async (c) => {
+    const projectId = c.req.param("id");
+    const activityId = c.req.param("activityId");
+    if (!context.database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(projectId)) return notFound(c, "project");
+    if (c.get("agentAuth")) {
+      const rejected = rejectAgentProjectWrite(c, context.database, projectId);
+      if (rejected) return rejected;
+    }
+    context.database.prepare("DELETE FROM project_activity_logs WHERE id = ? AND project_id = ?").run(activityId, projectId);
+    return c.json({ ok: true, activities: projectActivities(context.database, projectId) });
+  });
+
   app.patch("/api/v1/projects/:id", async (c) => {
     const id = c.req.param("id");
     const current = context.database.prepare("SELECT * FROM projects WHERE id = ? AND archived_at IS NULL").get(id) as Record<string, unknown> | undefined;
