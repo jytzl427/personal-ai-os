@@ -101,6 +101,31 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
   const tomorrow = tomorrowObj.toISOString().slice(0, 10);
   const timestamp = new Date().toISOString();
 
+  // Prune uncompleted todos for checkpoints that are now after tomorrow (> tomorrow), or have no due_date, or are done/cancelled
+  const staleLinks = database.prepare(`
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status
+    FROM project_task_plans pt
+    JOIN tasks t ON t.id = pt.todo_task_id
+    LEFT JOIN projects p ON p.id = pt.project_id
+    WHERE pt.todo_task_id IS NOT NULL
+      AND (
+        pt.due_date IS NULL
+        OR pt.due_date > ?
+        OR pt.status IN ('done', 'cancelled')
+        OR pt.archived_at IS NOT NULL
+        OR p.status IN ('done', 'archived')
+        OR p.archived_at IS NOT NULL
+      )
+  `).all(tomorrow) as Array<{ plan_id: string; todo_task_id: string; task_status: string }>;
+
+  for (const stale of staleLinks) {
+    if (stale.task_status === "todo") {
+      database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
+      database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
+    }
+    database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ?, row_version = row_version + 1 WHERE id = ?").run(timestamp, stale.plan_id);
+  }
+
   // Find all active checkpoints due on or before tomorrow (overdue, today, or tomorrow)
   const candidates = database.prepare(`
     SELECT pt.id, pt.project_id, pt.title, pt.description, pt.due_date, pt.todo_task_id, p.name AS project_name

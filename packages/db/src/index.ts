@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS projects (
   benefit_cents INTEGER,
   benefit_kind TEXT NOT NULL DEFAULT 'none',
   archive_requested INTEGER NOT NULL DEFAULT 0,
+  score INTEGER DEFAULT NULL,
   row_version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

@@ -36,6 +36,7 @@ type Project = {
   archived_at?: string | null;
   row_version?: number;
   finance?: ProjectFinance;
+  score?: number | null;
 };
 
 function CheckpointTitleInput({
@@ -386,7 +387,16 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
     }
   }
 
-  const completedProjects = projects.filter((p) => p.status === "done");
+  const completedProjects = projects
+    .filter((p) => p.status === "done")
+    .sort((a, b) => {
+      const scoreA = typeof a.score === "number" ? a.score : -1;
+      const scoreB = typeof b.score === "number" ? b.score : -1;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      return (b.end_date || "").localeCompare(a.end_date || "");
+    });
   const advancementProjects = projects.filter((p) => p.status !== "done" && !isMaintenanceProject(p.category));
   const maintenanceProjects = projects.filter((p) => p.status !== "done" && isMaintenanceProject(p.category));
 
@@ -409,7 +419,7 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
           : Math.max(0, Math.min(100, project.progress ?? 0)));
 
     return (
-      <article className={`project-card ${isCompleted ? "is-completed" : ""} ${urgencyClass}`} key={project.id}>
+      <article className={`project-card ${isCompleted ? "is-completed" : ""} ${isMaint ? "is-maintenance" : ""} ${urgencyClass}`} key={project.id}>
         <button className="project-card-open" onClick={() => onNavigate({ name: "project", id: project.id })} type="button">
           <div className="project-card-top">
             <div className="project-card-tags">
@@ -420,14 +430,26 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
                 </span>
               ) : null}
             </div>
-            {hasFinance ? (
+            {isCompleted ? (
+              project.score !== null && project.score !== undefined ? (
+                <div className="project-score-badge" title={`项目评分：${project.score} 分`}>
+                  <span className="score-icon">🏆</span>
+                  <span className="score-val">{project.score}</span>
+                  <span className="score-suffix">分</span>
+                </div>
+              ) : (
+                <div className="project-score-badge is-unrated" title="尚未打分">
+                  <span className="score-suffix">未打分</span>
+                </div>
+              )
+            ) : hasFinance ? (
               <span className={`project-card-profit-badge ${netCents >= 0 ? "positive" : "negative"}`}>
                 净收益 {netCents >= 0 ? "+" : ""}{(netCents / 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 元
               </span>
             ) : null}
           </div>
-          <h3>{project.name}</h3>
-          <p>
+          <h3 className="project-card-title">{project.name}</h3>
+          <p className="project-card-desc">
             {isMaint
               ? (project.description || (isCompleted ? "项目已平稳运营圆满收官。" : "尚未设定运营策略。"))
               : (project.target_result || project.description || (isCompleted ? "交付目标已圆满达成收官。" : "尚未设定总目标。"))}
@@ -474,27 +496,43 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
                 </div>
               ) : null}
             </div>
+          ) : isCompleted ? (
+            <div className="completed-project-showcase">
+              <div className="showcase-milestones">
+                {project.checkpoint_stats?.total ? (
+                  <span className="showcase-pill checkpoint-pill">
+                    ✨ 全部交付 {project.checkpoint_stats.total} 个验收切片
+                  </span>
+                ) : (
+                  <span className="showcase-pill checkpoint-pill muted">
+                    ✨ 历史成果交付收官
+                  </span>
+                )}
+                {hasFinance ? (
+                  <span className={`showcase-pill finance-pill ${netCents >= 0 ? "positive" : "negative"}`}>
+                    💰 {netCents >= 0 ? "+" : ""}{(netCents / 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 元
+                  </span>
+                ) : null}
+              </div>
+              <div className="showcase-dates">
+                <span>📅 {formatDate(project.started_at)} ─ {formatDate(project.end_date || project.target_date)}</span>
+              </div>
+            </div>
           ) : (
-            <div className="project-card-meta">
-              {!isCompleted ? (
-                <span>{categoryLabels[project.category ?? "advancement"] ?? project.category ?? "推进项目"}</span>
-              ) : null}
-              <span>{project.started_at ? "启动 " + formatDate(project.started_at) : "未设启动时间"}</span>
-              {isCompleted ? (
-                <>
-                  <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
-                  {!isMaint && project.checkpoint_stats?.total ? (
-                    <span className="completed-checkpoints-badge">
-                      🏆 {project.checkpoint_stats.total} 个节点全部交付
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
-                  {project.benefit_enabled ? <span>盈利核算</span> : null}
-                </>
-              )}
+            <div className="maintenance-project-showcase">
+              <div className="maintenance-rhythm-banner">
+                <span className="maintenance-pill">
+                  🔄 持续稳态维护中
+                </span>
+                {hasFinance ? (
+                  <span className={`maintenance-finance-pill ${netCents >= 0 ? "positive" : "negative"}`}>
+                    💰 {netCents >= 0 ? "累计收益" : "净支出"} {(netCents / 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 元
+                  </span>
+                ) : null}
+              </div>
+              <div className="showcase-dates">
+                <span>🌱 启动于 {formatDate(project.started_at)}</span>
+              </div>
             </div>
           )}
         </button>
@@ -623,6 +661,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
           target_result: result.project.target_result ?? "",
           benefit_enabled: result.project.benefit_enabled ? "1" : "0",
           archive_requested: result.project.archive_requested ? "1" : "0",
+          score: result.project.score ?? null,
         });
         setWorkspace(result.workspace ?? {});
       })
@@ -678,35 +717,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     try {
       await apiJson(`/project-task-plans/${encodeURIComponent(task.id)}`, jsonRequest("PATCH", changes));
 
-      // Auto-closure prompt if marking as done and all checkpoints become done
-      if (changes.status === "done" && data) {
-        const nextTasks = (data.project_tasks ?? []).map((t) => (t.id === task.id ? { ...t, status: "done" } : t));
-        const allDone = nextTasks.length > 0 && nextTasks.every((t) => t.status === "done");
-        if (allDone && data.project.status !== "done") {
-          const confirmComplete = window.confirm(
-            "所有验收节点均已验收通过！\n是否将项目整体标记为“历史完结”，并自动填入今天作为实际完成时间？"
-          );
-          if (confirmComplete) {
-            const todayStr = new Date().toISOString().slice(0, 10);
-            await apiJson(
-              `/projects/${encodeURIComponent(id)}`,
-              jsonRequest("PATCH", {
-                name: draft.name,
-                category: draft.category,
-                status: "done",
-                started_at: draft.started_at || null,
-                target_date: draft.target_date || null,
-                end_date: todayStr,
-                target_result: draft.target_result || null,
-                description: draft.description || null,
-                benefit_enabled: draft.benefit_enabled === "1",
-                archive_requested: false,
-                row_version: data.project.row_version,
-              })
-            );
-          }
-        }
-      }
+
       load();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "验收节点更新失败");
@@ -779,6 +790,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
         end_date: nextDraft.end_date || null,
         benefit_enabled: nextDraft.benefit_enabled === "1",
         archive_requested: nextDraft.archive_requested === "1",
+        score: typeof nextDraft.score === "number" ? nextDraft.score : null,
         row_version: data.project.row_version,
       };
       if (isMaint) {
@@ -933,6 +945,29 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <span>实际完成时间</span>
                 <DateField ariaLabel="实际完成时间" onChange={(value) => { setDraft({ ...draft, end_date: value }); void saveField({ end_date: value }); }} value={draft.end_date} />
               </label>
+
+              <label className="form-field">
+                <span>项目评分 (0~100 分)</span>
+                <div className="score-input-wrapper">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="text-input score-input"
+                    placeholder="未打分 (满分 100)"
+                    value={draft.score ?? ""}
+                    onChange={(event) => {
+                      const val = event.target.value === "" ? null : Math.max(0, Math.min(100, Number(event.target.value)));
+                      setDraft({ ...draft, score: val });
+                    }}
+                    onBlur={() => {
+                      void saveField({ score: draft.score ?? null });
+                    }}
+                  />
+                  <span className="score-input-suffix">分</span>
+                </div>
+              </label>
             </div>
 
             <label className="check-field project-archive-check">
@@ -947,7 +982,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             <div className="panel-heading project-detail-heading">
               <div>
                 <h2>验收节点推进</h2>
-                <span className="page-meta">按交付物切片顺序逐步推进验收，全部节点交付将触发完工闭环。</span>
+                <span className="page-meta">按交付物切片顺序逐步推进验收。全部节点验收后，可由您自主在基本信息中将项目调整为历史完结并打分。</span>
               </div>
               <span className="checkpoint-counter-badge">
                 {completedCheckpoints} / {checkpoints.length} 已验收 ({checkpoints.length > 0 ? Math.round((completedCheckpoints / checkpoints.length) * 100) : 0}%)
@@ -1122,6 +1157,29 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               <label className="form-field">
                 <span>完结时间</span>
                 <DateField ariaLabel="项目完结时间" onChange={(value) => setDraft({ ...draft, end_date: value })} value={draft.end_date} />
+              </label>
+
+              <label className="form-field">
+                <span>项目评分 (0~100 分)</span>
+                <div className="score-input-wrapper">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="text-input score-input"
+                    placeholder="未打分 (满分 100)"
+                    value={draft.score ?? ""}
+                    onChange={(event) => {
+                      const val = event.target.value === "" ? null : Math.max(0, Math.min(100, Number(event.target.value)));
+                      setDraft({ ...draft, score: val });
+                    }}
+                    onBlur={() => {
+                      void saveField({ score: draft.score ?? null });
+                    }}
+                  />
+                  <span className="score-input-suffix">分</span>
+                </div>
               </label>
             </div>
 

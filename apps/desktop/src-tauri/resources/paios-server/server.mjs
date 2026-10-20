@@ -8431,6 +8431,7 @@ CREATE TABLE IF NOT EXISTS projects (
   benefit_cents INTEGER,
   benefit_kind TEXT NOT NULL DEFAULT 'none',
   archive_requested INTEGER NOT NULL DEFAULT 0,
+  score INTEGER DEFAULT NULL,
   row_version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -16209,7 +16210,7 @@ var createTaskRecurrenceSchema = external_exports.object({ title_template: exter
 var patchTaskRecurrenceSchema = createTaskRecurrenceSchema.partial().extend({ enabled: external_exports.union([external_exports.boolean(), external_exports.number().int().min(0).max(1)]).optional(), title_template: external_exports.string().max(200).optional(), description_template: external_exports.string().max(1e4).optional(), content_template: external_exports.string().max(1e4).optional(), row_version: external_exports.number().int().positive().optional() });
 var projectCategorySchema = external_exports.enum(["advancement", "maintenance", "small", "mid", "long_term"]);
 var projectStatusSchema = external_exports.enum(["idea", "planned", "active", "paused", "done", "abandoned", "high_energy", "low_energy"]);
-var createProjectSchema = external_exports.object({ name: external_exports.string().trim().min(1).max(200), description: external_exports.string().max(1e4).optional(), parent_id: external_exports.string().min(1).nullable().optional(), category: projectCategorySchema.optional(), template: projectCategorySchema.optional(), status: projectStatusSchema.optional(), started_at: dateSchema().nullable().optional(), target_date: dateSchema().nullable().optional(), end_date: dateSchema().nullable().optional(), target_result: external_exports.string().max(1e4).optional(), priority: prioritySchema.optional(), benefit_enabled: external_exports.union([external_exports.boolean(), external_exports.number().int().min(0).max(1), external_exports.string()]).transform((v) => v === true || v === 1 || v === "1" || v === "true").optional(), benefit_cents: external_exports.number().int().nonnegative().nullable().optional(), benefit_kind: external_exports.enum(["none", "possible", "definite", "certain"]).optional() });
+var createProjectSchema = external_exports.object({ name: external_exports.string().trim().min(1).max(200), description: external_exports.string().max(1e4).optional(), parent_id: external_exports.string().min(1).nullable().optional(), category: projectCategorySchema.optional(), template: projectCategorySchema.optional(), status: projectStatusSchema.optional(), started_at: dateSchema().nullable().optional(), target_date: dateSchema().nullable().optional(), end_date: dateSchema().nullable().optional(), target_result: external_exports.string().max(1e4).optional(), priority: prioritySchema.optional(), benefit_enabled: external_exports.union([external_exports.boolean(), external_exports.number().int().min(0).max(1), external_exports.string()]).transform((v) => v === true || v === 1 || v === "1" || v === "true").optional(), benefit_cents: external_exports.number().int().nonnegative().nullable().optional(), benefit_kind: external_exports.enum(["none", "possible", "definite", "certain"]).optional(), score: external_exports.number().int().min(0).max(100).nullable().optional() });
 var patchProjectSchema = createProjectSchema.partial().extend({ status: projectStatusSchema.optional(), progress_manual: external_exports.number().int().min(0).max(100).nullable().optional(), archive_requested: archiveRequestedSchema.optional(), row_version: external_exports.number().int().positive().optional() });
 var financeCategorySchema = external_exports.string().trim().min(1).max(100);
 var financeEntrySchema = external_exports.object({ account_id: external_exports.string().min(1).optional(), amount_cents: external_exports.number().int().positive(), currency: external_exports.string().trim().min(1).max(10).optional(), category: external_exports.string().trim().min(1).max(200).optional(), category_major: financeCategorySchema.optional(), category_minor: financeCategorySchema.optional(), project_id: external_exports.string().min(1).nullable().optional(), event: external_exports.string().max(1e4).optional(), note: external_exports.string().max(1e4).optional(), occurred_date: dateSchema().optional(), quick_button_id: external_exports.string().min(1).optional() });
@@ -17318,6 +17319,28 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
   const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
   const tomorrow2 = tomorrowObj.toISOString().slice(0, 10);
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  const staleLinks = database.prepare(`
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status
+    FROM project_task_plans pt
+    JOIN tasks t ON t.id = pt.todo_task_id
+    LEFT JOIN projects p ON p.id = pt.project_id
+    WHERE pt.todo_task_id IS NOT NULL
+      AND (
+        pt.due_date IS NULL
+        OR pt.due_date > ?
+        OR pt.status IN ('done', 'cancelled')
+        OR pt.archived_at IS NOT NULL
+        OR p.status IN ('done', 'archived')
+        OR p.archived_at IS NOT NULL
+      )
+  `).all(tomorrow2);
+  for (const stale of staleLinks) {
+    if (stale.task_status === "todo") {
+      database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
+      database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
+    }
+    database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ?, row_version = row_version + 1 WHERE id = ?").run(timestamp, stale.plan_id);
+  }
   const candidates = database.prepare(`
     SELECT pt.id, pt.project_id, pt.title, pt.description, pt.due_date, pt.todo_task_id, p.name AS project_name
     FROM project_task_plans pt
@@ -20679,6 +20702,10 @@ function createApp(context) {
     return c.json({ ok: true });
   });
   app.get("/api/v1/projects", (c) => {
+    try {
+      syncUpcomingCheckpointsToTodos(context.database);
+    } catch {
+    }
     const projects = context.database.prepare("SELECT * FROM projects WHERE archived_at IS NULL ORDER BY started_at IS NULL, started_at DESC, end_date IS NULL, end_date ASC, created_at DESC").all();
     const result3 = projects.map((project) => {
       const planCounts = context.database.prepare(`SELECT COUNT(id) AS total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed
@@ -20724,7 +20751,7 @@ function createApp(context) {
     const timestamp = now4();
     const initialStatus = data.status ?? (data.category === "maintenance" || data.category === "long_term" ? "active" : "idea");
     const create = context.database.transaction(() => {
-      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
+      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, score, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", data.score ?? null, timestamp, timestamp);
       const template = projectTemplate(data.template ?? data.category ?? "mid");
       context.database.prepare("INSERT INTO project_workspaces (project_id, introduction, goals, updated_at) VALUES (?, ?, ?, ?)").run(id, template.description, template.default_goal, timestamp);
     });
@@ -20798,15 +20825,28 @@ function createApp(context) {
       return c.json({ ok: false, error: { code: "FORBIDDEN", message: "Agents cannot trigger project task archiving; use the human UI" } }, 403);
     }
     const timestamp = now4();
+    const timezone = "Asia/Shanghai";
+    const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
+    const tomorrowStr = new Date(Date.parse(todayStr + "T00:00:00+08:00") + 864e5).toLocaleDateString("en-CA", { timeZone: timezone });
+    const dueDate = body.due_date === void 0 ? current.due_date ?? null : body.due_date;
+    const isDueWithinTwoDays = typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
     let todoTaskId = typeof current.todo_task_id === "string" ? current.todo_task_id : null;
     const write = context.database.transaction(() => {
-      if (body.add_to_todo === true && !todoTaskId) {
+      if ((!dueDate || dueDate > tomorrowStr || status === "done" || status === "cancelled") && todoTaskId) {
+        const existingTask = context.database.prepare("SELECT status FROM tasks WHERE id = ?").get(todoTaskId);
+        if (existingTask && existingTask.status === "todo") {
+          context.database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(todoTaskId);
+          context.database.prepare("DELETE FROM tasks WHERE id = ?").run(todoTaskId);
+        }
+        todoTaskId = null;
+      } else if ((body.add_to_todo === true || isDueWithinTwoDays) && !todoTaskId && status !== "done" && status !== "cancelled") {
         todoTaskId = randomUUID10();
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), body.due_date ?? current.due_date ?? null, timestamp, timestamp);
+        const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
+        const priority = isDueTodayOrOverdue ? "P1" : "P2";
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), priority, dueDate, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "\u9879\u76EE\u4EFB\u52A1\u5DF2\u52A0\u5165\u5F85\u529E\uFF1A" + title, false, timestamp);
       }
-      const dueDate = body.due_date === void 0 ? current.due_date ?? null : body.due_date;
       const description = body.description === void 0 ? String(current.description ?? "") : String(body.description);
       const completedAt = status === "done" ? typeof body.completed_at === "string" ? body.completed_at : current.completed_at ?? timestamp : null;
       context.database.prepare("UPDATE project_task_plans SET title = ?, description = ?, due_date = ?, status = ?, todo_task_id = ?, archive_requested = ?, updated_at = ?, completed_at = ?, row_version = row_version + 1 WHERE id = ?").run(title, description, dueDate, status, todoTaskId, nextArchiveRequested, timestamp, completedAt, id);
@@ -20953,8 +20993,9 @@ function createApp(context) {
     const nextTargetDate = data.target_date === void 0 ? current.target_date : data.target_date;
     if (nextArchiveRequested && !nextEndDate)
       return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "\u9879\u76EE\u5F52\u6863\u524D\u5FC5\u987B\u8BBE\u7F6E\u7ED3\u675F\u65F6\u95F4" } }, 400);
-    const result3 = context.database.prepare(`UPDATE projects SET parent_id = ?, name = ?, category = ?, started_at = ?, target_date = ?, end_date = ?, target_result = ?, description = ?, status = ?, priority = ?, benefit_enabled = ?, benefit_cents = ?, benefit_kind = ?, progress_manual = ?, archive_requested = ?, updated_at = ?, row_version = row_version + 1
-       WHERE id = ? AND row_version = ? AND archived_at IS NULL`).run(data.parent_id === void 0 ? current.parent_id : data.parent_id, data.name ?? current.name, data.category ?? current.category, data.started_at === void 0 ? current.started_at : data.started_at, nextTargetDate, nextEndDate, data.target_result ?? current.target_result, data.description ?? current.description, data.status ?? current.status, data.priority ?? current.priority, data.benefit_enabled === void 0 ? current.benefit_enabled : data.benefit_enabled ? 1 : 0, data.benefit_cents === void 0 ? current.benefit_cents : data.benefit_cents, data.benefit_kind ?? current.benefit_kind, data.progress_manual === void 0 ? current.progress_manual : data.progress_manual, nextArchiveRequested, now4(), id, current.row_version);
+    const nextScore = data.score === void 0 ? current.score ?? null : data.score;
+    const result3 = context.database.prepare(`UPDATE projects SET parent_id = ?, name = ?, category = ?, started_at = ?, target_date = ?, end_date = ?, target_result = ?, description = ?, status = ?, priority = ?, benefit_enabled = ?, benefit_cents = ?, benefit_kind = ?, progress_manual = ?, score = ?, archive_requested = ?, updated_at = ?, row_version = row_version + 1
+       WHERE id = ? AND row_version = ? AND archived_at IS NULL`).run(data.parent_id === void 0 ? current.parent_id : data.parent_id, data.name ?? current.name, data.category ?? current.category, data.started_at === void 0 ? current.started_at : data.started_at, nextTargetDate, nextEndDate, data.target_result ?? current.target_result, data.description ?? current.description, data.status ?? current.status, data.priority ?? current.priority, data.benefit_enabled === void 0 ? current.benefit_enabled : data.benefit_enabled ? 1 : 0, data.benefit_cents === void 0 ? current.benefit_cents : data.benefit_cents, data.benefit_kind ?? current.benefit_kind, data.progress_manual === void 0 ? current.progress_manual : data.progress_manual, nextScore, nextArchiveRequested, now4(), id, current.row_version);
     if (result3.changes !== 1)
       return c.json({ ok: false, error: { code: "STALE_VERSION", message: "Project was changed by another operation" } }, 409);
     if (nextArchiveRequested && nextEndDate)
@@ -21734,6 +21775,10 @@ function createApp(context) {
   app.get("/api/v1/today", (c) => {
     const timezone = getSetting(context.database, "timezone", "Asia/Shanghai");
     const date3 = localDateInTimezone(timezone);
+    try {
+      syncUpcomingCheckpointsToTodos(context.database, date3);
+    } catch {
+    }
     const start = monthStart(date3);
     const todayTasks = context.database.prepare(`SELECT id, title, description, content, status, due_date, scheduled_date, recurrence_date, updated_at
        FROM tasks
@@ -21825,6 +21870,10 @@ function createApp(context) {
     return c.json({ ok: true });
   });
   app.get("/api/v1/tasks", (c) => {
+    try {
+      syncUpcomingCheckpointsToTodos(context.database);
+    } catch {
+    }
     const archived = parseArchivedFilter(c);
     if (archived instanceof Response)
       return archived;

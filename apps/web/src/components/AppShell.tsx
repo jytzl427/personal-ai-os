@@ -131,7 +131,7 @@ export function AppShell({
             title={collapsed ? "展开侧边栏" : "收起侧边栏"}
             type="button"
           >
-            {collapsed ? "»" : "«"}
+            <span className="collapse-toggle-icon">{collapsed ? "❯" : "❮"}</span>
           </button>
         </div>
 

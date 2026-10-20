@@ -127,32 +127,54 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 
 .sidebar-collapse-toggle {
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 15px;
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--line, #e2e8f0);
+  font-size: 14px;
   line-height: 1;
-  color: var(--ink-3, #94a3b8);
+  color: var(--ink-2, #64748b);
   cursor: pointer;
-  padding: 4px 7px;
-  border-radius: var(--radius-sm, 6px);
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--radius-md, 8px);
   margin-left: auto;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .sidebar-collapse-toggle:hover {
-  background: var(--surface-2, #f1f5f9);
-  border-color: var(--line, #e2e8f0);
-  color: var(--ink, #1e293b);
+  background: #ffffff;
+  border-color: var(--pine, #154e3f);
+  color: var(--pine, #154e3f);
+  box-shadow: 0 2px 8px rgba(21, 78, 63, 0.12);
+  transform: scale(1.06);
+}
+
+.sidebar-collapse-toggle:active {
+  transform: scale(0.96);
+}
+
+.collapse-toggle-icon {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: block;
 }
 
 .sidebar.is-collapsed .sidebar-collapse-toggle {
-  margin-left: 0;
-  margin-top: 6px;
-  font-size: 13px;
-  padding: 3px 6px;
+  margin: 6px auto 0 auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.sidebar.is-collapsed .collapse-toggle-icon {
+  font-size: 15px;
 }
 
 .sidebar.is-collapsed .main-nav {
@@ -1472,7 +1494,20 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .project-card > .delete-button { position: absolute; right: 14px; bottom: 14px; }
 .project-card-top { display: flex; justify-content: space-between; align-items: center; }
 .project-card h3 { margin-top: 12px; font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
-.project-card p { flex: 1; color: var(--ink-2); font-size: 13px; line-height: 1.6; margin-top: 8px; }
+.project-card p,
+.project-card .project-card-desc {
+  flex: 1;
+  color: var(--ink-2, #475569);
+  font-size: 13.5px;
+  line-height: 1.62;
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 2.6em;
+}
 .project-card-meta {
   display: flex;
   justify-content: space-between;
@@ -4119,3 +4154,177 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   font-size: 11px;
 }
 
+
+/* ================= 历史项目评分徽章与卡片重构 ================= */
+.project-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.12);
+  white-space: nowrap;
+}
+
+.project-score-badge .score-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.project-score-badge .score-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: #92400e;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.project-score-badge .score-suffix {
+  font-size: 11.5px;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.project-score-badge.is-unrated {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--ink-3, #94a3b8);
+  border: 1px dashed var(--line, #cbd5e1);
+  box-shadow: none;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+}
+
+.completed-project-showcase {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(21, 78, 63, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.maintenance-project-showcase {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.showcase-milestones,
+.maintenance-rhythm-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.showcase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm, 6px);
+  line-height: 1.4;
+}
+
+.showcase-pill.checkpoint-pill {
+  background: rgba(21, 78, 63, 0.08);
+  color: #154e3f;
+  border: 1px solid rgba(21, 78, 63, 0.18);
+}
+
+.showcase-pill.checkpoint-pill.muted {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--ink-3, #64748b);
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.showcase-pill.finance-pill.positive {
+  background: rgba(30, 126, 52, 0.08);
+  color: #166534;
+  border: 1px solid rgba(30, 126, 52, 0.2);
+}
+
+.showcase-pill.finance-pill.negative {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.maintenance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(59, 130, 246, 0.08);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  line-height: 1.4;
+}
+
+.maintenance-finance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm, 6px);
+  line-height: 1.4;
+}
+
+.maintenance-finance-pill.positive {
+  background: rgba(30, 126, 52, 0.08);
+  color: #166534;
+  border: 1px solid rgba(30, 126, 52, 0.2);
+}
+
+.maintenance-finance-pill.negative {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.showcase-dates {
+  font-size: 12.5px;
+  color: var(--ink-3, #64748b);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.score-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 170px;
+}
+
+.score-input {
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.score-input-suffix {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2, #475569);
+}

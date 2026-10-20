@@ -1334,6 +1334,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   });
 
   app.get("/api/v1/projects", (c) => {
+    try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
     const projects = context.database.prepare("SELECT * FROM projects WHERE archived_at IS NULL ORDER BY started_at IS NULL, started_at DESC, end_date IS NULL, end_date ASC, created_at DESC").all() as Array<Record<string, unknown>>;
     const result = projects.map((project) => {
       const planCounts = context.database.prepare(
@@ -1390,7 +1391,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const timestamp = now();
     const initialStatus = data.status ?? (data.category === "maintenance" || data.category === "long_term" ? "active" : "idea");
     const create = context.database.transaction(() => {
-      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", timestamp, timestamp);
+      context.database.prepare("INSERT INTO projects (id, parent_id, name, category, started_at, target_date, end_date, target_result, description, status, priority, benefit_enabled, benefit_cents, benefit_kind, score, archive_requested, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)").run(id, data.parent_id ?? null, data.name, data.category ?? "mid", data.started_at ?? null, data.target_date ?? null, data.end_date ?? null, data.target_result ?? "", data.description ?? "", initialStatus, data.priority ?? "P2", data.benefit_enabled ? 1 : 0, data.benefit_cents ?? null, data.benefit_kind ?? "none", data.score ?? null, timestamp, timestamp);
       const template = projectTemplate(data.template ?? data.category ?? "mid");
       context.database.prepare("INSERT INTO project_workspaces (project_id, introduction, goals, updated_at) VALUES (?, ?, ?, ?)").run(id, template.description, template.default_goal, timestamp);
     });
@@ -1457,15 +1458,31 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
       return c.json({ ok: false, error: { code: "FORBIDDEN", message: "Agents cannot trigger project task archiving; use the human UI" } }, 403);
     }
     const timestamp = now();
+    const timezone = "Asia/Shanghai";
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: timezone });
+    const tomorrowStr = new Date(Date.parse(todayStr + "T00:00:00+08:00") + 86400000).toLocaleDateString("en-CA", { timeZone: timezone });
+    const dueDate = body.due_date === undefined ? (current.due_date as string | null ?? null) : (body.due_date as string | null);
+    const isDueWithinTwoDays = typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
+
     let todoTaskId = typeof current.todo_task_id === "string" ? current.todo_task_id : null;
     const write = context.database.transaction(() => {
-      if (body.add_to_todo === true && !todoTaskId) {
+      // If dueDate is moved to after tomorrow (> tomorrowStr), cleared (null), or task is done/cancelled:
+      // Remove from active todos if still uncompleted
+      if ((!dueDate || dueDate > tomorrowStr || status === "done" || status === "cancelled") && todoTaskId) {
+        const existingTask = context.database.prepare("SELECT status FROM tasks WHERE id = ?").get(todoTaskId) as { status: string } | undefined;
+        if (existingTask && existingTask.status === "todo") {
+          context.database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(todoTaskId);
+          context.database.prepare("DELETE FROM tasks WHERE id = ?").run(todoTaskId);
+        }
+        todoTaskId = null;
+      } else if ((body.add_to_todo === true || isDueWithinTwoDays) && !todoTaskId && status !== "done" && status !== "cancelled") {
         todoTaskId = randomUUID();
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), body.due_date ?? current.due_date ?? null, timestamp, timestamp);
+        const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
+        const priority = isDueTodayOrOverdue ? "P1" : "P2";
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), priority, dueDate, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "项目任务已加入待办：" + title, false, timestamp);
       }
-      const dueDate = body.due_date === undefined ? current.due_date ?? null : body.due_date;
       const description = body.description === undefined ? String(current.description ?? "") : String(body.description);
       const completedAt = status === "done" ? (typeof body.completed_at === "string" ? body.completed_at : (current.completed_at ?? timestamp)) : null;
       context.database.prepare("UPDATE project_task_plans SET title = ?, description = ?, due_date = ?, status = ?, todo_task_id = ?, archive_requested = ?, updated_at = ?, completed_at = ?, row_version = row_version + 1 WHERE id = ?").run(title, description, dueDate, status, todoTaskId, nextArchiveRequested, timestamp, completedAt, id);
@@ -1601,10 +1618,11 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const nextEndDate = data.end_date === undefined ? current.end_date : data.end_date;
     const nextTargetDate = data.target_date === undefined ? current.target_date : data.target_date;
     if (nextArchiveRequested && !nextEndDate) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "项目归档前必须设置结束时间" } }, 400);
+    const nextScore = data.score === undefined ? (current.score as number | null ?? null) : data.score;
     const result = context.database.prepare(
-      `UPDATE projects SET parent_id = ?, name = ?, category = ?, started_at = ?, target_date = ?, end_date = ?, target_result = ?, description = ?, status = ?, priority = ?, benefit_enabled = ?, benefit_cents = ?, benefit_kind = ?, progress_manual = ?, archive_requested = ?, updated_at = ?, row_version = row_version + 1
+      `UPDATE projects SET parent_id = ?, name = ?, category = ?, started_at = ?, target_date = ?, end_date = ?, target_result = ?, description = ?, status = ?, priority = ?, benefit_enabled = ?, benefit_cents = ?, benefit_kind = ?, progress_manual = ?, score = ?, archive_requested = ?, updated_at = ?, row_version = row_version + 1
        WHERE id = ? AND row_version = ? AND archived_at IS NULL`
-    ).run(data.parent_id === undefined ? current.parent_id : data.parent_id, data.name ?? current.name, data.category ?? current.category, data.started_at === undefined ? current.started_at : data.started_at, nextTargetDate, nextEndDate, data.target_result ?? current.target_result, data.description ?? current.description, data.status ?? current.status, data.priority ?? current.priority, data.benefit_enabled === undefined ? current.benefit_enabled : (data.benefit_enabled ? 1 : 0), data.benefit_cents === undefined ? current.benefit_cents : data.benefit_cents, data.benefit_kind ?? current.benefit_kind, data.progress_manual === undefined ? current.progress_manual : data.progress_manual, nextArchiveRequested, now(), id, current.row_version);
+    ).run(data.parent_id === undefined ? current.parent_id : data.parent_id, data.name ?? current.name, data.category ?? current.category, data.started_at === undefined ? current.started_at : data.started_at, nextTargetDate, nextEndDate, data.target_result ?? current.target_result, data.description ?? current.description, data.status ?? current.status, data.priority ?? current.priority, data.benefit_enabled === undefined ? current.benefit_enabled : (data.benefit_enabled ? 1 : 0), data.benefit_cents === undefined ? current.benefit_cents : data.benefit_cents, data.benefit_kind ?? current.benefit_kind, data.progress_manual === undefined ? current.progress_manual : data.progress_manual, nextScore, nextArchiveRequested, now(), id, current.row_version);
     if (result.changes !== 1) return c.json({ ok: false, error: { code: "STALE_VERSION", message: "Project was changed by another operation" } }, 409);
     if (nextArchiveRequested && nextEndDate) context.database.prepare("UPDATE projects SET archived_at = ?, archive_reason = 'auto', archived_by = 'user', updated_at = ? WHERE id = ? AND archived_at IS NULL").run(now(), now(), id);
     return c.json({ ok: true, project: context.database.prepare("SELECT * FROM projects WHERE id = ?").get(id) });
@@ -2368,6 +2386,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   app.get("/api/v1/today", (c) => {
     const timezone = getSetting(context.database, "timezone", "Asia/Shanghai");
     const date = localDateInTimezone(timezone);
+    try { syncUpcomingCheckpointsToTodos(context.database, date); } catch {}
     const start = monthStart(date);
     const todayTasks = context.database.prepare(
       `SELECT id, title, description, content, status, due_date, scheduled_date, recurrence_date, updated_at
@@ -2479,6 +2498,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   });
 
   app.get("/api/v1/tasks", (c) => {
+    try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
     const archived = parseArchivedFilter(c);
     if (archived instanceof Response) return archived;
     const date = c.req.query("date");
