@@ -1111,7 +1111,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                             />
                           </div>
                           <div className="activity-card-body">
-                            {item.content}
+                            <MarkdownView content={item.content} emptyPlaceholder="" />
                           </div>
                         </div>
                       </div>

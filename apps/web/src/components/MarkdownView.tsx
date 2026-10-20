@@ -2,9 +2,12 @@ import React from "react";
 
 function renderInline(text: string): React.ReactNode[] {
   // Regex to split on bold, inline code, links, italic, strikethrough
-  const tokens = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|~~[^~]+~~|\*[^*]+\*)/g);
+  const tokens = text.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\)|~~[^~]+~~|\*[^*]+\*)/g);
   return tokens.map((tok, idx) => {
     if (tok.startsWith("**") && tok.endsWith("**") && tok.length >= 4) {
+      return <strong key={idx}>{tok.slice(2, -2)}</strong>;
+    }
+    if (tok.startsWith("__") && tok.endsWith("__") && tok.length >= 4) {
       return <strong key={idx}>{tok.slice(2, -2)}</strong>;
     }
     if (tok.startsWith("`") && tok.endsWith("`") && tok.length >= 2) {
@@ -30,9 +33,17 @@ function renderInline(text: string): React.ReactNode[] {
   });
 }
 
-export function MarkdownView({ content, className = "" }: { content: string; className?: string }) {
+export function MarkdownView({
+  content,
+  className = "",
+  emptyPlaceholder = "暂无内容。点击“编辑 SOP”开始撰写。"
+}: {
+  content: string;
+  className?: string;
+  emptyPlaceholder?: string;
+}) {
   if (!content.trim()) {
-    return <div className={`markdown-rendered is-empty ${className}`}>暂无内容。点击“编辑 SOP”开始撰写。</div>;
+    return emptyPlaceholder ? <div className={`markdown-rendered is-empty ${className}`}>{emptyPlaceholder}</div> : null;
   }
 
   const lines = content.replace(/\r\n/g, "\n").split("\n");

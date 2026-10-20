@@ -49,7 +49,8 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-pill: 9999px;
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Cascadia Code", monospace;
   --sidebar: 232px;
   font-family: var(--font);
   color: var(--ink);
@@ -3507,16 +3508,65 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   border-color: #e2e8f0;
 }
 
-/* Beautiful comfortable typography */
+/* Beautiful comfortable typography & Markdown support */
 .activity-card-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  font-size: 13.5px;
-  line-height: 1.7;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.68;
   color: #1e293b;
-  letter-spacing: 0.012em;
+  letter-spacing: 0.005em;
   word-break: break-word;
   overflow-wrap: break-word;
-  white-space: pre-wrap;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.activity-card-body .markdown-rendered {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.68;
+  color: #1e293b;
+}
+
+.activity-card-body .markdown-rendered p.md-paragraph {
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.68;
+}
+
+.activity-card-body .markdown-rendered p.md-paragraph:first-child {
+  margin-top: 0;
+}
+
+.activity-card-body .markdown-rendered p.md-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.activity-card-body .markdown-rendered strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.activity-card-body .markdown-rendered code.md-inline-code {
+  background: rgba(21, 78, 63, 0.08);
+  color: #154e3f;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.activity-card-body .markdown-rendered ul.md-list,
+.activity-card-body .markdown-rendered ol.md-list {
+  margin: 6px 0 6px 20px;
+  padding: 0;
+}
+
+.activity-card-body .markdown-rendered li {
+  margin: 2px 0;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 /* Empty state */
