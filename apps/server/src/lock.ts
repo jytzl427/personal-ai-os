@@ -18,31 +18,49 @@ export class SingleWriterLock {
   static acquire(dataDir: string): SingleWriterLock {
     mkdirSync(dataDir, { recursive: true });
     const path = join(dataDir, "paios.lock");
-    if (existsSync(path)) {
-      const ageMs = Date.now() - statSync(path).mtimeMs;
-      const lockContent = readFileSync(path, "utf8").trim();
-      const ownerPid = Number.parseInt(lockContent, 10);
-      if (processIsAlive(ownerPid) || (!Number.isSafeInteger(ownerPid) && ageMs <= 10_000)) {
-        throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (existsSync(path)) {
+        let lockContent = "";
+        try {
+          lockContent = readFileSync(path, "utf8").trim();
+        } catch {}
+        const ownerPid = Number.parseInt(lockContent, 10);
+        const ageMs = Date.now() - (statSync(path, { throwIfNoEntry: false })?.mtimeMs ?? 0);
+        if (processIsAlive(ownerPid)) {
+          if (ageMs > 10_000) {
+            try { unlinkSync(path); } catch {}
+          } else {
+            throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
+          }
+        } else {
+          try { unlinkSync(path); } catch {}
+        }
       }
-      unlinkSync(path);
-    }
-    let fd: number;
-    try {
-      fd = openSync(path, "wx");
-    } catch (error) {
-      throw new Error(`SINGLE_WRITER_LOCKED: ${path}`, { cause: error });
-    }
-    const heartbeat = setInterval(() => {
+
       try {
-        writeFileSync(path, `${process.pid}\n`, "utf8");
-      } catch {
-        // The lock is released during shutdown or was removed after a crash.
+        const fd = openSync(path, "wx");
+        const heartbeat = setInterval(() => {
+          try {
+            writeFileSync(path, `${process.pid}\n`, "utf8");
+          } catch {
+            // The lock is released during shutdown or was removed after a crash.
+          }
+        }, 2_000);
+        heartbeat.unref();
+        writeFileSync(fd, `${process.pid}\n`, "utf8");
+        return new SingleWriterLock(path, fd, heartbeat);
+      } catch (error) {
+        if (attempt === 9) {
+          throw new Error(`SINGLE_WRITER_LOCKED: ${path}`, { cause: error });
+        }
+        // Small delay for Windows NTFS handle cleanup
+        const start = Date.now();
+        while (Date.now() - start < 150) {}
       }
-    }, 2_000);
-    heartbeat.unref();
-    writeFileSync(fd, `${process.pid}\n`, "utf8");
-    return new SingleWriterLock(path, fd, heartbeat);
+    }
+
+    throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
   }
 
   release(): void {

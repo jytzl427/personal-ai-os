@@ -70,7 +70,7 @@ export function projectTaskPlans(database: PaiosDatabase, projectId: string) {
   return database.prepare(`
     SELECT * FROM project_task_plans
     WHERE project_id = ? AND archived_at IS NULL
-    ORDER BY due_date IS NULL, due_date ASC, created_at ASC
+    ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
   `).all(projectId);
 }
 
@@ -89,3 +89,87 @@ export function projectPlanningContext(database: PaiosDatabase, projectId: strin
     recent_activities: projectActivities(database, projectId, 20)
   };
 }
+
+export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDate?: string): number {
+  const timezone = "Asia/Shanghai";
+  const today = todayDate ?? new Date().toLocaleDateString("en-CA", { timeZone: timezone });
+  const parts = today.split("-").map(Number);
+  const year = parts[0] ?? 2026;
+  const month = parts[1] ?? 10;
+  const day = parts[2] ?? 21;
+  const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
+  const tomorrow = tomorrowObj.toISOString().slice(0, 10);
+  const timestamp = new Date().toISOString();
+
+  // Find all active checkpoints due on or before tomorrow (overdue, today, or tomorrow)
+  const candidates = database.prepare(`
+    SELECT pt.id, pt.project_id, pt.title, pt.description, pt.due_date, pt.todo_task_id, p.name AS project_name
+    FROM project_task_plans pt
+    JOIN projects p ON p.id = pt.project_id
+    WHERE pt.archived_at IS NULL
+      AND pt.status NOT IN ('done', 'cancelled')
+      AND pt.due_date IS NOT NULL
+      AND pt.due_date <= ?
+      AND p.archived_at IS NULL
+      AND p.status NOT IN ('done', 'archived')
+  `).all(tomorrow) as Array<{
+    id: string;
+    project_id: string;
+    title: string;
+    description: string | null;
+    due_date: string;
+    todo_task_id: string | null;
+    project_name: string;
+  }>;
+
+  let count = 0;
+  for (const item of candidates) {
+    if (item.todo_task_id) {
+      const exists = database.prepare("SELECT id FROM tasks WHERE id = ?").get(item.todo_task_id);
+      if (exists) continue;
+    }
+
+    const todoTaskId = randomUUID();
+    const isDueTodayOrOverdue = item.due_date <= today;
+    const priority = isDueTodayOrOverdue ? "P1" : "P2";
+
+    database.transaction(() => {
+      database.prepare(`
+        INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at)
+        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)
+      `).run(
+        todoTaskId,
+        item.title,
+        typeof item.description === "string" ? item.description : "",
+        priority,
+        item.due_date,
+        timestamp,
+        timestamp
+      );
+
+      database.prepare(`
+        INSERT INTO task_project_links (task_id, project_id)
+        VALUES (?, ?)
+      `).run(todoTaskId, item.project_id);
+
+      database.prepare(`
+        UPDATE project_task_plans
+        SET todo_task_id = ?, updated_at = ?, row_version = row_version + 1
+        WHERE id = ?
+      `).run(todoTaskId, timestamp, item.id);
+
+      addProjectActivity(
+        database,
+        item.project_id,
+        "task_committed",
+        `🎯 验收节点临期（${item.due_date}），已自动同步至待办任务：${item.title}`,
+        false,
+        timestamp
+      );
+    })();
+    count++;
+  }
+
+  return count;
+}
+

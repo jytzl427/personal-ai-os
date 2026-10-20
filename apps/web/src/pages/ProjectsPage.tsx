@@ -21,12 +21,59 @@ type Project = {
   target_result?: string;
   priority?: string;
   progress_manual?: number | null;
+  progress?: number;
+  checkpoint_stats?: {
+    total: number;
+    completed: number;
+  };
+  next_checkpoint?: {
+    id: string;
+    title: string;
+    due_date?: string | null;
+  } | null;
   benefit_enabled?: number | boolean;
   archive_requested?: number | boolean;
   archived_at?: string | null;
   row_version?: number;
   finance?: ProjectFinance;
 };
+
+function CheckpointTitleInput({
+  initialValue,
+  placeholder,
+  autoFocus,
+  onCommit,
+}: {
+  initialValue: string;
+  placeholder: string;
+  autoFocus?: boolean;
+  onCommit: (val: string) => void;
+}) {
+  const [val, setVal] = useState(initialValue);
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input
+      type="text"
+      className="stepper-title-input"
+      value={val}
+      autoFocus={autoFocus}
+      placeholder={placeholder}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={() => {
+        const next = val.trim();
+        if (next !== initialValue) onCommit(next);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 type ProjectTask = {
   id: string;
@@ -349,10 +396,20 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
     const netCents = project.finance?.net_cents ?? 0;
     const hasFinance = Boolean(project.benefit_enabled && project.finance);
     const countdown = getCountdownBadge(project.target_date, isCompleted);
-    const progressVal = Math.max(0, Math.min(100, project.progress_manual ?? 0));
+    const cpCountdown = project.next_checkpoint?.due_date ? getCountdownBadge(project.next_checkpoint.due_date, false) : null;
+    const isOverdue = !isCompleted && (countdown.tone === "overdue" || cpCountdown?.tone === "overdue");
+    const isDueToday = !isCompleted && !isOverdue && (countdown.tone === "due-today" || cpCountdown?.tone === "due-today");
+    const isUrgent = !isCompleted && !isOverdue && !isDueToday && (countdown.tone === "urgent" || cpCountdown?.tone === "urgent");
+    const urgencyClass = isOverdue ? "has-overdue-deadline" : isDueToday ? "has-due-today-deadline" : isUrgent ? "has-urgent-deadline" : "";
+
+    const progressVal = isCompleted
+      ? 100
+      : (project.progress_manual !== null && project.progress_manual !== undefined
+          ? Math.max(0, Math.min(100, project.progress_manual))
+          : Math.max(0, Math.min(100, project.progress ?? 0)));
 
     return (
-      <article className={`project-card ${isCompleted ? "is-completed" : ""}`} key={project.id}>
+      <article className={`project-card ${isCompleted ? "is-completed" : ""} ${urgencyClass}`} key={project.id}>
         <button className="project-card-open" onClick={() => onNavigate({ name: "project", id: project.id })} type="button">
           <div className="project-card-top">
             <div className="project-card-tags">
@@ -381,7 +438,7 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
                 <span className="time-capsule-span">
                   📅 {formatDateCompact(project.started_at)} ─ {formatDateCompact(project.target_date)}
                 </span>
-                <span className={`time-capsule-badge tone-${countdown.tone}`}>
+                <span className={`time-capsule-badge tone-${countdown.tone} ${countdown.tone !== "normal" && countdown.tone !== "muted" && countdown.tone !== "done" ? "is-emphasized" : ""}`}>
                   {countdown.text}
                 </span>
               </div>
@@ -389,8 +446,33 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
                 <div className="time-capsule-bar" style={{ width: `${progressVal}%` }} />
               </div>
               <div className="time-capsule-footer">
+                <span className="time-capsule-stat">
+                  {project.checkpoint_stats?.total
+                    ? `🧩 ${project.checkpoint_stats.completed}/${project.checkpoint_stats.total} 节点已验收`
+                    : "尚未添加节点"}
+                </span>
                 <span className="time-capsule-pct">完成度 {progressVal}%</span>
               </div>
+              {project.next_checkpoint ? (
+                <div className={`project-card-next-slot ${cpCountdown && cpCountdown.tone !== "normal" && cpCountdown.tone !== "muted" ? "is-urgent-slot tone-" + cpCountdown.tone : ""}`}>
+                  <span className="next-slot-tag">🎯 下一步攻坚</span>
+                  <span className="next-slot-title" title={project.next_checkpoint.title}>
+                    {project.next_checkpoint.title}
+                  </span>
+                  {project.next_checkpoint.due_date ? (
+                    <span className={`next-slot-due ${cpCountdown ? "tone-" + cpCountdown.tone : ""}`}>
+                      {cpCountdown?.tone === "overdue" || cpCountdown?.tone === "due-today" || cpCountdown?.tone === "urgent"
+                        ? `⚠️ ${formatDateCompact(project.next_checkpoint.due_date)} 截止 (${cpCountdown.text})`
+                        : `${formatDateCompact(project.next_checkpoint.due_date)} 截止`}
+                    </span>
+                  ) : null}
+                </div>
+              ) : project.checkpoint_stats?.total && project.checkpoint_stats.completed === project.checkpoint_stats.total ? (
+                <div className="project-card-next-slot is-all-done">
+                  <span className="next-slot-tag">🎉 全部节点已验收</span>
+                  <span className="next-slot-title">所有交付切片已达成</span>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="project-card-meta">
@@ -399,7 +481,14 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
               ) : null}
               <span>{project.started_at ? "启动 " + formatDate(project.started_at) : "未设启动时间"}</span>
               {isCompleted ? (
-                <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
+                <>
+                  <span>{project.end_date ? "完结 " + formatDate(project.end_date) : (project.target_date ? "完结 " + formatDate(project.target_date) : "已收官")}</span>
+                  {!isMaint && project.checkpoint_stats?.total ? (
+                    <span className="completed-checkpoints-badge">
+                      🏆 {project.checkpoint_stats.total} 个节点全部交付
+                    </span>
+                  ) : null}
+                </>
               ) : (
                 <>
                   {project.end_date ? <span>完成 {formatDate(project.end_date)}</span> : null}
@@ -551,6 +640,35 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
       );
       setData((current) => (current ? { ...current, project_tasks: [...(current.project_tasks ?? []), result.project_task] } : current));
       setFocusTaskId(result.project_task.id);
+
+      // If the project is currently 'done', ask if user wants to reawaken it!
+      if (data && data.project.status === "done") {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const confirmAwaken = window.confirm(
+          "当前项目处于“历史完结”状态。\n检测到您新增了阶段验收节点，是否重新唤醒该项目开启新一轮迭代？"
+        );
+        if (confirmAwaken) {
+          await apiJson(
+            `/projects/${encodeURIComponent(id)}`,
+            jsonRequest("PATCH", {
+              name: draft.name,
+              category: draft.category,
+              status: "active",
+              end_date: null,
+              row_version: data.project.row_version,
+            })
+          );
+          await apiJson(
+            `/projects/${encodeURIComponent(id)}/activities`,
+            jsonRequest("POST", {
+              content: `🚀 项目于 ${todayStr} 重新唤醒，开启新一轮迭代攻坚`,
+              kind: "pivot",
+              important: true,
+            })
+          );
+          load();
+        }
+      }
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "验收节点创建失败");
     }
@@ -573,12 +691,16 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             await apiJson(
               `/projects/${encodeURIComponent(id)}`,
               jsonRequest("PATCH", {
-                ...draft,
+                name: draft.name,
+                category: draft.category,
                 status: "done",
-                end_date: todayStr,
                 started_at: draft.started_at || null,
                 target_date: draft.target_date || null,
-                archive_requested: draft.archive_requested === "1",
+                end_date: todayStr,
+                target_result: draft.target_result || null,
+                description: draft.description || null,
+                benefit_enabled: draft.benefit_enabled === "1",
+                archive_requested: false,
                 row_version: data.project.row_version,
               })
             );
@@ -641,27 +763,29 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     }
   }
 
-  async function save() {
+  async function saveField(updates: Record<string, unknown> = {}) {
     if (!data) return;
+    const nextDraft = { ...draft, ...updates };
+    setDraft(nextDraft);
     setSaving(true);
     setError(null);
     try {
-      const isMaint = isMaintenanceProject(draft.category);
+      const isMaint = isMaintenanceProject(nextDraft.category);
       const payload: Record<string, unknown> = {
-        name: draft.name,
-        category: draft.category,
-        status: draft.status,
-        started_at: draft.started_at || null,
-        end_date: draft.end_date || null,
-        benefit_enabled: draft.benefit_enabled === "1",
-        archive_requested: draft.archive_requested === "1",
+        name: nextDraft.name,
+        category: nextDraft.category,
+        status: nextDraft.status,
+        started_at: nextDraft.started_at || null,
+        end_date: nextDraft.end_date || null,
+        benefit_enabled: nextDraft.benefit_enabled === "1",
+        archive_requested: nextDraft.archive_requested === "1",
         row_version: data.project.row_version,
       };
       if (isMaint) {
-        payload.description = draft.description;
+        payload.description = nextDraft.description;
       } else {
-        payload.target_result = draft.target_result;
-        payload.target_date = draft.target_date || null;
+        payload.target_result = nextDraft.target_result;
+        payload.target_date = nextDraft.target_date || null;
       }
 
       const result = await apiJson<{ project: Project }>(`/projects/${encodeURIComponent(id)}`, jsonRequest("PATCH", payload));
@@ -671,10 +795,36 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
       }
       setData((current) => (current ? { ...current, project: result.project } : current));
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "项目保存失败");
+      setError(reason instanceof Error ? reason.message : "项目属性自动同步失败");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function moveCheckpoint(index: number, direction: -1 | 1) {
+    if (!data?.project_tasks) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= data.project_tasks.length) return;
+
+    const list = [...data.project_tasks];
+    const [moved] = list.splice(index, 1);
+    list.splice(targetIndex, 0, moved);
+
+    setData({ ...data, project_tasks: list });
+
+    try {
+      await apiJson(
+        `/projects/${encodeURIComponent(id)}/task-plans/reorder`,
+        jsonRequest("POST", { plan_ids: list.map((t) => t.id) })
+      );
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "节点排序更新失败");
+      load();
+    }
+  }
+
+  async function save() {
+    await saveField();
   }
 
   async function saveWorkspaceNotes() {
@@ -694,6 +844,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   const isMaint = isMaintenanceProject(draft.category);
   const checkpoints = data.project_tasks ?? [];
   const completedCheckpoints = checkpoints.filter((c) => c.status === "done").length;
+  const currentCheckpointId = checkpoints.find((c) => c.status !== "done")?.id;
 
   return (
     <div className="page-stack page-project-detail">
@@ -728,18 +879,19 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <h2>核心目标与时间线</h2>
                 <span className="page-meta">明确交付物边界与三大关键时间坐标</span>
               </div>
-              <span className="muted">{saving ? "保存中…" : "可编辑"}</span>
+              <span className="auto-save-status">{saving ? "正在自动同步…" : "✓ 属性实时保存"}</span>
             </div>
 
             <label className="form-field">
               <span>项目名称</span>
-              <input className="cell-input" onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name ?? ""} />
+              <input className="cell-input" onBlur={() => void saveField()} onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name ?? ""} />
             </label>
 
             <label className="form-field">
               <span>任务总目标（交付物边界）</span>
               <input
                 className="cell-input"
+                onBlur={() => void saveField()}
                 onChange={(event) => setDraft({ ...draft, target_result: event.target.value })}
                 placeholder="一句话定义项目最终交付结果（如：搭建一套可用的复习与考试系统）"
                 value={draft.target_result ?? ""}
@@ -749,7 +901,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             <div className="form-row form-row-4">
               <label className="form-field">
                 <span>项目板块</span>
-                <select className="select-input" onChange={(event) => setDraft({ ...draft, category: event.target.value })} value={draft.category ?? "advancement"}>
+                <select className="select-input" onChange={(event) => { const category = event.target.value; setDraft({ ...draft, category }); void saveField({ category }); }} value={draft.category ?? "advancement"}>
                   <option value="advancement">推进项目</option>
                   <option value="maintenance">维护项目</option>
                 </select>
@@ -757,7 +909,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
               <label className="form-field">
                 <span>状态</span>
-                <select className="select-input" onChange={(event) => setDraft({ ...draft, status: event.target.value })} value={draft.status ?? "idea"}>
+                <select className="select-input" onChange={(event) => { const status = event.target.value; setDraft({ ...draft, status }); void saveField({ status }); }} value={draft.status ?? "idea"}>
                   <option value="idea">想法</option>
                   <option value="planned">规划中</option>
                   <option value="active">进行中</option>
@@ -769,17 +921,17 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
               <label className="form-field">
                 <span>启动时间</span>
-                <DateField ariaLabel="项目启动时间" onChange={(value) => setDraft({ ...draft, started_at: value })} value={draft.started_at} />
+                <DateField ariaLabel="项目启动时间" onChange={(value) => { setDraft({ ...draft, started_at: value }); void saveField({ started_at: value }); }} value={draft.started_at} />
               </label>
 
               <label className="form-field">
                 <span>预计完成时间</span>
-                <DateField ariaLabel="预计完成时间" onChange={(value) => setDraft({ ...draft, target_date: value })} value={draft.target_date} />
+                <DateField ariaLabel="预计完成时间" onChange={(value) => { setDraft({ ...draft, target_date: value }); void saveField({ target_date: value }); }} value={draft.target_date} />
               </label>
 
               <label className="form-field">
                 <span>实际完成时间</span>
-                <DateField ariaLabel="实际完成时间" onChange={(value) => setDraft({ ...draft, end_date: value })} value={draft.end_date} />
+                <DateField ariaLabel="实际完成时间" onChange={(value) => { setDraft({ ...draft, end_date: value }); void saveField({ end_date: value }); }} value={draft.end_date} />
               </label>
             </div>
 
@@ -794,80 +946,123 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
           <section className="panel project-detail-section checkpoint-section">
             <div className="panel-heading project-detail-heading">
               <div>
-                <h2>验收节点清单</h2>
-                <span className="page-meta">按交付物顺序推进验收。全部节点验收完成将触发项目完工闭环。</span>
+                <h2>验收节点推进</h2>
+                <span className="page-meta">按交付物切片顺序逐步推进验收，全部节点交付将触发完工闭环。</span>
               </div>
               <span className="checkpoint-counter-badge">
-                {completedCheckpoints} / {checkpoints.length} 已验收
+                {completedCheckpoints} / {checkpoints.length} 已验收 ({checkpoints.length > 0 ? Math.round((completedCheckpoints / checkpoints.length) * 100) : 0}%)
               </span>
             </div>
 
             {checkpoints.length ? (
-              <div className="checkpoint-table">
-                <div className="checkpoint-table-header">
-                  <span className="col-index">节点</span>
-                  <span className="col-title">交付物名称</span>
-                  <span className="col-due">计划验收时间</span>
-                  <span className="col-status">验收状态</span>
-                  <span className="col-completed">实际完成时间</span>
-                  <span className="col-action">操作</span>
-                </div>
+              <div className="milestone-stepper-list">
                 {checkpoints.map((task, idx) => {
                   const isDone = task.status === "done";
+                  const isCurrent = task.id === currentCheckpointId;
+                  const isLast = idx === checkpoints.length - 1;
+                  const countdown = task.due_date ? getCountdownBadge(task.due_date, isDone) : null;
+
                   return (
-                    <div className={`checkpoint-table-row ${isDone ? "is-done" : ""}`} key={task.id}>
-                      <span className="col-index">
-                        <span className="checkpoint-tag">节点 {idx + 1}</span>
-                      </span>
-                      <span className="col-title">
-                        <CellText
-                          ariaLabel={`验收节点交付物 ${task.title || "未命名节点"}`}
-                          autoFocus={focusTaskId === task.id}
-                          multiline
-                          placeholder="填写交付物（如：完成计划与方案设计）"
-                          value={task.title}
-                          onCommit={(value) => {
-                            const next = value.trim();
-                            if (next !== task.title) void updateCheckpoint(task, { title: next });
-                          }}
-                        />
-                      </span>
-                      <span className="col-due">
-                        <DateField
-                          ariaLabel={`计划验收时间：${task.title}`}
-                          value={task.due_date}
-                          onChange={(value) => void updateCheckpoint(task, { due_date: value || null })}
-                        />
-                      </span>
-                      <span className="col-status">
-                        <button
-                          className={`checkpoint-status-btn ${isDone ? "done" : "todo"}`}
-                          onClick={() => void updateCheckpoint(task, { status: isDone ? "todo" : "done" })}
-                          type="button"
-                        >
-                          {isDone ? "✓ 已验收" : "○ 未完成"}
-                        </button>
-                      </span>
-                      <span className="col-completed">
-                        {task.completed_at ? (
-                          <span className="checkpoint-completed-time">{formatDate(task.completed_at)}</span>
-                        ) : (
-                          <span className="muted">-</span>
-                        )}
-                      </span>
-                      <span className="col-action">
-                        <DeleteButton label={`删除节点 ${task.title || idx + 1}`} onClick={() => void deleteCheckpoint(task)} />
-                      </span>
+                    <div
+                      className={`milestone-stepper-item ${isDone ? "is-done" : ""} ${isCurrent ? "is-current" : ""}`}
+                      key={task.id}
+                    >
+                      <div className="stepper-spine">
+                        <div className={`stepper-node ${isDone ? "node-done" : isCurrent ? "node-current" : "node-pending"}`}>
+                          {isDone ? (
+                            <span className="stepper-icon-check">✓</span>
+                          ) : isCurrent ? (
+                            <span className="stepper-dot-pulse" />
+                          ) : (
+                            <span className="stepper-num">{idx + 1}</span>
+                          )}
+                        </div>
+                        {!isLast ? <div className={`stepper-connector ${isDone ? "is-done" : ""}`} /> : null}
+                      </div>
+
+                      <div className="stepper-card">
+                        <div className="stepper-card-header">
+                          <div className="stepper-card-tags">
+                            <span className={`stepper-tag ${isDone ? "tag-done" : isCurrent ? "tag-current" : "tag-pending"}`}>
+                              {isDone ? `阶段节点 ${idx + 1} · 已验收` : isCurrent ? `阶段节点 ${idx + 1} · 🔥 当前攻坚` : `阶段节点 ${idx + 1}`}
+                            </span>
+                            {isCurrent && countdown ? (
+                              <span className={`time-capsule-badge tone-${countdown.tone}`}>
+                                {countdown.text}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="stepper-card-actions">
+                            <div className="stepper-reorder-group">
+                              <button
+                                aria-label={`上移节点 ${task.title || idx + 1}`}
+                                className="stepper-reorder-btn"
+                                disabled={idx === 0}
+                                onClick={() => void moveCheckpoint(idx, -1)}
+                                title="上移此节点"
+                                type="button"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                aria-label={`下移节点 ${task.title || idx + 1}`}
+                                className="stepper-reorder-btn"
+                                disabled={idx === checkpoints.length - 1}
+                                onClick={() => void moveCheckpoint(idx, 1)}
+                                title="下移此节点"
+                                type="button"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                            <button
+                              className={`stepper-status-btn ${isDone ? "done" : "todo"}`}
+                              onClick={() => void updateCheckpoint(task, { status: isDone ? "todo" : "done" })}
+                              type="button"
+                            >
+                              {isDone ? "✓ 验收通过" : "○ 点击验收"}
+                            </button>
+                            <DeleteButton label={`删除节点 ${task.title || idx + 1}`} onClick={() => void deleteCheckpoint(task)} />
+                          </div>
+                        </div>
+
+                        <div className="stepper-card-body">
+                          <CheckpointTitleInput
+                            autoFocus={focusTaskId === task.id}
+                            initialValue={task.title}
+                            placeholder="填写该阶段的核心交付物（如：完成架构设计并跑通自测）"
+                            onCommit={(val) => void updateCheckpoint(task, { title: val })}
+                          />
+                        </div>
+
+                        <div className="stepper-card-footer">
+                          <div className="stepper-due-box">
+                            <span className="stepper-due-label">计划交付：</span>
+                            <DateField
+                              ariaLabel={`计划验收时间：${task.title || "节点" + (idx + 1)}`}
+                              value={task.due_date}
+                              onChange={(value) => void updateCheckpoint(task, { due_date: value || null })}
+                            />
+                          </div>
+
+                          {task.completed_at ? (
+                            <span className="stepper-completed-badge">
+                              ✓ 已于 {formatDate(task.completed_at)} 验收闭环
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="database-empty">还没有验收节点。点击下方添加第一个阶段验收节点。</div>
+              <div className="database-empty">还没有验收节点。点击下方规划第一个阶段验收节点。</div>
             )}
 
-            <button className="database-add-button project-task-create-button" onClick={() => void addCheckpoint()} type="button">
-              <PlusIcon /> 添加验收节点
+            <button className="stepper-add-btn" onClick={() => void addCheckpoint()} type="button">
+              <PlusIcon /> 规划下一个阶段验收节点
             </button>
           </section>
         </>
@@ -880,12 +1075,12 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <h2>运营策略与状态属性</h2>
                 <span className="page-meta">一句话底线策略与精力投入控制</span>
               </div>
-              <span className="muted">{saving ? "保存中…" : "可编辑"}</span>
+              <span className="auto-save-status">{saving ? "正在自动同步…" : "✓ 属性实时保存"}</span>
             </div>
 
             <label className="form-field">
               <span>项目名称</span>
-              <input className="cell-input" onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name ?? ""} />
+              <input className="cell-input" onBlur={() => void saveField()} onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name ?? ""} />
             </label>
 
             <label className="form-field">

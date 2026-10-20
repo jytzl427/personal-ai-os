@@ -147,6 +147,18 @@ export function DateField({
                 })}
               </div>
               <div className="cal-footer">
+                {value ? (
+                  <button
+                    className="cal-clear"
+                    onClick={() => {
+                      onChange("");
+                      setOpen(false);
+                    }}
+                    type="button"
+                  >
+                    清除日期
+                  </button>
+                ) : null}
                 <button
                   className="cal-today"
                   onClick={() => {

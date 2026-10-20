@@ -9409,6 +9409,15 @@ function applyMigrations(database) {
     });
     migrateProjectTaskArchive();
   }
+  const projectTaskSortOrderApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("020_project_task_sort_order");
+  if (!projectTaskSortOrderApplied) {
+    const migrateSortOrder = database.transaction(() => {
+      ensureColumn(database, "project_task_plans", "sort_order", "INTEGER NOT NULL DEFAULT 0");
+      database.exec("CREATE INDEX IF NOT EXISTS idx_project_task_plans_sort ON project_task_plans(project_id, sort_order)");
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(20, "020_project_task_sort_order", nowIso());
+    });
+    migrateSortOrder();
+  }
 }
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();
 var WEEKLY_BACKUP_RETAIN = 3;
@@ -9913,32 +9922,54 @@ var SingleWriterLock = class _SingleWriterLock {
   static acquire(dataDir) {
     mkdirSync2(dataDir, { recursive: true });
     const path = join3(dataDir, "paios.lock");
-    if (existsSync2(path)) {
-      const ageMs = Date.now() - statSync2(path).mtimeMs;
-      const lockContent = readFileSync2(path, "utf8").trim();
-      const ownerPid = Number.parseInt(lockContent, 10);
-      if (processIsAlive(ownerPid) || !Number.isSafeInteger(ownerPid) && ageMs <= 1e4) {
-        throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (existsSync2(path)) {
+        let lockContent = "";
+        try {
+          lockContent = readFileSync2(path, "utf8").trim();
+        } catch {
+        }
+        const ownerPid = Number.parseInt(lockContent, 10);
+        const ageMs = Date.now() - (statSync2(path, { throwIfNoEntry: false })?.mtimeMs ?? 0);
+        if (processIsAlive(ownerPid)) {
+          if (ageMs > 1e4) {
+            try {
+              unlinkSync2(path);
+            } catch {
+            }
+          } else {
+            throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
+          }
+        } else {
+          try {
+            unlinkSync2(path);
+          } catch {
+          }
+        }
       }
-      unlinkSync2(path);
-    }
-    let fd;
-    try {
-      fd = openSync(path, "wx");
-    } catch (error2) {
-      throw new Error(`SINGLE_WRITER_LOCKED: ${path}`, { cause: error2 });
-    }
-    const heartbeat = setInterval(() => {
       try {
-        writeFileSync2(path, `${process.pid}
+        const fd = openSync(path, "wx");
+        const heartbeat = setInterval(() => {
+          try {
+            writeFileSync2(path, `${process.pid}
 `, "utf8");
-      } catch {
+          } catch {
+          }
+        }, 2e3);
+        heartbeat.unref();
+        writeFileSync2(fd, `${process.pid}
+`, "utf8");
+        return new _SingleWriterLock(path, fd, heartbeat);
+      } catch (error2) {
+        if (attempt === 9) {
+          throw new Error(`SINGLE_WRITER_LOCKED: ${path}`, { cause: error2 });
+        }
+        const start = Date.now();
+        while (Date.now() - start < 150) {
+        }
       }
-    }, 2e3);
-    heartbeat.unref();
-    writeFileSync2(fd, `${process.pid}
-`, "utf8");
-    return new _SingleWriterLock(path, fd, heartbeat);
+    }
+    throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
   }
   release() {
     clearInterval(this.heartbeat);
@@ -16178,7 +16209,7 @@ var createTaskRecurrenceSchema = external_exports.object({ title_template: exter
 var patchTaskRecurrenceSchema = createTaskRecurrenceSchema.partial().extend({ enabled: external_exports.union([external_exports.boolean(), external_exports.number().int().min(0).max(1)]).optional(), title_template: external_exports.string().max(200).optional(), description_template: external_exports.string().max(1e4).optional(), content_template: external_exports.string().max(1e4).optional(), row_version: external_exports.number().int().positive().optional() });
 var projectCategorySchema = external_exports.enum(["advancement", "maintenance", "small", "mid", "long_term"]);
 var projectStatusSchema = external_exports.enum(["idea", "planned", "active", "paused", "done", "abandoned", "high_energy", "low_energy"]);
-var createProjectSchema = external_exports.object({ name: external_exports.string().trim().min(1).max(200), description: external_exports.string().max(1e4).optional(), parent_id: external_exports.string().min(1).nullable().optional(), category: projectCategorySchema.optional(), template: projectCategorySchema.optional(), status: projectStatusSchema.optional(), started_at: dateSchema().nullable().optional(), target_date: dateSchema().nullable().optional(), end_date: dateSchema().nullable().optional(), target_result: external_exports.string().max(1e4).optional(), priority: prioritySchema.optional(), benefit_enabled: external_exports.boolean().optional(), benefit_cents: external_exports.number().int().nonnegative().nullable().optional(), benefit_kind: external_exports.enum(["none", "possible", "definite", "certain"]).optional() });
+var createProjectSchema = external_exports.object({ name: external_exports.string().trim().min(1).max(200), description: external_exports.string().max(1e4).optional(), parent_id: external_exports.string().min(1).nullable().optional(), category: projectCategorySchema.optional(), template: projectCategorySchema.optional(), status: projectStatusSchema.optional(), started_at: dateSchema().nullable().optional(), target_date: dateSchema().nullable().optional(), end_date: dateSchema().nullable().optional(), target_result: external_exports.string().max(1e4).optional(), priority: prioritySchema.optional(), benefit_enabled: external_exports.union([external_exports.boolean(), external_exports.number().int().min(0).max(1), external_exports.string()]).transform((v) => v === true || v === 1 || v === "1" || v === "true").optional(), benefit_cents: external_exports.number().int().nonnegative().nullable().optional(), benefit_kind: external_exports.enum(["none", "possible", "definite", "certain"]).optional() });
 var patchProjectSchema = createProjectSchema.partial().extend({ status: projectStatusSchema.optional(), progress_manual: external_exports.number().int().min(0).max(100).nullable().optional(), archive_requested: archiveRequestedSchema.optional(), row_version: external_exports.number().int().positive().optional() });
 var financeCategorySchema = external_exports.string().trim().min(1).max(100);
 var financeEntrySchema = external_exports.object({ account_id: external_exports.string().min(1).optional(), amount_cents: external_exports.number().int().positive(), currency: external_exports.string().trim().min(1).max(10).optional(), category: external_exports.string().trim().min(1).max(200).optional(), category_major: financeCategorySchema.optional(), category_minor: financeCategorySchema.optional(), project_id: external_exports.string().min(1).nullable().optional(), event: external_exports.string().max(1e4).optional(), note: external_exports.string().max(1e4).optional(), occurred_date: dateSchema().optional(), quick_button_id: external_exports.string().min(1).optional() });
@@ -17260,7 +17291,7 @@ function projectTaskPlans(database, projectId) {
   return database.prepare(`
     SELECT * FROM project_task_plans
     WHERE project_id = ? AND archived_at IS NULL
-    ORDER BY due_date IS NULL, due_date ASC, created_at ASC
+    ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
   `).all(projectId);
 }
 function projectActivities(database, projectId, limit = 50) {
@@ -17276,6 +17307,57 @@ function projectPlanningContext(database, projectId) {
     finance: projectFinanceSummary(database, projectId),
     recent_activities: projectActivities(database, projectId, 20)
   };
+}
+function syncUpcomingCheckpointsToTodos(database, todayDate) {
+  const timezone = "Asia/Shanghai";
+  const today = todayDate ?? (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
+  const parts = today.split("-").map(Number);
+  const year = parts[0] ?? 2026;
+  const month = parts[1] ?? 10;
+  const day = parts[2] ?? 21;
+  const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
+  const tomorrow2 = tomorrowObj.toISOString().slice(0, 10);
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  const candidates = database.prepare(`
+    SELECT pt.id, pt.project_id, pt.title, pt.description, pt.due_date, pt.todo_task_id, p.name AS project_name
+    FROM project_task_plans pt
+    JOIN projects p ON p.id = pt.project_id
+    WHERE pt.archived_at IS NULL
+      AND pt.status NOT IN ('done', 'cancelled')
+      AND pt.due_date IS NOT NULL
+      AND pt.due_date <= ?
+      AND p.archived_at IS NULL
+      AND p.status NOT IN ('done', 'archived')
+  `).all(tomorrow2);
+  let count = 0;
+  for (const item of candidates) {
+    if (item.todo_task_id) {
+      const exists = database.prepare("SELECT id FROM tasks WHERE id = ?").get(item.todo_task_id);
+      if (exists)
+        continue;
+    }
+    const todoTaskId = randomUUID5();
+    const isDueTodayOrOverdue = item.due_date <= today;
+    const priority = isDueTodayOrOverdue ? "P1" : "P2";
+    database.transaction(() => {
+      database.prepare(`
+        INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at)
+        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)
+      `).run(todoTaskId, item.title, typeof item.description === "string" ? item.description : "", priority, item.due_date, timestamp, timestamp);
+      database.prepare(`
+        INSERT INTO task_project_links (task_id, project_id)
+        VALUES (?, ?)
+      `).run(todoTaskId, item.project_id);
+      database.prepare(`
+        UPDATE project_task_plans
+        SET todo_task_id = ?, updated_at = ?, row_version = row_version + 1
+        WHERE id = ?
+      `).run(todoTaskId, timestamp, item.id);
+      addProjectActivity(database, item.project_id, "task_committed", `\u{1F3AF} \u9A8C\u6536\u8282\u70B9\u4E34\u671F\uFF08${item.due_date}\uFF09\uFF0C\u5DF2\u81EA\u52A8\u540C\u6B65\u81F3\u5F85\u529E\u4EFB\u52A1\uFF1A${item.title}`, false, timestamp);
+    })();
+    count++;
+  }
+  return count;
 }
 
 // apps/server/dist/planning.js
@@ -19426,6 +19508,10 @@ async function readResponseJson(response) {
 function createApp(context) {
   const app = new Hono2();
   const uiSessionToken = randomUUID10().replaceAll("-", "");
+  try {
+    syncUpcomingCheckpointsToTodos(context.database);
+  } catch {
+  }
   app.use("/api/*", cors({ origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"], allowHeaders: ["Content-Type", "Authorization", "X-PAIOS-Agent-Transport", "X-Agent-Name", "X-Tool-Name", "X-PAIOS-UI-Session", "X-PAIOS-Idempotency-Key"], credentials: true }));
   app.use("/api/v1/*", async (c, next) => {
     const auth = requestAgentAuth(context.database, c);
@@ -20595,10 +20681,37 @@ function createApp(context) {
   app.get("/api/v1/projects", (c) => {
     const projects = context.database.prepare("SELECT * FROM projects WHERE archived_at IS NULL ORDER BY started_at IS NULL, started_at DESC, end_date IS NULL, end_date ASC, created_at DESC").all();
     const result3 = projects.map((project) => {
-      const counts = context.database.prepare(`SELECT COUNT(t.id) AS total, SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END) AS completed
+      const planCounts = context.database.prepare(`SELECT COUNT(id) AS total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed
+         FROM project_task_plans
+         WHERE project_id = ? AND archived_at IS NULL`).get(project.id);
+      const taskCounts = context.database.prepare(`SELECT COUNT(t.id) AS total, SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END) AS completed
          FROM tasks t INNER JOIN task_project_links l ON l.task_id = t.id
          WHERE l.project_id = ? AND t.archived_at IS NULL`).get(project.id);
-      return { ...project, progress: computeProjectProgress(counts.completed ?? 0, counts.total, project.progress_manual), finance: projectFinanceSummary(context.database, String(project.id)) };
+      const totalTasks = (planCounts?.total ?? 0) + (taskCounts?.total ?? 0);
+      const completedTasks = (planCounts?.completed ?? 0) + (taskCounts?.completed ?? 0);
+      let progress = 0;
+      if (project.status === "done") {
+        progress = 100;
+      } else if (project.progress_manual !== null && project.progress_manual !== void 0) {
+        progress = Math.min(100, Math.max(0, Math.round(Number(project.progress_manual))));
+      } else if (totalTasks > 0) {
+        progress = Math.min(100, Math.max(0, Math.round(completedTasks / totalTasks * 100)));
+      }
+      const nextCheckpoint = context.database.prepare(`SELECT id, title, due_date
+         FROM project_task_plans
+         WHERE project_id = ? AND status != 'done' AND archived_at IS NULL
+         ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
+         LIMIT 1`).get(project.id);
+      return {
+        ...project,
+        progress,
+        checkpoint_stats: {
+          total: planCounts?.total ?? 0,
+          completed: planCounts?.completed ?? 0
+        },
+        next_checkpoint: nextCheckpoint ?? null,
+        finance: projectFinanceSummary(context.database, String(project.id))
+      };
     });
     return c.json({ ok: true, projects: result3 });
   });
@@ -20733,6 +20846,22 @@ function createApp(context) {
     });
     remove();
     return c.json({ ok: true });
+  });
+  app.post("/api/v1/projects/:id/task-plans/reorder", async (c) => {
+    const projectId = c.req.param("id");
+    if (!context.database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(projectId))
+      return notFound(c, "project");
+    const body = await c.req.json();
+    if (!Array.isArray(body.plan_ids))
+      return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "plan_ids array is required" } }, 400);
+    const timestamp = now4();
+    const update = context.database.transaction(() => {
+      body.plan_ids.forEach((planId, index) => {
+        context.database.prepare("UPDATE project_task_plans SET sort_order = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND project_id = ?").run(index, timestamp, planId, projectId);
+      });
+    });
+    update();
+    return c.json({ ok: true, project_tasks: projectTaskPlans(context.database, projectId) });
   });
   app.post("/api/v1/projects/:id/activities", async (c) => {
     const projectId = c.req.param("id");

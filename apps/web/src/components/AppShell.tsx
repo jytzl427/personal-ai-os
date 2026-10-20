@@ -56,6 +56,23 @@ export function AppShell({
   const currentNav = activeNavName(route);
   const [attention, setAttention] = useState<AttentionSummary | null>(null);
   const retentionCheckStarted = useRef(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("paios_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCollapse() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("paios_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  }
 
   function loadAttention() {
     apiJson<AttentionSummary>("/system/attention")
@@ -89,20 +106,37 @@ export function AppShell({
   }, []);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${collapsed ? "is-sidebar-collapsed" : ""}`}>
+      <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
         <div className="brand">
-          <div className="brand-logo" aria-hidden="true">
+          <div
+            className="brand-logo"
+            aria-hidden="true"
+            onClick={toggleCollapse}
+            style={{ cursor: "pointer" }}
+            title={collapsed ? "点击展开侧边栏" : "Personal AI OS"}
+          >
             <span className="brand-logo-inner" />
           </div>
-          <div className="brand-info">
-            <span className="brand-title">Personal AI OS</span>
-            <span className="brand-badge">Local Core</span>
-          </div>
+          {!collapsed && (
+            <div className="brand-info">
+              <span className="brand-title">Personal AI OS</span>
+              <span className="brand-badge">Local Core</span>
+            </div>
+          )}
+          <button
+            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            className="sidebar-collapse-toggle"
+            onClick={toggleCollapse}
+            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            type="button"
+          >
+            {collapsed ? "»" : "«"}
+          </button>
         </div>
 
         <nav aria-label="主导航" className="main-nav">
-          <div className="nav-section-label">核心工作台</div>
+          {!collapsed && <div className="nav-section-label">核心工作台</div>}
           {navigation.map((item) => {
             const isActive = item.label === currentNav;
             return (
@@ -110,10 +144,11 @@ export function AppShell({
                 className={isActive ? "nav-item active" : "nav-item"}
                 key={item.label}
                 onClick={() => onNavigate(item.route)}
+                title={item.label}
                 type="button"
               >
                 <span className="nav-icon">{getNavIcon(item.label)}</span>
-                <span className="nav-label">{item.label}</span>
+                {!collapsed && <span className="nav-label">{item.label}</span>}
                 {isActive ? <span className="nav-active-indicator" /> : null}
               </button>
             );
@@ -121,9 +156,9 @@ export function AppShell({
         </nav>
 
         <div className="sidebar-footer">
-          <div className="system-status-pill">
+          <div className="system-status-pill" title="本地离线 · 安全隔离">
             <span className="status-dot-pulse" aria-hidden="true" />
-            <span className="status-text">本地离线 · 安全隔离</span>
+            {!collapsed && <span className="status-text">本地离线 · 安全隔离</span>}
           </div>
         </div>
       </aside>

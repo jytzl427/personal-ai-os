@@ -49,7 +49,7 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-pill: 9999px;
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Cascadia Code", monospace;
   --sidebar: 232px;
   font-family: var(--font);
@@ -89,6 +89,11 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   display: block;
   padding-left: var(--sidebar);
   background: var(--bg);
+  transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-shell.is-sidebar-collapsed {
+  padding-left: var(--sidebar-collapsed, 68px);
 }
 
 .sidebar {
@@ -106,6 +111,88 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   z-index: 30;
   overflow-y: auto;
   box-shadow: 1px 0 3px rgba(15, 23, 42, 0.02);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.is-collapsed {
+  width: var(--sidebar-collapsed, 68px);
+  padding: 20px 8px 16px;
+  align-items: center;
+}
+
+.sidebar.is-collapsed .brand {
+  padding: 4px 0 20px;
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebar-collapse-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-3, #94a3b8);
+  cursor: pointer;
+  padding: 4px 7px;
+  border-radius: var(--radius-sm, 6px);
+  margin-left: auto;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-collapse-toggle:hover {
+  background: var(--surface-2, #f1f5f9);
+  border-color: var(--line, #e2e8f0);
+  color: var(--ink, #1e293b);
+}
+
+.sidebar.is-collapsed .sidebar-collapse-toggle {
+  margin-left: 0;
+  margin-top: 6px;
+  font-size: 13px;
+  padding: 3px 6px;
+}
+
+.sidebar.is-collapsed .main-nav {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar.is-collapsed .nav-item {
+  justify-content: center;
+  padding: 9px 0;
+  width: 44px;
+  border-radius: var(--radius-md, 8px);
+}
+
+.sidebar.is-collapsed .nav-icon {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar.is-collapsed .nav-active-indicator {
+  display: none;
+}
+
+.sidebar.is-collapsed .sidebar-footer {
+  padding: 12px 0 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebar.is-collapsed .system-status-pill {
+  padding: 8px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
 .brand {
@@ -963,7 +1050,29 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .cal-day.is-today { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); font-weight: 600; }
 .cal-day.is-selected { background: var(--accent); color: #fff; font-weight: 600; }
 .cal-day.is-selected:hover { background: var(--accent-hover); color: #fff; }
-.cal-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+.cal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  gap: 8px;
+}
+.cal-clear {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.cal-clear:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
 .cal-today {
   border: 0;
   background: transparent;
@@ -2584,91 +2693,251 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   font-weight: 600;
   border: 1px solid #c8e6c9;
 }
-.checkpoint-table {
-  width: 100%;
+/* ================= 推进项目验收节点时间轴卡片流 ================= */
+.milestone-stepper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 14px;
+}
+.milestone-stepper-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 18px;
+}
+.milestone-stepper-item:last-child {
+  padding-bottom: 0;
+}
+.stepper-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 28px;
+  flex-shrink: 0;
+  position: relative;
+}
+.stepper-node {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+.stepper-node.node-done {
+  background: #2e7d32;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+}
+.stepper-node.node-current {
+  background: var(--pine, #154e3f);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(21, 78, 63, 0.2);
+}
+.stepper-node.node-pending {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--ink-3, #94a3b8);
+  border: 1.5px solid var(--line, #cbd5e1);
+}
+.stepper-dot-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8);
+  animation: status-pulse 1.8s infinite;
+}
+.stepper-icon-check {
+  font-size: 12px;
+  line-height: 1;
+}
+.stepper-num {
+  font-size: 11px;
+  line-height: 1;
+}
+.stepper-connector {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line, #e2e8f0);
+  z-index: 1;
+}
+.stepper-connector.is-done {
+  background: #a5d6a7;
+}
+.stepper-card {
+  flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  margin-top: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
-.checkpoint-table-header {
-  display: grid;
-  grid-template-columns: 76px minmax(180px, 1fr) 140px 110px 120px 44px;
+.stepper-card:hover {
+  border-color: rgba(21, 78, 63, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.milestone-stepper-item.is-current .stepper-card {
+  border-color: rgba(21, 78, 63, 0.45);
+  background: linear-gradient(180deg, rgba(21, 78, 63, 0.025) 0%, rgba(255, 255, 255, 0.95) 100%);
+  box-shadow: 0 3px 12px rgba(21, 78, 63, 0.08);
+}
+.milestone-stepper-item.is-done .stepper-card {
+  opacity: 0.88;
+  background: rgba(244, 248, 245, 0.6);
+  border-color: rgba(46, 125, 50, 0.18);
+}
+.stepper-card-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 8px 6px 10px;
-  border-bottom: 1px solid #e1e8e3;
-  color: var(--ink-3);
-  font-size: 11px;
-  font-weight: 600;
 }
-.checkpoint-table-row {
-  display: grid;
-  grid-template-columns: 76px minmax(180px, 1fr) 140px 110px 120px 44px;
+.stepper-card-tags {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 6px;
-  border-bottom: 1px solid #edf1ee;
-  transition: background-color 0.15s ease;
+  gap: 8px;
 }
-.checkpoint-table-row:hover {
-  background-color: rgba(0, 0, 0, 0.015);
-}
-.checkpoint-table-row:last-child {
-  border-bottom: none;
-}
-.checkpoint-table-row.is-done {
-  opacity: 0.85;
-}
-.checkpoint-tag {
-  display: inline-block;
-  padding: 3px 8px;
-  background: #eef3ef;
-  color: var(--ink-2);
-  border-radius: 5px;
+.stepper-tag {
   font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  line-height: 1.2;
 }
-.checkpoint-table-row.is-done .checkpoint-tag {
+.stepper-tag.tag-done {
   background: #e8f5e9;
   color: #2e7d32;
 }
-.checkpoint-status-btn {
+.stepper-tag.tag-current {
+  background: rgba(21, 78, 63, 0.1);
+  color: var(--pine, #154e3f);
+}
+.stepper-tag.tag-pending {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--ink-2, #64748b);
+}
+.stepper-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stepper-status-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
-.checkpoint-status-btn.todo {
-  background: #fbfcfb;
-  border: 1px solid #cfd8d2;
-  color: var(--ink-2);
+.stepper-status-btn.todo {
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--line, #cbd5e1);
+  color: var(--ink-2, #475569);
 }
-.checkpoint-status-btn.todo:hover {
+.stepper-status-btn.todo:hover {
   background: #e8f5e9;
   border-color: #a5d6a7;
   color: #2e7d32;
 }
-.checkpoint-status-btn.done {
+.stepper-status-btn.done {
   background: #e8f5e9;
   border: 1px solid #a5d6a7;
   color: #2e7d32;
 }
-.checkpoint-completed-time {
-  font-size: 12px;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
+.stepper-card-body {
+  width: 100%;
 }
-.checkpoint-table-row .col-action {
+.stepper-title-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink, #1e293b);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  padding: 5px 8px;
+  outline: none;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+.stepper-title-input:hover {
+  border-color: var(--line, #e2e8f0);
+  background: var(--surface-2, #f8fafc);
+}
+.stepper-title-input:focus {
+  border-color: var(--pine, #154e3f);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 0 0 2px rgba(21, 78, 63, 0.12);
+}
+.milestone-stepper-item.is-done .stepper-title-input {
+  color: var(--ink-2, #475569);
+  text-decoration: line-through;
+  text-decoration-color: rgba(71, 85, 105, 0.4);
+}
+.stepper-card-footer {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
+  font-size: 11.5px;
+  color: var(--ink-3, #94a3b8);
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+}
+.stepper-due-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepper-due-label {
+  font-size: 11px;
+  color: var(--ink-3, #94a3b8);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.stepper-completed-badge {
+  font-size: 11px;
+  color: #2e7d32;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.stepper-add-btn {
+  margin-top: 14px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1.5px dashed var(--line, #cbd5e1);
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--ink-2, #475569);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.stepper-add-btn:hover {
+  border-color: var(--pine, #154e3f);
+  color: var(--pine, #154e3f);
+  background: rgba(21, 78, 63, 0.03);
 }
 .maintenance-two-col {
   display: grid;
@@ -2875,10 +3144,69 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 .time-capsule-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   font-size: 11px;
   color: var(--ink-3, #94a3b8);
   font-weight: 600;
+  gap: 8px;
+}
+.time-capsule-stat {
+  color: var(--ink-2, #475569);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.time-capsule-pct {
+  color: var(--pine, #154e3f);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.project-card-next-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(21, 78, 63, 0.05);
+  border: 1px solid rgba(21, 78, 63, 0.14);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 11.5px;
+  margin-top: 2px;
+  transition: all 0.15s ease;
+}
+.project-card-next-slot:hover {
+  background: rgba(21, 78, 63, 0.08);
+  border-color: rgba(21, 78, 63, 0.25);
+}
+.project-card-next-slot.is-all-done {
+  background: rgba(46, 125, 50, 0.06);
+  border-color: rgba(46, 125, 50, 0.2);
+}
+.next-slot-tag {
+  font-weight: 700;
+  color: var(--pine, #154e3f);
+  white-space: nowrap;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.next-slot-title {
+  font-weight: 600;
+  color: var(--ink, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.next-slot-due {
+  color: var(--ink-3, #94a3b8);
+  font-size: 10.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.completed-checkpoints-badge {
+  color: #2e7d32;
+  font-weight: 600;
+  font-size: 11px;
 }
 
 /* ================= 维护备忘与 SOP Markdown 渲染样式 ================= */
@@ -2896,9 +3224,11 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   box-shadow: 0 2px 8px rgba(21, 78, 63, 0.06);
 }
 .markdown-rendered {
-  font-size: 13.5px;
-  line-height: 1.65;
+  font-family: var(--font);
+  font-size: 13.8px;
+  line-height: 1.72;
   color: var(--ink, #1e293b);
+  -webkit-font-smoothing: antialiased;
 }
 .markdown-rendered.is-empty {
   color: var(--ink-3, #94a3b8);
@@ -2909,22 +3239,28 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .markdown-rendered h2.md-h1 {
   font-size: 16px;
   font-weight: 700;
-  margin: 12px 0 6px;
-  padding-bottom: 4px;
+  margin: 14px 0 8px;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--line, #e2e8f0);
   color: var(--pine-dark, #154e3f);
 }
 .markdown-rendered h3.md-h2 {
   font-size: 14.5px;
   font-weight: 700;
-  margin: 10px 0 4px;
+  margin: 12px 0 6px;
   color: var(--ink, #1e293b);
 }
 .markdown-rendered h4.md-h3 {
   font-size: 13.5px;
   font-weight: 600;
-  margin: 8px 0 4px;
+  margin: 10px 0 4px;
   color: var(--ink-2, #475569);
+}
+.markdown-rendered h5.md-h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  color: var(--ink-3, #64748b);
 }
 .markdown-rendered p.md-paragraph {
   margin: 6px 0;
@@ -2936,6 +3272,20 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 .markdown-rendered li {
   margin: 3px 0;
+}
+.markdown-rendered .md-task-item {
+  list-style-type: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: -16px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+.markdown-rendered .md-task-checkbox {
+  margin-top: 2px;
+  accent-color: var(--pine, #154e3f);
+  cursor: pointer;
 }
 .markdown-rendered pre.md-code-block {
   background: #f8fafc;
@@ -2959,11 +3309,58 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 .markdown-rendered blockquote.md-blockquote {
   border-left: 3px solid var(--pine, #154e3f);
-  padding: 4px 12px;
-  margin: 8px 0;
+  padding: 8px 14px;
+  margin: 10px 0;
   color: var(--ink-2, #475569);
   background: rgba(21, 78, 63, 0.04);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 6px 6px 0;
+}
+.markdown-rendered blockquote.md-blockquote .md-quote-p {
+  margin: 4px 0;
+}
+.markdown-rendered blockquote.md-blockquote .md-quote-p:first-child {
+  margin-top: 0;
+}
+.markdown-rendered blockquote.md-blockquote .md-quote-p:last-child {
+  margin-bottom: 0;
+}
+.markdown-rendered .md-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 10px 0 14px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--line, #e2e8f0);
+  background: var(--surface, #ffffff);
+}
+.markdown-rendered table.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+}
+.markdown-rendered table.md-table th {
+  background: var(--surface-2, #f8fafc);
+  color: var(--ink, #0f172a);
+  font-weight: 650;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  white-space: nowrap;
+}
+.markdown-rendered table.md-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line-subtle, rgba(15, 23, 42, 0.05));
+  color: var(--ink-2, #334155);
+  vertical-align: top;
+}
+.markdown-rendered table.md-table tr:last-child td {
+  border-bottom: none;
+}
+.markdown-rendered table.md-table tr:nth-child(even) td {
+  background: rgba(248, 250, 252, 0.65);
+}
+.markdown-rendered table.md-table tr:hover td {
+  background: rgba(21, 78, 63, 0.03);
 }
 .markdown-rendered hr.md-hr {
   border: 0;
@@ -2992,12 +3389,17 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 
 @media (max-width: 650px) {
-  .checkpoint-table-header {
-    display: none;
+  .milestone-stepper-item {
+    gap: 10px;
   }
-  .checkpoint-table-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
+  .stepper-card-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .stepper-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
   }
 }
 
@@ -3599,3 +4001,121 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   font-size: 12px;
   color: var(--ink-3);
 }
+
+/* ================= 属性自动保存与节点排序组件 ================= */
+.auto-save-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pine, #154e3f);
+  background: rgba(21, 78, 63, 0.08);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+}
+
+.stepper-reorder-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+
+.stepper-reorder-btn {
+  background: transparent;
+  border: none;
+  padding: 3px 6px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-2, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-reorder-btn:hover:not(:disabled) {
+  background: var(--surface, #ffffff);
+  color: var(--pine, #154e3f);
+}
+
+.stepper-reorder-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.stepper-reorder-btn:first-child {
+  border-right: 1px solid var(--line, #cbd5e1);
+}
+
+/* ================= 临期/逾期项目卡片高亮强调 ================= */
+.project-card.has-urgent-deadline {
+  border-color: #ffb74d !important;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.2), 0 4px 12px rgba(255, 152, 0, 0.08);
+  background: linear-gradient(180deg, #fffcf5 0%, #ffffff 100%) !important;
+}
+
+.project-card.has-due-today-deadline {
+  border-color: #ef5350 !important;
+  box-shadow: 0 0 0 1.5px rgba(239, 83, 80, 0.3), 0 4px 14px rgba(239, 83, 80, 0.12);
+  background: linear-gradient(180deg, #fff8f8 0%, #ffffff 100%) !important;
+}
+
+.project-card.has-overdue-deadline {
+  border-color: #e53935 !important;
+  box-shadow: 0 0 0 1.5px rgba(229, 57, 53, 0.35), 0 4px 16px rgba(229, 57, 53, 0.15);
+  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%) !important;
+}
+
+/* 放大与强调临近日期徽标 */
+.time-capsule-badge.is-emphasized {
+  font-size: 12px;
+  padding: 3px 9px;
+  animation: pulse-gentle 2.5s infinite ease-in-out;
+}
+
+@keyframes pulse-gentle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* 下一步攻坚槽位临期警示 */
+.project-card-next-slot.is-urgent-slot.tone-urgent {
+  background: rgba(255, 152, 0, 0.08);
+  border-color: rgba(255, 152, 0, 0.35);
+}
+
+.project-card-next-slot.is-urgent-slot.tone-due-today {
+  background: rgba(239, 83, 80, 0.08);
+  border-color: rgba(239, 83, 80, 0.38);
+}
+
+.project-card-next-slot.is-urgent-slot.tone-overdue {
+  background: rgba(229, 57, 53, 0.1);
+  border-color: rgba(229, 57, 53, 0.45);
+}
+
+.next-slot-due.tone-urgent {
+  color: #e65100;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.next-slot-due.tone-due-today {
+  color: #c62828;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.next-slot-due.tone-overdue {
+  color: #b71c1c;
+  font-weight: 800;
+  font-size: 11px;
+}
+

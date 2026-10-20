@@ -21,7 +21,7 @@ import { generateDailyPlanForDate, readDailyPlan } from "./planner.js";
 import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
-import { addProjectActivity, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, syncProjectPlansForTodo } from "./project-service.js";
+import { addProjectActivity, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
   database: PaiosDatabase;
@@ -273,6 +273,7 @@ async function readResponseJson(response: Response | undefined): Promise<unknown
 export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: AgentAuth | null } }> {
   const app = new Hono<{ Variables: { agentAuth: AgentAuth | null } }>();
   const uiSessionToken = randomUUID().replaceAll("-", "");
+  try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
   app.use("/api/*", cors({ origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"], allowHeaders: ["Content-Type", "Authorization", "X-PAIOS-Agent-Transport", "X-Agent-Name", "X-Tool-Name", "X-PAIOS-UI-Session", "X-PAIOS-Idempotency-Key"], credentials: true }));
   app.use("/api/v1/*", async (c, next) => {
     const auth = requestAgentAuth(context.database, c);
@@ -1335,12 +1336,48 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   app.get("/api/v1/projects", (c) => {
     const projects = context.database.prepare("SELECT * FROM projects WHERE archived_at IS NULL ORDER BY started_at IS NULL, started_at DESC, end_date IS NULL, end_date ASC, created_at DESC").all() as Array<Record<string, unknown>>;
     const result = projects.map((project) => {
-      const counts = context.database.prepare(
+      const planCounts = context.database.prepare(
+        `SELECT COUNT(id) AS total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed
+         FROM project_task_plans
+         WHERE project_id = ? AND archived_at IS NULL`
+      ).get(project.id) as { total: number; completed: number | null };
+
+      const taskCounts = context.database.prepare(
         `SELECT COUNT(t.id) AS total, SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END) AS completed
          FROM tasks t INNER JOIN task_project_links l ON l.task_id = t.id
          WHERE l.project_id = ? AND t.archived_at IS NULL`
       ).get(project.id) as { total: number; completed: number | null };
-      return { ...project, progress: computeProjectProgress(counts.completed ?? 0, counts.total, project.progress_manual as number | null), finance: projectFinanceSummary(context.database, String(project.id)) };
+
+      const totalTasks = (planCounts?.total ?? 0) + (taskCounts?.total ?? 0);
+      const completedTasks = (planCounts?.completed ?? 0) + (taskCounts?.completed ?? 0);
+
+      let progress = 0;
+      if (project.status === "done") {
+        progress = 100;
+      } else if (project.progress_manual !== null && project.progress_manual !== undefined) {
+        progress = Math.min(100, Math.max(0, Math.round(Number(project.progress_manual))));
+      } else if (totalTasks > 0) {
+        progress = Math.min(100, Math.max(0, Math.round((completedTasks / totalTasks) * 100)));
+      }
+
+      const nextCheckpoint = context.database.prepare(
+        `SELECT id, title, due_date
+         FROM project_task_plans
+         WHERE project_id = ? AND status != 'done' AND archived_at IS NULL
+         ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
+         LIMIT 1`
+      ).get(project.id) as { id: string; title: string; due_date: string | null } | undefined;
+
+      return {
+        ...project,
+        progress,
+        checkpoint_stats: {
+          total: planCounts?.total ?? 0,
+          completed: planCounts?.completed ?? 0,
+        },
+        next_checkpoint: nextCheckpoint ?? null,
+        finance: projectFinanceSummary(context.database, String(project.id)),
+      };
     });
     return c.json({ ok: true, projects: result });
   });
@@ -1467,6 +1504,23 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     });
     remove();
     return c.json({ ok: true });
+  });
+
+  app.post("/api/v1/projects/:id/task-plans/reorder", async (c) => {
+    const projectId = c.req.param("id");
+    if (!context.database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(projectId)) return notFound(c, "project");
+    const body = await c.req.json() as { plan_ids?: string[] };
+    if (!Array.isArray(body.plan_ids)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "plan_ids array is required" } }, 400);
+    const timestamp = now();
+    const update = context.database.transaction(() => {
+      body.plan_ids!.forEach((planId, index) => {
+        context.database.prepare(
+          "UPDATE project_task_plans SET sort_order = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND project_id = ?"
+        ).run(index, timestamp, planId, projectId);
+      });
+    });
+    update();
+    return c.json({ ok: true, project_tasks: projectTaskPlans(context.database, projectId) });
   });
 
   app.post("/api/v1/projects/:id/activities", async (c) => {
