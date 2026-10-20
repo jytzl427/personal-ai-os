@@ -1478,8 +1478,44 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     }
     const body = await c.req.json() as Record<string, unknown>;
     if (typeof body.content !== "string" || !body.content.trim()) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "content is required" } }, 400);
-    addProjectActivity(context.database, projectId, typeof body.kind === "string" ? body.kind : "progress", body.content, body.important === true);
+    const kind = typeof body.kind === "string" && body.kind.trim() ? body.kind.trim() : "progress";
+    const important = body.important === true || (typeof body.important !== "boolean" && kind !== "progress");
+    addProjectActivity(context.database, projectId, kind, body.content, important);
     return c.json({ ok: true, activities: projectActivities(context.database, projectId) }, 201);
+  });
+
+  app.patch("/api/v1/projects/:id/activities/:activityId", async (c) => {
+    const projectId = c.req.param("id");
+    const activityId = c.req.param("activityId");
+    if (!context.database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(projectId)) return notFound(c, "project");
+    if (c.get("agentAuth")) {
+      const rejected = rejectAgentProjectWrite(c, context.database, projectId);
+      if (rejected) return rejected;
+    }
+    const body = await c.req.json() as Record<string, unknown>;
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (typeof body.kind === "string" && body.kind.trim()) {
+      updates.push("kind = ?");
+      values.push(body.kind.trim());
+      if (body.important === undefined) {
+        updates.push("important = ?");
+        values.push(body.kind.trim() === "progress" ? 0 : 1);
+      }
+    }
+    if (typeof body.important === "boolean") {
+      updates.push("important = ?");
+      values.push(body.important ? 1 : 0);
+    }
+    if (typeof body.content === "string" && body.content.trim()) {
+      updates.push("content = ?");
+      values.push(body.content.trim());
+    }
+    if (updates.length > 0) {
+      values.push(activityId, projectId);
+      context.database.prepare(`UPDATE project_activity_logs SET ${updates.join(", ")} WHERE id = ? AND project_id = ?`).run(...values);
+    }
+    return c.json({ ok: true, activities: projectActivities(context.database, projectId) });
   });
 
   app.delete("/api/v1/projects/:id/activities/:activityId", async (c) => {

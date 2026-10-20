@@ -113,6 +113,87 @@ function formatActivityTime(isoStr?: string | null): { date: string; time: strin
   }
 }
 
+function getActivityKindMeta(kind?: string, important?: number) {
+  if (kind === "game_changer") {
+    return {
+      type: "game_changer",
+      label: "⚡ 胜负手",
+      icon: "⚡",
+      dotClass: "dot-game-changer",
+      cardClass: "card-game-changer",
+      badgeClass: "badge-game-changer",
+    };
+  }
+  if (kind === "closure") {
+    return {
+      type: "closure",
+      label: "🏁 关键收官",
+      icon: "🏁",
+      dotClass: "dot-closure",
+      cardClass: "card-closure",
+      badgeClass: "badge-closure",
+    };
+  }
+  if (kind === "pivot") {
+    return {
+      type: "pivot",
+      label: "🔄 战略调整",
+      icon: "🔄",
+      dotClass: "dot-pivot",
+      cardClass: "card-pivot",
+      badgeClass: "badge-pivot",
+    };
+  }
+  if (kind === "incident") {
+    return {
+      type: "incident",
+      label: "⚠️ 故障复盘",
+      icon: "⚠️",
+      dotClass: "dot-incident",
+      cardClass: "card-incident",
+      badgeClass: "badge-incident",
+    };
+  }
+  if (kind === "milestone" || (kind === "progress" && important === 1)) {
+    return {
+      type: "milestone",
+      label: "🌟 重大里程碑",
+      icon: "★",
+      dotClass: "dot-milestone",
+      cardClass: "card-milestone",
+      badgeClass: "badge-milestone",
+    };
+  }
+  if (kind === "task_completed") {
+    return {
+      type: "task_completed",
+      label: "✓ 任务完成",
+      icon: "✓",
+      dotClass: "dot-task",
+      cardClass: "card-normal",
+      badgeClass: "badge-task",
+    };
+  }
+  if (kind === "task_cancelled" || kind === "task_removed") {
+    return {
+      type: kind,
+      label: kind === "task_cancelled" ? "✕ 任务取消" : "🗑 任务移除",
+      icon: "•",
+      dotClass: "dot-normal",
+      cardClass: "card-normal",
+      badgeClass: "badge-muted",
+    };
+  }
+  return {
+    type: "progress",
+    label: "📝 常规记录",
+    icon: "•",
+    dotClass: "dot-normal",
+    cardClass: "card-normal",
+    badgeClass: "badge-normal",
+  };
+}
+
 function getCountdownBadge(targetDateStr?: string | null, isDone?: boolean) {
   if (isDone) {
     return { text: "✓ 已收官", tone: "done" };
@@ -428,7 +509,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   const [savingNotes, setSavingNotes] = useState(false);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [activity, setActivity] = useState("");
-  const [isMilestone, setIsMilestone] = useState(false);
+  const [activityKind, setActivityKind] = useState("progress");
   const [savingActivity, setSavingActivity] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
@@ -523,17 +604,31 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     if (!activity.trim() || savingActivity) return;
     setSavingActivity(true);
     try {
+      const isImportant = activityKind !== "progress";
       await apiJson(
         `/projects/${encodeURIComponent(id)}/activities`,
-        jsonRequest("POST", { content: activity.trim(), important: isMilestone })
+        jsonRequest("POST", { content: activity.trim(), kind: activityKind, important: isImportant })
       );
       setActivity("");
-      setIsMilestone(false);
+      setActivityKind("progress");
       load();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "重大事件记录失败");
     } finally {
       setSavingActivity(false);
+    }
+  }
+
+  async function updateActivityKind(activityId: string, nextKind: string) {
+    try {
+      const isImportant = nextKind !== "progress" && nextKind !== "task_completed" && nextKind !== "task_cancelled" && nextKind !== "task_removed";
+      await apiJson(
+        `/projects/${encodeURIComponent(id)}/activities/${encodeURIComponent(activityId)}`,
+        jsonRequest("PATCH", { kind: nextKind, important: isImportant })
+      );
+      load();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "事件类型修改失败");
     }
   }
 
@@ -947,14 +1042,22 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                   value={activity}
                 />
                 <div className="activity-composer-footer">
-                  <label className="activity-milestone-toggle">
-                    <input
-                      checked={isMilestone}
-                      onChange={(e) => setIsMilestone(e.target.checked)}
-                      type="checkbox"
-                    />
-                    <span>🌟 标记为重大历史里程碑</span>
-                  </label>
+                  <div className="activity-kind-picker">
+                    <span className="activity-kind-label">事件性质：</span>
+                    <select
+                      aria-label="选择事件性质"
+                      className="activity-kind-select"
+                      onChange={(e) => setActivityKind(e.target.value)}
+                      value={activityKind}
+                    >
+                      <option value="progress">📝 常规记录（默认）</option>
+                      <option value="milestone">🌟 重大里程碑</option>
+                      <option value="game_changer">⚡ 胜负手</option>
+                      <option value="closure">🏁 关键收官</option>
+                      <option value="pivot">🔄 战略调整</option>
+                      <option value="incident">⚠️ 故障复盘</option>
+                    </select>
+                  </div>
                   <button
                     className="primary-button activity-submit-btn"
                     disabled={!activity.trim() || savingActivity}
@@ -970,13 +1073,13 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                 <div className="project-activity-stream">
                   {data.activities.map((item, idx) => {
                     const isLast = idx === (data.activities?.length ?? 0) - 1;
-                    const isImportant = Boolean(item.important);
+                    const meta = getActivityKindMeta(item.kind, item.important);
                     const timeInfo = formatActivityTime(item.created_at);
                     return (
-                      <div className={`activity-timeline-item ${isImportant ? "is-milestone" : ""}`} key={item.id}>
+                      <div className={`activity-timeline-item ${meta.cardClass}`} key={item.id}>
                         <div className="activity-timeline-axis">
-                          <div className={`activity-node-dot ${isImportant ? "dot-milestone" : ""}`}>
-                            {isImportant ? "★" : null}
+                          <div className={`activity-node-dot ${meta.dotClass}`}>
+                            {meta.icon !== "•" ? meta.icon : null}
                           </div>
                           {!isLast && <div className="activity-axis-line" />}
                         </div>
@@ -986,11 +1089,20 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                               <span className="activity-time-badge">
                                 📅 {timeInfo.date} <span className="activity-time-clock">{timeInfo.time}</span>
                               </span>
-                              {isImportant ? (
-                                <span className="activity-milestone-pill">
-                                  🌟 重大里程碑
-                                </span>
-                              ) : null}
+                              <select
+                                aria-label="事件性质"
+                                className={`activity-kind-badge-select ${meta.badgeClass}`}
+                                onChange={(e) => void updateActivityKind(item.id, e.target.value)}
+                                title="点击直接切换此事件性质"
+                                value={meta.type}
+                              >
+                                <option value="progress">📝 常规记录</option>
+                                <option value="milestone">🌟 重大里程碑</option>
+                                <option value="game_changer">⚡ 胜负手</option>
+                                <option value="closure">🏁 关键收官</option>
+                                <option value="pivot">🔄 战略调整</option>
+                                <option value="incident">⚠️ 故障复盘</option>
+                              </select>
                             </div>
                             <DeleteButton
                               label="删除此条事件记录"
