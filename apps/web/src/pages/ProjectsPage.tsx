@@ -835,10 +835,6 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     }
   }
 
-  async function save() {
-    await saveField();
-  }
-
   async function saveWorkspaceNotes() {
     setSavingNotes(true);
     try {
@@ -971,11 +967,17 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             </div>
 
             <label className="check-field project-archive-check">
-              <input checked={draft.archive_requested === "1"} onChange={(event) => setDraft({ ...draft, archive_requested: event.target.checked ? "1" : "0" })} type="checkbox" />
+              <input
+                checked={draft.archive_requested === "1"}
+                onChange={(event) => {
+                  const archive_requested = event.target.checked ? "1" : "0";
+                  setDraft({ ...draft, archive_requested });
+                  void saveField({ archive_requested });
+                }}
+                type="checkbox"
+              />
               归档项目（需同时设置实际完成时间）
             </label>
-
-            <button className="primary-button" onClick={() => void save()} type="button">保存项目属性</button>
           </section>
 
           <section className="panel project-detail-section checkpoint-section">
@@ -1123,6 +1125,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               <AutoGrowTextarea
                 ariaLabel="当前运营策略"
                 className="cell-input memo-input auto-grow-textarea"
+                onBlur={() => void saveField({ description: draft.description })}
                 onChange={(value) => setDraft({ ...draft, description: value })}
                 placeholder="一句话底线与精力投入策略（例如：每周低精力维护，保持平稳运行与盈利状态，不占用攻坚精力）"
                 value={draft.description ?? ""}
@@ -1132,7 +1135,15 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
             <div className="form-row form-row-4">
               <label className="form-field">
                 <span>项目板块</span>
-                <select className="select-input" onChange={(event) => setDraft({ ...draft, category: event.target.value })} value={draft.category ?? "maintenance"}>
+                <select
+                  className="select-input"
+                  onChange={(event) => {
+                    const category = event.target.value;
+                    setDraft({ ...draft, category });
+                    void saveField({ category });
+                  }}
+                  value={draft.category ?? "maintenance"}
+                >
                   <option value="advancement">推进项目</option>
                   <option value="maintenance">维护项目</option>
                 </select>
@@ -1140,7 +1151,15 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
               <label className="form-field">
                 <span>运行状态</span>
-                <select className="select-input" onChange={(event) => setDraft({ ...draft, status: event.target.value })} value={draft.status ?? "active"}>
+                <select
+                  className="select-input"
+                  onChange={(event) => {
+                    const status = event.target.value;
+                    setDraft({ ...draft, status });
+                    void saveField({ status });
+                  }}
+                  value={draft.status ?? "active"}
+                >
                   <option value="high_energy">高投入维护</option>
                   <option value="active">平稳维护</option>
                   <option value="low_energy">低精力维护</option>
@@ -1151,12 +1170,26 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
               <label className="form-field">
                 <span>启动时间</span>
-                <DateField ariaLabel="项目启动时间" onChange={(value) => setDraft({ ...draft, started_at: value })} value={draft.started_at} />
+                <DateField
+                  ariaLabel="项目启动时间"
+                  onChange={(value) => {
+                    setDraft({ ...draft, started_at: value });
+                    void saveField({ started_at: value });
+                  }}
+                  value={draft.started_at}
+                />
               </label>
 
               <label className="form-field">
                 <span>完结时间</span>
-                <DateField ariaLabel="项目完结时间" onChange={(value) => setDraft({ ...draft, end_date: value })} value={draft.end_date} />
+                <DateField
+                  ariaLabel="项目完结时间"
+                  onChange={(value) => {
+                    setDraft({ ...draft, end_date: value });
+                    void saveField({ end_date: value });
+                  }}
+                  value={draft.end_date}
+                />
               </label>
 
               <label className="form-field">
@@ -1183,11 +1216,15 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               </label>
             </div>
 
-            <div style={{ display: "flex", gap: "20px", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
               <label className="check-field">
                 <input
                   checked={draft.benefit_enabled === "1"}
-                  onChange={(event) => setDraft({ ...draft, benefit_enabled: event.target.checked ? "1" : "0" })}
+                  onChange={(event) => {
+                    const benefit_enabled = event.target.checked ? "1" : "0";
+                    setDraft({ ...draft, benefit_enabled });
+                    void saveField({ benefit_enabled });
+                  }}
                   type="checkbox"
                 />
                 开启盈利核算
@@ -1196,14 +1233,16 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
               <label className="check-field project-archive-check">
                 <input
                   checked={draft.archive_requested === "1"}
-                  onChange={(event) => setDraft({ ...draft, archive_requested: event.target.checked ? "1" : "0" })}
+                  onChange={(event) => {
+                    const archive_requested = event.target.checked ? "1" : "0";
+                    setDraft({ ...draft, archive_requested });
+                    void saveField({ archive_requested });
+                  }}
                   type="checkbox"
                 />
                 归档项目（需同时设置实际完结时间）
               </label>
             </div>
-
-            <button className="primary-button" onClick={() => void save()} type="button">保存运营策略</button>
           </section>
 
           {(draft.benefit_enabled === "1" || data.project.benefit_enabled) ? (
