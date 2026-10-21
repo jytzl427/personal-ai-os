@@ -2199,7 +2199,41 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .template-property-panel .select-input { width: 100%; }
 .template-next-occurrence { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 16px; padding: 10px 12px; border: 1px solid #e5eee8; border-radius: 10px; background: #f7fbf8; font-size: 12px; }
 .template-next-occurrence strong { color: var(--ink); font-size: 13px; font-weight: 650; }
-.time-input { text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.time-input {
+  width: 100%;
+  max-width: 115px;
+  min-width: 100px;
+  margin: 0 auto;
+  display: block;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+  font-family: inherit;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm, 6px);
+  box-sizing: border-box;
+}
+
+.time-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  margin: 0 0 0 2px;
+  padding: 0;
+  width: 15px;
+  height: 15px;
+}
+
+.time-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.time-input::-webkit-datetime-edit {
+  padding: 0;
+}
+
+.time-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
 .task-editor-shell { position: relative; }
 .slash-menu {
   position: absolute;
@@ -2454,13 +2488,20 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .review-open-button:hover, .review-preview-button:hover { color: var(--accent); }
 .review-detail-field { margin-top: 16px; }
 .review-detail-field .review-editor { min-height: 260px; width: 100%; }
-.health-table-panel .database-table { min-width: 860px; width: 100%; }
+.health-table-panel .database-table { min-width: 950px; width: 100%; }
 .health-table-panel .col-delete { width: 34px; }
-.health-table-panel .col-date { width: 110px; }
-.health-table-panel .col-time { width: 92px; }
-.health-table-panel .col-number { width: 110px; min-width: 100px; text-align: center; }
-.health-table-panel .col-memo { width: auto; min-width: 220px; }
+.health-table-panel .col-date { width: 105px; }
+.health-table-panel .col-time { width: 125px; min-width: 120px; }
+.health-table-panel .col-time-sleep { width: 95px; min-width: 90px; text-align: center; }
+.health-table-panel .col-number { width: 105px; min-width: 95px; text-align: center; }
+.health-table-panel .col-memo { width: auto; min-width: 200px; }
 .health-table-panel .col-disciplined { width: 95px; min-width: 95px; text-align: center; }
+
+.health-table-panel td.col-time,
+.health-table-panel th.col-time {
+  padding: 8px 6px;
+  text-align: center;
+}
 .sleep-duration { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .weight-input { width: 100%; max-width: 84px; text-align: center; font-variant-numeric: tabular-nums; margin: 0 auto; display: block; }
 

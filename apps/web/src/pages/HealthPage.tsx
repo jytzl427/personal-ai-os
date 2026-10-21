@@ -158,9 +158,9 @@ export function HealthPage() {
           columns={[
             { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteRecord(row.log_date)} /> },
             { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
-            { key: "bed", label: "上床", className: "col-time", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
-            { key: "sleep", label: "睡眠时长", className: "col-time", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
-            { key: "wake", label: "起床", className: "col-time", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void save(row.log_date, { wake_local: value || null })} /> },
+            { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
+            { key: "sleep", label: "睡眠时长", className: "col-time col-time-sleep", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
+            { key: "wake", label: "起床", className: "col-time col-time-wake", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void save(row.log_date, { wake_local: value || null })} /> },
             { key: "weight", label: "空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void save(row.log_date, { weight_kg: value })} /> },
             { key: "exercise", label: "运动与消耗", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动、体能消耗…" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void save(row.log_date, { exercise_note: value }); }} /> },
             { key: "disciplined", label: "是否不自律", className: "col-disciplined", render: (row) => <Checkbox ariaLabel={`${formatDate(row.log_date)} 是否不自律`} checked={Boolean(row.disciplined)} onChange={(checked) => void save(row.log_date, { disciplined: checked })} /> }
@@ -173,15 +173,16 @@ export function HealthPage() {
 }
 
 function TimeCell({ value, ariaLabel, onCommit }: { value: string; ariaLabel: string; onCommit: (value: string) => void }) {
-  const [draft, setDraft] = useState(value);
+  const normalizedValue = typeof value === "string" ? value.slice(0, 5) : "";
+  const [draft, setDraft] = useState(normalizedValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const isFocusedRef = useRef(false);
 
   useEffect(() => {
     if (!isFocusedRef.current && document.activeElement !== inputRef.current) {
-      setDraft(value);
+      setDraft(normalizedValue);
     }
-  }, [value]);
+  }, [normalizedValue]);
 
   return (
     <input
@@ -200,7 +201,7 @@ function TimeCell({ value, ariaLabel, onCommit }: { value: string; ariaLabel: st
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          setDraft(value);
+          setDraft(normalizedValue);
           event.currentTarget.blur();
         }
         if (event.key === "Enter") event.currentTarget.blur();
