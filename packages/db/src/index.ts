@@ -1105,6 +1105,27 @@ function applyMigrations(database) {
     });
     migrateSortOrder();
   }
+  const checkpointTaskMemoApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("022_project_checkpoint_task_memo");
+  if (!checkpointTaskMemoApplied) {
+    const migrateCheckpointMemo = database.transaction(() => {
+      database.prepare(`
+        UPDATE tasks
+        SET description = (
+          SELECT p.name
+          FROM project_task_plans pt
+          JOIN projects p ON p.id = pt.project_id
+          WHERE pt.todo_task_id = tasks.id
+        )
+        WHERE id IN (
+          SELECT pt.todo_task_id
+          FROM project_task_plans pt
+          WHERE pt.todo_task_id IS NOT NULL
+        ) AND (description IS NULL OR trim(description) = '')
+      `).run();
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(22, "022_project_checkpoint_task_memo", nowIso());
+    });
+    migrateCheckpointMemo();
+  }
 }
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();
 var WEEKLY_BACKUP_RETAIN = 3;

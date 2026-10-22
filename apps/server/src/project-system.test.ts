@@ -37,7 +37,7 @@ test("profitable projects create dynamic finance links and project task plans sy
     assert.equal(expense.response.status, 201);
     assert.equal(expense.body.expense.project_id, projectId);
 
-    const plan = await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "研究方案", due_date: "2026-09-10" });
+    const plan = await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "研究方案", due_date: "2099-09-10" });
     assert.equal(plan.response.status, 201);
     const ordinary = await request(app, "/api/v1/tasks", "GET");
     assert.equal(ordinary.body.tasks.some((task: Record<string, unknown>) => task.title === "研究方案"), false);
@@ -45,7 +45,7 @@ test("profitable projects create dynamic finance links and project task plans sy
     const blankPlan = await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "" });
     assert.equal(blankPlan.response.status, 201);
     assert.equal(blankPlan.body.project_task.title, "");
-    const datedBlankPlan = await request(app, `/api/v1/project-task-plans/${blankPlan.body.project_task.id}`, "PATCH", { due_date: "2026-09-12" });
+    const datedBlankPlan = await request(app, `/api/v1/project-task-plans/${blankPlan.body.project_task.id}`, "PATCH", { due_date: "2099-09-12" });
     assert.equal(datedBlankPlan.response.status, 200);
     const namedPlan = await request(app, `/api/v1/project-task-plans/${blankPlan.body.project_task.id}`, "PATCH", { title: "补充项目任务名称" });
     assert.equal(namedPlan.response.status, 200);

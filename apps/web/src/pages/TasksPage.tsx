@@ -28,6 +28,7 @@ type Task = {
   row_version?: number;
   archive_requested?: number | boolean | null;
   archived_at?: string | null;
+  project_name?: string | null;
 };
 
 function normalizeStatus(status: string): TaskStatus {
@@ -213,14 +214,19 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               key: "memo",
               label: "备忘",
               className: "col-memo",
-              render: (task) => (
-                <CellText
-                  multiline
-                  placeholder="添加备忘…"
-                  value={task.description ?? ""}
-                  onCommit={(value) => { if (value !== (task.description ?? "")) void saveTask(task.id, { description: value }); }}
-                />
-              )
+              render: (task) => {
+                const memoValue = task.description?.trim()
+                  ? task.description
+                  : (task.project_name ?? "");
+                return (
+                  <CellText
+                    multiline
+                    placeholder={task.project_name ? task.project_name : "添加备忘…"}
+                    value={memoValue}
+                    onCommit={(value) => { if (value !== (task.description ?? "")) void saveTask(task.id, { description: value }); }}
+                  />
+                );
+              }
             }
           ]}
           footer={<AddRowButton label="添加任务" onClick={() => void addTask()} />}

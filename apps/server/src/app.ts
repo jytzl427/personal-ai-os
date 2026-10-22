@@ -1145,7 +1145,18 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
 
   app.get("/api/v1/tasks/:id", (c) => {
     const id = c.req.param("id");
-    const task = context.database.prepare("SELECT * FROM tasks WHERE id = ? AND archived_at IS NULL").get(id) as Record<string, unknown> | undefined;
+    const task = context.database.prepare(`
+      SELECT tasks.*,
+        (
+          SELECT p.name 
+          FROM project_task_plans pt 
+          JOIN projects p ON p.id = pt.project_id 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_name
+      FROM tasks WHERE id = ? AND archived_at IS NULL
+    `).get(id) as Record<string, unknown> | undefined;
     if (!task) return notFound(c, "task");
     const timezone = getSetting(context.database, "timezone", "Asia/Shanghai");
     const recurrence = typeof task.recurrence_id === "string" ? inspectRecurrences(context.database, task.recurrence_id, localDateInTimezone(timezone))[0] ?? null : null;
@@ -1430,7 +1441,11 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const write = context.database.transaction(() => {
       if (body.add_to_todo === true) {
         todoTaskId = randomUUID();
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, timestamp, timestamp);
+        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(projectId) as { name: string } | undefined;
+        const projectName = project?.name ?? "";
+        const rawDesc = typeof body.description === "string" ? body.description.trim() : "";
+        const memo = projectName ? (rawDesc ? (rawDesc.startsWith(projectName) ? rawDesc : `${projectName} · ${rawDesc}`) : projectName) : rawDesc;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, memo, body.due_date ?? null, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, projectId);
       }
       context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, timestamp, timestamp);
@@ -1479,7 +1494,11 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
         todoTaskId = randomUUID();
         const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
         const priority = isDueTodayOrOverdue ? "P1" : "P2";
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), priority, dueDate, timestamp, timestamp);
+        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id) as { name: string } | undefined;
+        const projectName = project?.name ?? "";
+        const rawDesc = typeof body.description === "string" ? body.description.trim() : String(current.description ?? "").trim();
+        const memo = projectName ? (rawDesc ? (rawDesc.startsWith(projectName) ? rawDesc : `${projectName} · ${rawDesc}`) : projectName) : rawDesc;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, memo, priority, dueDate, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "项目任务已加入待办：" + title, false, timestamp);
       }
@@ -1488,7 +1507,18 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
       context.database.prepare("UPDATE project_task_plans SET title = ?, description = ?, due_date = ?, status = ?, todo_task_id = ?, archive_requested = ?, updated_at = ?, completed_at = ?, row_version = row_version + 1 WHERE id = ?").run(title, description, dueDate, status, todoTaskId, nextArchiveRequested, timestamp, completedAt, id);
       if (todoTaskId) {
         const todoStatus = status === "done" ? "done" : status === "cancelled" ? "cancelled" : "todo";
-        context.database.prepare("UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, completed_at = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND archived_at IS NULL").run(title, description, dueDate, todoStatus, todoStatus === "done" ? timestamp : null, timestamp, todoTaskId);
+        const existingTask = context.database.prepare("SELECT description FROM tasks WHERE id = ?").get(todoTaskId) as { description: string | null } | undefined;
+        let taskMemo = existingTask?.description ?? "";
+        if (body.description !== undefined) {
+          const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id) as { name: string } | undefined;
+          const projectName = project?.name ?? "";
+          const rawDesc = String(body.description ?? "").trim();
+          taskMemo = projectName ? (rawDesc ? (rawDesc.startsWith(projectName) ? rawDesc : `${projectName} · ${rawDesc}`) : projectName) : rawDesc;
+        } else if (!taskMemo.trim()) {
+          const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id) as { name: string } | undefined;
+          if (project?.name) taskMemo = project.name;
+        }
+        context.database.prepare("UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, completed_at = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND archived_at IS NULL").run(title, taskMemo, dueDate, todoStatus, todoStatus === "done" ? timestamp : null, timestamp, todoTaskId);
       }
       if (status !== String(current.status) && (status === "done" || status === "cancelled")) {
         addProjectActivity(context.database, String(current.project_id), status === "done" ? "task_completed" : "task_cancelled", status === "done" ? "项目任务完成：" + title : "项目任务取消：" + title, status === "done", timestamp);
@@ -2519,7 +2549,15 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
             : "";
     const params = overdue ? [today] : date ? [date] : from && to ? [from, to] : [];
     const rows = context.database.prepare(
-      `SELECT id, title, description, status, priority, due_date, scheduled_date, recurrence_id, recurrence_date, archive_requested, archived_at, row_version, created_at, updated_at
+      `SELECT tasks.id, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.due_date, tasks.scheduled_date, tasks.recurrence_id, tasks.recurrence_date, tasks.archive_requested, tasks.archived_at, tasks.row_version, tasks.created_at, tasks.updated_at,
+        (
+          SELECT p.name 
+          FROM project_task_plans pt 
+          JOIN projects p ON p.id = pt.project_id 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_name
        FROM tasks WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"}${extra}
        ORDER BY due_date IS NULL, due_date ASC, created_at ASC`
     ).all(...params) as Array<Record<string, unknown>>;

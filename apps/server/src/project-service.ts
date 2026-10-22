@@ -149,9 +149,17 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
 
   let count = 0;
   for (const item of candidates) {
+    const rawDesc = typeof item.description === "string" ? item.description.trim() : "";
+    const checkpointMemo = item.project_name ? (rawDesc ? (rawDesc.startsWith(item.project_name) ? rawDesc : `${item.project_name} · ${rawDesc}`) : item.project_name) : rawDesc;
+
     if (item.todo_task_id) {
-      const exists = database.prepare("SELECT id FROM tasks WHERE id = ?").get(item.todo_task_id);
-      if (exists) continue;
+      const exists = database.prepare("SELECT id, description FROM tasks WHERE id = ?").get(item.todo_task_id) as { id: string; description: string | null } | undefined;
+      if (exists) {
+        if (!exists.description || !exists.description.trim()) {
+          database.prepare("UPDATE tasks SET description = ?, updated_at = ? WHERE id = ?").run(checkpointMemo, timestamp, exists.id);
+        }
+        continue;
+      }
     }
 
     const todoTaskId = randomUUID();
@@ -165,7 +173,7 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
       `).run(
         todoTaskId,
         item.title,
-        typeof item.description === "string" ? item.description : "",
+        checkpointMemo,
         priority,
         item.due_date,
         timestamp,

@@ -9419,6 +9419,27 @@ function applyMigrations(database) {
     });
     migrateSortOrder();
   }
+  const checkpointTaskMemoApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("022_project_checkpoint_task_memo");
+  if (!checkpointTaskMemoApplied) {
+    const migrateCheckpointMemo = database.transaction(() => {
+      database.prepare(`
+        UPDATE tasks
+        SET description = (
+          SELECT p.name
+          FROM project_task_plans pt
+          JOIN projects p ON p.id = pt.project_id
+          WHERE pt.todo_task_id = tasks.id
+        )
+        WHERE id IN (
+          SELECT pt.todo_task_id
+          FROM project_task_plans pt
+          WHERE pt.todo_task_id IS NOT NULL
+        ) AND (description IS NULL OR trim(description) = '')
+      `).run();
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(22, "022_project_checkpoint_task_memo", nowIso());
+    });
+    migrateCheckpointMemo();
+  }
 }
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();
 var WEEKLY_BACKUP_RETAIN = 3;
@@ -17354,10 +17375,16 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
   `).all(tomorrow2);
   let count = 0;
   for (const item of candidates) {
+    const rawDesc = typeof item.description === "string" ? item.description.trim() : "";
+    const checkpointMemo = item.project_name ? rawDesc ? rawDesc.startsWith(item.project_name) ? rawDesc : `${item.project_name} \xB7 ${rawDesc}` : item.project_name : rawDesc;
     if (item.todo_task_id) {
-      const exists = database.prepare("SELECT id FROM tasks WHERE id = ?").get(item.todo_task_id);
-      if (exists)
+      const exists = database.prepare("SELECT id, description FROM tasks WHERE id = ?").get(item.todo_task_id);
+      if (exists) {
+        if (!exists.description || !exists.description.trim()) {
+          database.prepare("UPDATE tasks SET description = ?, updated_at = ? WHERE id = ?").run(checkpointMemo, timestamp, exists.id);
+        }
         continue;
+      }
     }
     const todoTaskId = randomUUID5();
     const isDueTodayOrOverdue = item.due_date <= today;
@@ -17366,7 +17393,7 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
       database.prepare(`
         INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at)
         VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)
-      `).run(todoTaskId, item.title, typeof item.description === "string" ? item.description : "", priority, item.due_date, timestamp, timestamp);
+      `).run(todoTaskId, item.title, checkpointMemo, priority, item.due_date, timestamp, timestamp);
       database.prepare(`
         INSERT INTO task_project_links (task_id, project_id)
         VALUES (?, ?)
@@ -20500,7 +20527,18 @@ function createApp(context) {
   });
   app.get("/api/v1/tasks/:id", (c) => {
     const id = c.req.param("id");
-    const task = context.database.prepare("SELECT * FROM tasks WHERE id = ? AND archived_at IS NULL").get(id);
+    const task = context.database.prepare(`
+      SELECT tasks.*,
+        (
+          SELECT p.name 
+          FROM project_task_plans pt 
+          JOIN projects p ON p.id = pt.project_id 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_name
+      FROM tasks WHERE id = ? AND archived_at IS NULL
+    `).get(id);
     if (!task)
       return notFound(c, "task");
     const timezone = getSetting(context.database, "timezone", "Asia/Shanghai");
@@ -20793,7 +20831,11 @@ function createApp(context) {
     const write = context.database.transaction(() => {
       if (body.add_to_todo === true) {
         todoTaskId = randomUUID10();
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, timestamp, timestamp);
+        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(projectId);
+        const projectName = project?.name ?? "";
+        const rawDesc = typeof body.description === "string" ? body.description.trim() : "";
+        const memo = projectName ? rawDesc ? rawDesc.startsWith(projectName) ? rawDesc : `${projectName} \xB7 ${rawDesc}` : projectName : rawDesc;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', 'P2', ?, ?, ?)").run(todoTaskId, title, memo, body.due_date ?? null, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, projectId);
       }
       context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, timestamp, timestamp);
@@ -20843,7 +20885,11 @@ function createApp(context) {
         todoTaskId = randomUUID10();
         const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
         const priority = isDueTodayOrOverdue ? "P1" : "P2";
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, typeof body.description === "string" ? body.description : String(current.description ?? ""), priority, dueDate, timestamp, timestamp);
+        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id);
+        const projectName = project?.name ?? "";
+        const rawDesc = typeof body.description === "string" ? body.description.trim() : String(current.description ?? "").trim();
+        const memo = projectName ? rawDesc ? rawDesc.startsWith(projectName) ? rawDesc : `${projectName} \xB7 ${rawDesc}` : projectName : rawDesc;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)").run(todoTaskId, title, memo, priority, dueDate, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "\u9879\u76EE\u4EFB\u52A1\u5DF2\u52A0\u5165\u5F85\u529E\uFF1A" + title, false, timestamp);
       }
@@ -20852,7 +20898,19 @@ function createApp(context) {
       context.database.prepare("UPDATE project_task_plans SET title = ?, description = ?, due_date = ?, status = ?, todo_task_id = ?, archive_requested = ?, updated_at = ?, completed_at = ?, row_version = row_version + 1 WHERE id = ?").run(title, description, dueDate, status, todoTaskId, nextArchiveRequested, timestamp, completedAt, id);
       if (todoTaskId) {
         const todoStatus = status === "done" ? "done" : status === "cancelled" ? "cancelled" : "todo";
-        context.database.prepare("UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, completed_at = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND archived_at IS NULL").run(title, description, dueDate, todoStatus, todoStatus === "done" ? timestamp : null, timestamp, todoTaskId);
+        const existingTask = context.database.prepare("SELECT description FROM tasks WHERE id = ?").get(todoTaskId);
+        let taskMemo = existingTask?.description ?? "";
+        if (body.description !== void 0) {
+          const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id);
+          const projectName = project?.name ?? "";
+          const rawDesc = String(body.description ?? "").trim();
+          taskMemo = projectName ? rawDesc ? rawDesc.startsWith(projectName) ? rawDesc : `${projectName} \xB7 ${rawDesc}` : projectName : rawDesc;
+        } else if (!taskMemo.trim()) {
+          const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id);
+          if (project?.name)
+            taskMemo = project.name;
+        }
+        context.database.prepare("UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, completed_at = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND archived_at IS NULL").run(title, taskMemo, dueDate, todoStatus, todoStatus === "done" ? timestamp : null, timestamp, todoTaskId);
       }
       if (status !== String(current.status) && (status === "done" || status === "cancelled")) {
         addProjectActivity(context.database, String(current.project_id), status === "done" ? "task_completed" : "task_cancelled", status === "done" ? "\u9879\u76EE\u4EFB\u52A1\u5B8C\u6210\uFF1A" + title : "\u9879\u76EE\u4EFB\u52A1\u53D6\u6D88\uFF1A" + title, status === "done", timestamp);
@@ -21887,7 +21945,15 @@ function createApp(context) {
     const today = localDateInTimezone(getSetting(context.database, "timezone", "Asia/Shanghai"));
     const extra = undated ? " AND due_date IS NULL AND status NOT IN ('done', 'cancelled')" : overdue ? " AND due_date IS NOT NULL AND due_date < ? AND status NOT IN ('done', 'cancelled')" : date3 ? " AND due_date = ?" : from && to ? " AND due_date BETWEEN ? AND ?" : "";
     const params = overdue ? [today] : date3 ? [date3] : from && to ? [from, to] : [];
-    const rows = context.database.prepare(`SELECT id, title, description, status, priority, due_date, scheduled_date, recurrence_id, recurrence_date, archive_requested, archived_at, row_version, created_at, updated_at
+    const rows = context.database.prepare(`SELECT tasks.id, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.due_date, tasks.scheduled_date, tasks.recurrence_id, tasks.recurrence_date, tasks.archive_requested, tasks.archived_at, tasks.row_version, tasks.created_at, tasks.updated_at,
+        (
+          SELECT p.name 
+          FROM project_task_plans pt 
+          JOIN projects p ON p.id = pt.project_id 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_name
        FROM tasks WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"}${extra}
        ORDER BY due_date IS NULL, due_date ASC, created_at ASC`).all(...params);
     return c.json({ ok: true, tasks: rows.map((row) => ({ ...row, status: normalizeTaskStatus(row.status), archive_requested: Number(row.archive_requested ?? 0) })) });
