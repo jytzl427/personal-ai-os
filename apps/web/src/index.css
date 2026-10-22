@@ -2508,16 +2508,76 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .health-table-footer {
   display: flex;
   flex-direction: column;
+  background: var(--surface);
+}
+
+.health-add-box {
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px dashed var(--line);
+}
+
+.health-add-today-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.health-add-today-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.health-add-today-btn.is-existing {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.health-add-today-btn.is-existing:hover {
+  background: #d1fae5;
+  border-color: var(--ok);
+}
+
+.health-add-today-btn:active {
+  transform: scale(0.99);
+}
+
+.health-add-today-btn .btn-icon {
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .health-expand-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 10px 16px;
   background: var(--surface);
   border-top: 1px dashed var(--line);
+}
+
+.health-table-panel tr.row-highlight {
+  animation: healthRowGlow 1.2s ease-out;
+}
+
+@keyframes healthRowGlow {
+  0% { background-color: rgba(21, 78, 63, 0.22); }
+  100% { background-color: transparent; }
 }
 
 .health-expand-btn,

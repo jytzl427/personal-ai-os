@@ -113,6 +113,26 @@ export function HealthPage() {
     if (!logsRef.current.some((row) => row.log_date === today)) await save(today, { log_date: today });
   }
 
+  function focusToday() {
+    const todayRow = document.querySelector<HTMLTableRowElement>(".health-table-panel tbody tr:first-child");
+    if (todayRow) {
+      todayRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const input = todayRow.querySelector<HTMLInputElement>("input.weight-input, input.time-input");
+      input?.focus();
+      todayRow.classList.add("row-highlight");
+      setTimeout(() => todayRow.classList.remove("row-highlight"), 1200);
+    }
+  }
+
+  async function handleAddOrFocusToday() {
+    if (!logsRef.current.some((row) => row.log_date === today)) {
+      await save(today, { log_date: today });
+      setTimeout(focusToday, 60);
+    } else {
+      focusToday();
+    }
+  }
+
   async function deleteRecord(date: string) {
     try {
       await apiJson(`/health/${date}`, { method: "DELETE" });
@@ -171,18 +191,41 @@ export function HealthPage() {
           ]}
           footer={
             <div className="health-table-footer">
-              {!hasToday && <AddRowButton label="记录今天" onClick={() => void addToday()} />}
+              <div className="health-add-box">
+                <button
+                  type="button"
+                  className={`health-add-today-btn ${hasToday ? "is-existing" : ""}`}
+                  onClick={() => void handleAddOrFocusToday()}
+                >
+                  <span className="btn-icon" aria-hidden="true">{hasToday ? "✓" : "+"}</span>
+                  <span className="btn-text">
+                    {hasToday ? `今日记录已在第一行（${formatDate(today)} · 点击快速定位编辑）` : `添加今天的记录（${formatDate(today)}）`}
+                  </span>
+                </button>
+              </div>
               {(hasMore || visibleCount > 7) && (
                 <div className="health-expand-bar">
                   {hasMore && (
-                    <button
-                      type="button"
-                      className="health-expand-btn"
-                      onClick={() => setVisibleCount((prev) => prev + 15)}
-                    >
-                      <span aria-hidden="true">▼</span>
-                      展开更多历史（+15 天，剩余 {logs.length - visibleCount} 条）
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="health-expand-btn"
+                        onClick={() => setVisibleCount((prev) => prev + 15)}
+                      >
+                        <span aria-hidden="true">▼</span>
+                        展开更多历史（+15 天，剩余 {logs.length - visibleCount} 条）
+                      </button>
+                      {logs.length - visibleCount > 15 && (
+                        <button
+                          type="button"
+                          className="health-expand-btn expand-all"
+                          onClick={() => setVisibleCount(logs.length)}
+                        >
+                          <span aria-hidden="true">▼▼</span>
+                          展开全部历史（共 {logs.length} 条）
+                        </button>
+                      )}
+                    </>
                   )}
                   {visibleCount > 7 && (
                     <button
