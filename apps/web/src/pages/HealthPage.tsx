@@ -34,6 +34,36 @@ function sleepLabel(row: Health) {
   return minutes === null || minutes === undefined ? "—" : `${(minutes / 60).toFixed(1)} h`;
 }
 
+function computeDisciplinedStreak(rows: Health[], today: string): number {
+  if (!rows || rows.length === 0) return 0;
+  const sorted = [...rows].sort((a, b) => b.log_date.localeCompare(a.log_date));
+  const todayRow = sorted.find((r) => r.log_date === today);
+
+  let streak = 0;
+  let currentExpectedDate = today;
+
+  if (todayRow) {
+    if (Boolean(todayRow.disciplined)) {
+      return 0;
+    }
+    streak = 1;
+    currentExpectedDate = shiftYmd(today, -1);
+  } else {
+    currentExpectedDate = shiftYmd(today, -1);
+  }
+
+  while (true) {
+    const row = sorted.find((r) => r.log_date === currentExpectedDate);
+    if (!row || Boolean(row.disciplined)) {
+      break;
+    }
+    streak++;
+    currentExpectedDate = shiftYmd(currentExpectedDate, -1);
+  }
+
+  return streak;
+}
+
 export function HealthPage() {
   const [logs, setLogs] = useState<Health[]>([]);
   const logsRef = useRef<Health[]>(logs);
@@ -147,7 +177,7 @@ export function HealthPage() {
 
   const latestWeight = logs.find((r) => r.weight_kg != null)?.weight_kg;
   const latestSleep = logs[0] ? sleepLabel(logs[0]) : "—";
-  const recentUndisciplined = logs.slice(0, 7).filter((r) => Boolean(r.disciplined)).length;
+  const disciplinedStreak = computeDisciplinedStreak(logs, today);
   const hasToday = logs.some((row) => row.log_date === today);
   const visibleLogs = logs.slice(0, visibleCount);
   const hasMore = visibleCount < logs.length;
@@ -167,10 +197,10 @@ export function HealthPage() {
           <span className="muted">昨夜睡眠</span>
           <strong>{latestSleep}</strong>
         </div>
-        <div className="status-chip">
-          <span className="muted">近 7 天不自律</span>
-          <strong style={{ color: recentUndisciplined > 1 ? "var(--danger)" : "var(--ok)" }}>
-            {recentUndisciplined} 天
+        <div className="status-chip" title="连续保持自律天数">
+          <span className="muted">已经自律</span>
+          <strong style={{ color: disciplinedStreak > 0 ? "var(--ok)" : "var(--warn)" }}>
+            {disciplinedStreak} 天
           </strong>
         </div>
       </div>
