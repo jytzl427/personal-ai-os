@@ -2505,6 +2505,49 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .sleep-duration { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .weight-input { width: 100%; max-width: 84px; text-align: center; font-variant-numeric: tabular-nums; margin: 0 auto; display: block; }
 
+.health-table-footer {
+  display: flex;
+  flex-direction: column;
+}
+
+.health-expand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px dashed var(--line);
+}
+
+.health-expand-btn,
+.health-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  padding: 6px 16px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.health-expand-btn:hover,
+.health-collapse-btn:hover {
+  background: var(--surface-3);
+  color: var(--accent);
+  border-color: var(--line-strong);
+}
+
+.health-expand-btn:active,
+.health-collapse-btn:active {
+  transform: scale(0.98);
+}
+
 @media (max-width: 900px) {
   .account-gallery { margin-left: 16px; margin-right: 16px; }
   .review-database-panel { margin-left: 16px; margin-right: 16px; grid-template-columns: 1fr; }

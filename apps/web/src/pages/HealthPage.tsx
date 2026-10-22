@@ -37,6 +37,7 @@ function sleepLabel(row: Health) {
 export function HealthPage() {
   const [logs, setLogs] = useState<Health[]>([]);
   const logsRef = useRef<Health[]>(logs);
+  const [visibleCount, setVisibleCount] = useState(7);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const today = todayYmd();
@@ -127,6 +128,9 @@ export function HealthPage() {
   const latestWeight = logs.find((r) => r.weight_kg != null)?.weight_kg;
   const latestSleep = logs[0] ? sleepLabel(logs[0]) : "—";
   const recentUndisciplined = logs.slice(0, 7).filter((r) => Boolean(r.disciplined)).length;
+  const hasToday = logs.some((row) => row.log_date === today);
+  const visibleLogs = logs.slice(0, visibleCount);
+  const hasMore = visibleCount < logs.length;
 
   return (
     <div className="page-stack page-health">
@@ -154,7 +158,7 @@ export function HealthPage() {
       <section className="table-panel database-panel health-table-panel">
         <DatabaseTable
           empty="还没有健康记录。"
-          rows={logs.map((row) => ({ ...row, id: row.log_date }))}
+          rows={visibleLogs.map((row) => ({ ...row, id: row.log_date }))}
           columns={[
             { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteRecord(row.log_date)} /> },
             { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
@@ -165,7 +169,35 @@ export function HealthPage() {
             { key: "exercise", label: "运动与消耗", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动、体能消耗…" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void save(row.log_date, { exercise_note: value }); }} /> },
             { key: "disciplined", label: "是否不自律", className: "col-disciplined", render: (row) => <Checkbox ariaLabel={`${formatDate(row.log_date)} 是否不自律`} checked={Boolean(row.disciplined)} onChange={(checked) => void save(row.log_date, { disciplined: checked })} /> }
           ]}
-          footer={logs.some((row) => row.log_date === today) ? undefined : <AddRowButton label="记录今天" onClick={() => void addToday()} />}
+          footer={
+            <div className="health-table-footer">
+              {!hasToday && <AddRowButton label="记录今天" onClick={() => void addToday()} />}
+              {(hasMore || visibleCount > 7) && (
+                <div className="health-expand-bar">
+                  {hasMore && (
+                    <button
+                      type="button"
+                      className="health-expand-btn"
+                      onClick={() => setVisibleCount((prev) => prev + 15)}
+                    >
+                      <span aria-hidden="true">▼</span>
+                      展开更多历史（+15 天，剩余 {logs.length - visibleCount} 条）
+                    </button>
+                  )}
+                  {visibleCount > 7 && (
+                    <button
+                      type="button"
+                      className="health-collapse-btn"
+                      onClick={() => setVisibleCount(7)}
+                    >
+                      <span aria-hidden="true">▲</span>
+                      收起至最近 7 天
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          }
         />
       </section>
     </div>
