@@ -2717,14 +2717,14 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   animation: fadeIn 0.18s var(--ease-spring);
 }
 .read-only-plan-card {
-  width: min(600px, calc(100vw - 32px));
-  max-height: min(780px, calc(100vh - 80px));
+  width: min(780px, calc(100vw - 32px));
+  max-height: min(840px, calc(100vh - 64px));
   overflow-y: auto;
-  padding: 28px 32px;
+  padding: 24px 28px;
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
   background: var(--surface);
-  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.22), var(--bevel-card);
+  box-shadow: 0 28px 72px -16px rgba(15, 23, 42, 0.28), var(--bevel-card);
   animation: modalIn 0.24s var(--ease-spring);
 }
 .read-only-plan-header {
@@ -2732,24 +2732,57 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--line);
 }
-.read-only-plan-header h2 {
-  margin-top: 4px;
-  color: var(--ink);
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+.plan-hud-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
-.eyebrow {
-  margin: 0;
-  color: var(--accent);
+.plan-hud-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.plan-hud-eyebrow {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--accent);
+}
+.read-only-plan-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex-wrap: wrap;
+}
+.plan-hud-phase-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  color: #0284c7;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.plan-hud-phase-chip.is-active {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #059669;
 }
 .plan-card-close {
   display: inline-flex;
@@ -2763,6 +2796,7 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   color: var(--ink-2);
   cursor: pointer;
   transition: all 0.2s var(--ease-spring);
+  flex-shrink: 0;
 }
 .plan-card-close:hover {
   background: var(--surface);
@@ -2773,50 +2807,603 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .plan-card-close:active {
   transform: rotate(90deg) scale(0.92);
 }
-.plan-card-meta {
+
+/* Stage Selector Pills */
+.plan-hud-stage-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+.selector-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.selector-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.stage-selector-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.stage-selector-pill:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.stage-selector-pill.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.stage-selector-pill.is-selected .pill-dates {
+  color: rgba(255, 255, 255, 0.85);
+}
+.pill-dates {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.pill-active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* HUD Content Container */
+.plan-hud-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.plan-hud-empty {
+  padding: 36px 16px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+.plan-hud-empty .empty-title {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+/* Section Header */
+.plan-hud-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
-  font-size: 13px;
+  margin-bottom: 10px;
+}
+.plan-hud-section-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plan-hud-section-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.hud-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.hud-count-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
   color: var(--ink-2);
+  border: 1px solid var(--line);
 }
-.plan-card-body, .plan-card-stage-list {
+
+/* Focus Hard Battles Bento */
+.plan-hud-focus-bento {
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(240, 253, 250, 0.6) 0%, rgba(248, 250, 252, 0.8) 100%);
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  box-shadow: 0 2px 8px -2px rgba(13, 148, 136, 0.08);
+}
+.plan-hud-focus-grid {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 8px;
 }
-.plan-card-stage {
-  padding: 16px 0;
+.plan-hud-focus-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.plan-hud-focus-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  border-color: rgba(13, 148, 136, 0.35);
+}
+.focus-project-badge {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.focus-task-text {
+  flex: 1;
+  font-weight: 550;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+/* Tri-Column Metrics HUD Row */
+.plan-hud-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.plan-hud-metric-card {
+  display: flex;
+  flex-direction: column;
+  padding: 13px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--bevel-card);
+  transition: transform 0.15s ease;
+}
+.plan-hud-metric-card:hover {
+  transform: translateY(-1px);
+}
+.plan-hud-metric-card.card-finance {
+  border-left: 3px solid #f59e0b;
+}
+.plan-hud-metric-card.card-health {
+  border-left: 3px solid #06b6d4;
+}
+.plan-hud-metric-card.card-habits {
+  border-left: 3px solid #8b5cf6;
+}
+.metric-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.metric-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.metric-label {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+.metric-value {
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.metric-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.metric-subtext {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.metric-bullet {
+  color: var(--ink);
+  word-break: break-word;
+}
+.metric-bullet.is-highlight {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+/* Checklist Section Bento */
+.plan-hud-checklist-bento {
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.hud-progress-capsule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.capsule-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.capsule-bar {
+  width: 90px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.capsule-bar-fill {
+  height: 100%;
+  background: var(--ok);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+.plan-hud-checklist-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 12px;
+}
+.plan-hud-checklist-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.checklist-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.group-icon {
+  font-size: 14px;
+}
+.group-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  margin-left: auto;
+}
+.checklist-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hud-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.hud-checklist-item.is-checked {
+  color: var(--ink-3);
+}
+.hud-checklist-item.is-checked .hud-item-text {
+  text-decoration: line-through;
+}
+.hud-checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3.5px;
+  background: var(--surface);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.hud-checkbox.checked {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.hud-item-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Stage Plan: Dual Strategic Bento */
+.plan-hud-dual-bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.plan-hud-strategy-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+.plan-hud-strategy-card.card-mainline {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.8) 0%, rgba(248, 250, 252, 0.95) 100%);
+  border-color: rgba(59, 130, 246, 0.25);
+  border-left: 4px solid #3b82f6;
+}
+.plan-hud-strategy-card.card-lifestyle {
+  background: linear-gradient(135deg, rgba(245, 243, 255, 0.8) 0%, rgba(248, 250, 252, 0.95) 100%);
+  border-color: rgba(139, 92, 246, 0.25);
+  border-left: 4px solid #8b5cf6;
+}
+.strategy-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.strategy-headline {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 750;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.strategy-detail {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+/* Stage Plan: Milestones Matrix Bento */
+.plan-hud-milestones-bento {
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.plan-hud-milestones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 10px;
+}
+.plan-hud-milestone-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.milestone-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.milestone-project-name {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.22);
+}
+.milestone-deliverable {
+  font-size: 12.5px;
+  color: var(--ink);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+/* Footer & Switchers */
+.plan-hud-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-.plan-card-stage:first-child {
-  padding-top: 0;
-  border-top: 0;
+.plan-hud-toggle-raw {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
 }
-.plan-card-items { display: grid; gap: 4px; margin-top: 8px; }
-.plan-card-rich-text { display: grid; gap: 8px; min-width: 0; color: var(--ink); line-height: 1.65; }
-.plan-card-rich-text > * { min-width: 0; margin: 0; overflow-wrap: anywhere; word-break: break-word; }
-.plan-card-rich-heading1 { padding-top: 4px; color: var(--ink); font-size: 18px; font-weight: 700; line-height: 1.35; }
-.plan-card-rich-heading2 { padding-top: 8px; color: var(--ink); font-size: 15px; font-weight: 650; line-height: 1.4; }
-.plan-card-rich-paragraph { color: var(--ink-2); font-size: 13.5px; }
-.plan-card-rich-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 8px; color: var(--ink-2); font-size: 13.5px; }
-.plan-card-rich-marker { color: var(--accent); font-weight: 700; text-align: center; }
-.plan-card-rich-checkbox { display: inline-grid; width: 16px; height: 16px; margin-top: 3px; place-items: center; border: 1px solid var(--line-strong); border-radius: 4px; color: #fff; font-size: 11px; line-height: 1; }
-.plan-card-rich-checkbox.is-checked { border-color: var(--ok); background: var(--ok); }
-.plan-card-rich-item .is-checked { color: var(--ink-3); text-decoration: line-through; }
-.plan-card-rich-quote { padding: 8px 12px; border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: #f4f8f5; color: var(--ink-2); font-size: 13px; }
-.plan-card-rich-divider { height: 1px; margin: 4px 0; background: var(--line); }
-.plan-card-rich-text strong { color: var(--ink); font-weight: 650; }
-.plan-card-rich-text code { padding: 2px 6px; border-radius: 4px; background: rgba(0, 0, 0, .05); font-size: 12px; font-family: monospace; }
-.plan-card-rich-text del { color: var(--ink-3); text-decoration: line-through; }
-.plan-editor-actions { display: flex; align-items: center; gap: 10px; }
-.plan-card-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 30px; color: var(--ink-2); font-size: 13px; }
-.plan-card-readonly { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 11.5px; text-align: center; }
-@media (max-width: 900px) {
-  .task-header-controls { justify-content: flex-start; }
-  .read-only-plan-overlay { padding: 16px; }
-  .read-only-plan-card { padding: 20px 20px 24px; }
+.plan-hud-toggle-raw:hover {
+  background: var(--surface-2);
+  text-decoration: underline;
+}
+.plan-card-readonly-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* High Contrast Plan Rich Text */
+.plan-card-body {
+  display: grid;
+  gap: 14px;
+}
+.plan-card-rich-text {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink);
+  line-height: 1.65;
+}
+.plan-card-rich-text > * {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.plan-card-rich-heading1 {
+  padding-top: 6px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+.plan-card-rich-heading2 {
+  padding-top: 8px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.plan-card-rich-heading3 {
+  padding-top: 6px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.plan-card-rich-paragraph {
+  color: var(--ink);
+  font-size: 13px;
+}
+.plan-card-rich-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.plan-card-rich-marker {
+  color: var(--accent);
+  font-weight: 700;
+  text-align: center;
+}
+.plan-card-rich-checkbox {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+.plan-card-rich-checkbox.is-checked {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+.plan-card-rich-item .is-checked {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.plan-card-rich-quote {
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 13px;
+}
+.plan-card-rich-divider {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--line);
+}
+.plan-card-rich-text strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+.plan-card-rich-text code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 12px;
+  font-family: monospace;
+}
+.plan-card-rich-text del {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+@media (max-width: 768px) {
+  .read-only-plan-card {
+    padding: 18px 16px;
+  }
+  .plan-hud-metrics-row {
+    grid-template-columns: 1fr;
+  }
+  .plan-hud-dual-bento {
+    grid-template-columns: 1fr;
+  }
+  .plan-hud-focus-grid,
+  .plan-hud-milestones-grid,
+  .plan-hud-checklist-groups {
+    grid-template-columns: 1fr;
+  }
 }
 
 .task-page-toolbar { display: flex; align-items: center; justify-content: flex-start; margin: 16px 32px 0; }

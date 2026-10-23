@@ -1,20 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tag } from "./Tag.js";
 import { CloseIcon } from "./Icons.js";
 import { apiJson } from "../lib/api.js";
-import { parseTaskBlocks, richTextToPlainText, type TaskBlock } from "./RichTextBlockEditor.js";
+import { richTextToPlainText } from "./RichTextBlockEditor.js";
 import { formatDate, todayYmd } from "../lib/dates.js";
 
 type CardKind = "daily" | "stage";
+
 type DailyPlanDetail = {
   plan: { plan_date: string; status: string; plan_text?: string | null } | null;
+  items?: Array<{ id: string; title: string; status: string; completed?: number }>;
 };
+
 type StagePlan = {
   id: string;
   period_start: string;
   period_end: string;
   plan_text?: string | null;
   status: string;
+};
+
+export type DailyHUDData = {
+  phaseInfo: string;
+  focusBattles: string[];
+  checklistSections: Array<{ title: string; icon: string; items: Array<{ checked: boolean; text: string }> }>;
+  totalCount: number;
+  checkedCount: number;
+};
+
+export type StageHUDData = {
+  title: string;
+  mainline: { title: string; detail: string };
+  baselineMood: { title: string; detail: string };
+  financeItems: string[];
+  healthItems: string[];
+  habitItems: string[];
+  projectMilestones: Array<{ name: string; milestone: string }>;
+  maintenanceProjects: Array<{ name: string; milestone: string }>;
+  miscItems: string[];
 };
 
 function readablePlanText(value?: string | null) {
@@ -49,35 +72,234 @@ function renderInlineMarkdown(rawText: string): React.ReactNode {
 }
 
 export function PlanRichText({ value }: { value?: string | null }) {
-  const blocks = parseTaskBlocks(String(value ?? "")).filter((block) => block.type === "divider" || block.text.trim());
+  const lines = useMemo(() => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return [];
+    return raw.split(/\r?\n/).map((line, idx) => ({ id: `line-${idx}`, text: line.trim() }));
+  }, [value]);
+
+  if (lines.length === 0) {
+    return <p className="muted">暂无计划内容。</p>;
+  }
+
   let numberedIndex = 0;
+
   return (
     <div className="plan-card-rich-text">
-      {blocks.map((block: TaskBlock) => {
-        if (block.type === "numbered") numberedIndex += 1;
-        else numberedIndex = 0;
-        const text = block.text.trim();
-        if (block.type === "divider") return <div className="plan-card-rich-divider" key={block.id} />;
+      {lines.map(({ id, text }) => {
         if (!text) return null;
-        const rendered = renderInlineMarkdown(text);
-        if (!rendered) return null;
-        if (block.type === "heading1") return <h3 className="plan-card-rich-heading1" key={block.id}>{rendered}</h3>;
-        if (block.type === "heading2") return <h4 className="plan-card-rich-heading2" key={block.id}>{rendered}</h4>;
-        if (block.type === "todo") return <div className="plan-card-rich-item plan-card-rich-todo" key={block.id}><span aria-hidden="true" className={block.checked ? "plan-card-rich-checkbox is-checked" : "plan-card-rich-checkbox"}>{block.checked ? "✓" : ""}</span><span className={block.checked ? "is-checked" : ""}>{rendered}</span></div>;
-        if (block.type === "bullet") return <div className="plan-card-rich-item" key={block.id}><span aria-hidden="true" className="plan-card-rich-marker">•</span><span>{rendered}</span></div>;
-        if (block.type === "numbered") return <div className="plan-card-rich-item" key={block.id}><span aria-hidden="true" className="plan-card-rich-marker">{numberedIndex}.</span><span>{rendered}</span></div>;
-        if (block.type === "quote") return <blockquote className="plan-card-rich-quote" key={block.id}>{rendered}</blockquote>;
-        return <p className="plan-card-rich-paragraph" key={block.id}>{rendered}</p>;
+        if (/^[-*_]{3,}$/.test(text)) {
+          numberedIndex = 0;
+          return <div className="plan-card-rich-divider" key={id} />;
+        }
+        if (text.startsWith("# ")) {
+          numberedIndex = 0;
+          return <h3 className="plan-card-rich-heading1" key={id}>{renderInlineMarkdown(text.slice(2))}</h3>;
+        }
+        if (text.startsWith("## ")) {
+          numberedIndex = 0;
+          return <h4 className="plan-card-rich-heading2" key={id}>{renderInlineMarkdown(text.slice(3))}</h4>;
+        }
+        if (text.startsWith("### ")) {
+          numberedIndex = 0;
+          return <h5 className="plan-card-rich-heading3" key={id}>{renderInlineMarkdown(text.slice(4))}</h5>;
+        }
+        if (text.startsWith("- [ ] ") || text.startsWith("- [x] ") || text.startsWith("* [ ] ") || text.startsWith("* [x] ")) {
+          numberedIndex = 0;
+          const checked = text.includes("[x]");
+          const content = text.replace(/^[*\-]\s*\[[ x]\]\s*/, "");
+          return (
+            <div className="plan-card-rich-item plan-card-rich-todo" key={id}>
+              <span aria-hidden="true" className={checked ? "plan-card-rich-checkbox is-checked" : "plan-card-rich-checkbox"}>
+                {checked ? "✓" : ""}
+              </span>
+              <span className={checked ? "is-checked" : ""}>{renderInlineMarkdown(content)}</span>
+            </div>
+          );
+        }
+        if (text.startsWith("- ") || text.startsWith("* ")) {
+          numberedIndex = 0;
+          const content = text.slice(2).trim();
+          return (
+            <div className="plan-card-rich-item" key={id}>
+              <span aria-hidden="true" className="plan-card-rich-marker">•</span>
+              <span>{renderInlineMarkdown(content)}</span>
+            </div>
+          );
+        }
+        if (/^\d+\.\s+/.test(text)) {
+          numberedIndex += 1;
+          const content = text.replace(/^\d+\.\s+/, "");
+          return (
+            <div className="plan-card-rich-item" key={id}>
+              <span aria-hidden="true" className="plan-card-rich-marker">{numberedIndex}.</span>
+              <span>{renderInlineMarkdown(content)}</span>
+            </div>
+          );
+        }
+        if (text.startsWith("> ")) {
+          numberedIndex = 0;
+          return <blockquote className="plan-card-rich-quote" key={id}>{renderInlineMarkdown(text.slice(2))}</blockquote>;
+        }
+        numberedIndex = 0;
+        return <p className="plan-card-rich-paragraph" key={id}>{renderInlineMarkdown(text)}</p>;
       })}
     </div>
   );
 }
 
+function parseDailyHUD(text?: string | null): DailyHUDData | null {
+  if (!text || !text.trim()) return null;
+  const lines = text.split(/\r?\n/);
+  let phaseInfo = "";
+  const focusBattles: string[] = [];
+  const checklistSections: Array<{ title: string; icon: string; items: Array<{ checked: boolean; text: string }> }> = [];
+  let currentSection: { title: string; icon: string; items: Array<{ checked: boolean; text: string }> } | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    if (line.startsWith("# ")) {
+      const match = line.match(/（([^）]+)）/);
+      if (match) phaseInfo = match[1];
+      continue;
+    }
+
+    if (line.startsWith("## ") && (line.includes("板块一") || line.includes("攻坚硬仗聚焦"))) {
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("## ")) {
+        const item = lines[j].trim();
+        if (item.startsWith("* ") || item.startsWith("- ")) {
+          focusBattles.push(item.replace(/^[*\-]\s+/, "").trim());
+        }
+        j++;
+      }
+      i = j - 1;
+      continue;
+    }
+
+    if (line.startsWith("### ")) {
+      const rawTitle = line.slice(4).trim();
+      let icon = "📋";
+      if (rawTitle.includes("财务") || rawTitle.includes("消费")) icon = "💰";
+      else if (rawTitle.includes("健康") || rawTitle.includes("作息")) icon = "🏃";
+      else if (rawTitle.includes("习惯")) icon = "🥛";
+      else if (rawTitle.includes("攻坚") || rawTitle.includes("硬仗")) icon = "⚔️";
+      else if (rawTitle.includes("维护") || rawTitle.includes("琐事")) icon = "🛡️";
+
+      currentSection = { title: rawTitle, icon, items: [] };
+      checklistSections.push(currentSection);
+      continue;
+    }
+
+    if (line.startsWith("- [ ] ") || line.startsWith("- [x] ") || line.startsWith("* [ ] ") || line.startsWith("* [x] ")) {
+      const checked = line.includes("[x]");
+      const itemText = line.replace(/^[*\-]\s*\[[ x]\]\s*/, "").trim();
+      if (!currentSection) {
+        currentSection = { title: "行动待办清单", icon: "📋", items: [] };
+        checklistSections.push(currentSection);
+      }
+      currentSection.items.push({ checked, text: itemText });
+    }
+  }
+
+  const totalCount = checklistSections.reduce((sum, s) => sum + s.items.length, 0);
+  const checkedCount = checklistSections.reduce((sum, s) => sum + s.items.filter((it) => it.checked).length, 0);
+
+  return { phaseInfo, focusBattles, checklistSections, totalCount, checkedCount };
+}
+
+function parseStageHUD(text?: string | null): StageHUDData | null {
+  if (!text || !text.trim()) return null;
+  const lines = text.split(/\r?\n/);
+  let title = "";
+  const mainline = { title: "", detail: "" };
+  const baselineMood = { title: "", detail: "" };
+
+  const financeItems: string[] = [];
+  const healthItems: string[] = [];
+  const habitItems: string[] = [];
+  const projectMilestones: Array<{ name: string; milestone: string }> = [];
+  const maintenanceProjects: Array<{ name: string; milestone: string }> = [];
+  const miscItems: string[] = [];
+
+  let currentBlock = "";
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (line.startsWith("# ")) {
+      title = line.slice(2).trim();
+      continue;
+    }
+
+    if (line.startsWith("## ")) {
+      if (line.includes("板块一") || line.includes("主线与生活状态")) currentBlock = "mainline";
+      else if (line.includes("板块二") || line.includes("生活底盘与指标")) currentBlock = "finance";
+      else if (line.includes("板块三") || line.includes("项目与想法流转")) currentBlock = "projects";
+      else if (line.includes("板块四") || line.includes("其他杂项板块")) currentBlock = "misc";
+      continue;
+    }
+
+    if (line.includes("财务指标") || line.includes("财务计划")) { currentBlock = "finance"; continue; }
+    if (line.includes("健康指标") || line.includes("健康计划")) { currentBlock = "health"; continue; }
+    if (line.includes("习惯清单") || line.includes("习惯计划")) { currentBlock = "habit"; continue; }
+    if (line.includes("维护类项目")) { currentBlock = "maintenance"; continue; }
+    if (line.includes("推进类项目")) { currentBlock = "projects"; continue; }
+    if (line.includes("想法库流转")) { currentBlock = "ideas"; continue; }
+
+    const clean = line.replace(/^[*\-\s]+/, "").replace(/\*\*/g, "").trim();
+
+    if (currentBlock === "mainline") {
+      if (line.includes("核心主线")) {
+        const m = line.match(/核心主线[*\s：:]+(.+)/);
+        if (m) mainline.title = m[1].replace(/[*#]/g, "").trim();
+      } else if (line.includes("生活状态")) {
+        const m = line.match(/生活状态[^\s*：:]*[*\s：:]+(.+)/);
+        if (m) baselineMood.title = m[1].replace(/[*#]/g, "").trim();
+      } else if (baselineMood.title) {
+        baselineMood.detail += (baselineMood.detail ? " " : "") + clean;
+      } else if (mainline.title) {
+        mainline.detail += (mainline.detail ? " " : "") + clean;
+      }
+    } else if (currentBlock === "finance") {
+      financeItems.push(clean);
+    } else if (currentBlock === "health") {
+      healthItems.push(clean);
+    } else if (currentBlock === "habit") {
+      habitItems.push(clean);
+    } else if (currentBlock === "projects") {
+      const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
+      if (match) {
+        projectMilestones.push({ name: match[1].trim(), milestone: match[2].trim() });
+      } else {
+        projectMilestones.push({ name: "", milestone: clean });
+      }
+    } else if (currentBlock === "maintenance") {
+      const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
+      if (match) {
+        maintenanceProjects.push({ name: match[1].trim(), milestone: match[2].trim() });
+      } else {
+        maintenanceProjects.push({ name: "", milestone: clean });
+      }
+    } else if (currentBlock === "misc") {
+      miscItems.push(clean);
+    }
+  }
+
+  return { title, mainline, baselineMood, financeItems, healthItems, habitItems, projectMilestones, maintenanceProjects, miscItems };
+}
+
 export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: () => void }) {
   const [daily, setDaily] = useState<DailyPlanDetail | null>(null);
   const [stages, setStages] = useState<StagePlan[]>([]);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showRawText, setShowRawText] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -86,10 +308,21 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
     const request = kind === "daily"
       ? apiJson<DailyPlanDetail>("/plans/" + todayYmd())
       : apiJson<{ stages: StagePlan[] }>("/stage-plans");
+
     request.then((result) => {
       if (!active) return;
-      if (kind === "daily") setDaily(result as DailyPlanDetail);
-      else setStages((result as { stages: StagePlan[] }).stages);
+      if (kind === "daily") {
+        setDaily(result as DailyPlanDetail);
+      } else {
+        const stageList = (result as { stages: StagePlan[] }).stages ?? [];
+        setStages(stageList);
+        // Default to active stage for today
+        const today = todayYmd();
+        const activeStage = stageList.find((s) => today >= s.period_start && today <= s.period_end) ?? stageList[0];
+        if (activeStage) {
+          setSelectedStageId(activeStage.id);
+        }
+      }
     }).catch((reason: unknown) => {
       if (active) setError(reason instanceof Error ? reason.message : "计划读取失败");
     }).finally(() => {
@@ -98,49 +331,346 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
     return () => { active = false; };
   }, [kind]);
 
+  const dailyHUD = useMemo(() => {
+    if (kind !== "daily" || !daily?.plan?.plan_text) return null;
+    return parseDailyHUD(daily.plan.plan_text);
+  }, [kind, daily]);
+
+  const currentStage = useMemo(() => {
+    if (kind !== "stage" || stages.length === 0) return null;
+    return stages.find((s) => s.id === selectedStageId) ?? stages[0];
+  }, [kind, stages, selectedStageId]);
+
+  const stageHUD = useMemo(() => {
+    if (!currentStage?.plan_text) return null;
+    return parseStageHUD(currentStage.plan_text);
+  }, [currentStage]);
+
   return (
     <div className="read-only-plan-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-label={kind === "daily" ? "每日计划" : "阶段计划"} aria-modal="true" className="read-only-plan-card" role="dialog">
+      <section
+        aria-label={kind === "daily" ? "每日计划速览" : "阶段计划速览"}
+        aria-modal="true"
+        className="read-only-plan-card plan-quick-hud"
+        role="dialog"
+      >
+        {/* Top Header */}
         <div className="read-only-plan-header">
-          <div>
-            <p className="eyebrow">{kind === "daily" ? "今日计划" : "阶段计划"}</p>
-            <h2>{kind === "daily" ? "每日计划" : "阶段计划"}</h2>
+          <div className="plan-hud-title-group">
+            <div className="plan-hud-badge-row">
+              <span className="plan-hud-eyebrow">
+                {kind === "daily" ? "今日战术速览 · DAILY HUD" : "阶段战略速览 · STAGE STRATEGY"}
+              </span>
+              {kind === "daily" && daily?.plan?.status ? (
+                <Tag size="sm" tone={daily.plan.status === "confirmed" ? "success" : "neutral"}>
+                  {daily.plan.status === "confirmed" ? "已确认生效" : "草稿中"}
+                </Tag>
+              ) : null}
+              {kind === "stage" && currentStage ? (
+                <Tag size="sm" tone={currentStage.status === "confirmed" ? "success" : currentStage.status === "executed" ? "info" : "neutral"}>
+                  {currentStage.status === "confirmed" ? "已确认生效" : currentStage.status === "executed" ? "已执行" : "草稿中"}
+                </Tag>
+              ) : null}
+            </div>
+            <h2>
+              {kind === "daily" ? (
+                <>
+                  <span>{daily?.plan ? formatDate(daily.plan.plan_date) : "今日"} 每日计划</span>
+                  {dailyHUD?.phaseInfo ? <span className="plan-hud-phase-chip">{dailyHUD.phaseInfo}</span> : null}
+                </>
+              ) : (
+                <>
+                  <span>{currentStage ? `${formatDate(currentStage.period_start)} — ${formatDate(currentStage.period_end)}` : "阶段周期计划"}</span>
+                  {currentStage && todayYmd() >= currentStage.period_start && todayYmd() <= currentStage.period_end ? (
+                    <span className="plan-hud-phase-chip is-active">当前执行周期</span>
+                  ) : null}
+                </>
+              )}
+            </h2>
           </div>
-          <button aria-label="关闭计划卡片" className="plan-card-close" onClick={onClose} type="button">
+          <button aria-label="关闭计划速览" className="plan-card-close" onClick={onClose} type="button">
             <CloseIcon />
           </button>
         </div>
-        {loading ? <p className="muted">正在读取计划…</p> : null}
-        {error ? <div className="notice error">{error}</div> : null}
-        {!loading && !error && kind === "daily" ? (
-          daily?.plan ? <div className="plan-card-body">
-            <div className="plan-card-meta">
-              <span>{formatDate(daily.plan.plan_date)}</span>
-              <Tag size="sm" tone={daily.plan.status === "confirmed" ? "success" : "neutral"}>
-                {daily.plan.status === "confirmed" ? "已确认" : "草稿"}
-              </Tag>
+
+        {/* Stage Plan Switcher Pills (If multiple stage plans exist) */}
+        {kind === "stage" && stages.length > 1 ? (
+          <div className="plan-hud-stage-selector">
+            <span className="selector-label">切换周期：</span>
+            <div className="selector-pills">
+              {stages.map((stage, idx) => {
+                const isActive = stage.id === selectedStageId;
+                const isCurrent = todayYmd() >= stage.period_start && todayYmd() <= stage.period_end;
+                return (
+                  <button
+                    className={`stage-selector-pill ${isActive ? "is-selected" : ""} ${isCurrent ? "is-current" : ""}`}
+                    key={stage.id}
+                    onClick={() => setSelectedStageId(stage.id)}
+                    type="button"
+                  >
+                    <span>{stageHUD && idx === 0 && stageHUD.title ? stageHUD.title.split("（")[0] : `周期 ${stages.length - idx}`}</span>
+                    <span className="pill-dates">{stage.period_start.slice(5)} ~ {stage.period_end.slice(5)}</span>
+                    {isCurrent ? <span className="pill-active-dot" title="当前进行中" /> : null}
+                  </button>
+                );
+              })}
             </div>
-            {readablePlanText(daily.plan.plan_text) ? <PlanRichText value={daily.plan.plan_text} /> : <p className="muted">今天还没有填写计划。</p>}
-          </div> : <p className="muted">今天还没有填写计划。</p>
+          </div>
         ) : null}
-        {!loading && !error && kind === "stage" ? (
-          stages.length === 0 ? <p className="muted">目前没有阶段周期计划。</p> : (
-            <div className="plan-card-stage-list">
-              {stages.map((stage) => (
-                <article className="plan-card-stage" key={stage.id}>
-                  <div className="plan-card-meta">
-                    <strong>{formatDate(stage.period_start)} — {formatDate(stage.period_end)}</strong>
-                    <Tag size="sm" tone={stage.status === "confirmed" ? "success" : stage.status === "executed" ? "info" : "neutral"}>
-                      {stage.status === "confirmed" ? "已确认" : stage.status === "executed" ? "已执行" : "草稿"}
-                    </Tag>
+
+        {loading ? <p className="muted" style={{ padding: "32px 0", textAlign: "center" }}>正在载入计划情报…</p> : null}
+        {error ? <div className="notice error">{error}</div> : null}
+
+        {/* DAILY PLAN HUD CONTENT */}
+        {!loading && !error && kind === "daily" ? (
+          !daily?.plan || !daily.plan.plan_text?.trim() ? (
+            <div className="plan-hud-empty">
+              <p className="empty-title">今日暂未填写计划</p>
+              <p className="muted">请在晨起通过每日计划制定对话录入攻坚硬仗与打卡清单。</p>
+            </div>
+          ) : showRawText ? (
+            <div className="plan-card-body">
+              <PlanRichText value={daily.plan.plan_text} />
+            </div>
+          ) : (
+            <div className="plan-hud-content">
+              {/* Section 1: Focus Hard Battles (攻坚硬仗聚焦) */}
+              {dailyHUD && dailyHUD.focusBattles.length > 0 ? (
+                <section className="plan-hud-focus-bento">
+                  <div className="plan-hud-section-header">
+                    <div className="header-left">
+                      <span className="hud-icon">⚔️</span>
+                      <h3>今日核心攻坚聚焦</h3>
+                    </div>
+                    <span className="hud-count-tag">{dailyHUD.focusBattles.length} 个攻坚重点</span>
                   </div>
-                  {readablePlanText(stage.plan_text) ? <PlanRichText value={stage.plan_text} /> : <p className="muted">这个周期还没有填写计划。</p>}
-                </article>
-              ))}
+                  <div className="plan-hud-focus-grid">
+                    {dailyHUD.focusBattles.map((battle, idx) => {
+                      const projectMatch = battle.match(/^【([^】]+)】/);
+                      const projectName = projectMatch ? projectMatch[1] : null;
+                      const taskDesc = projectMatch ? battle.replace(/^【[^】]+】\s*/, "") : battle;
+                      return (
+                        <div className="plan-hud-focus-card" key={idx}>
+                          {projectName ? <span className="focus-project-badge">{projectName}</span> : null}
+                          <span className="focus-task-text">{taskDesc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
+              {/* Section 2: Baseline Indicators Dashboard (底盘三线微看板) */}
+              <div className="plan-hud-metrics-row">
+                <div className="plan-hud-metric-card card-finance">
+                  <div className="metric-header">
+                    <span className="metric-icon">💰</span>
+                    <span className="metric-label">财务与日常消费</span>
+                  </div>
+                  <div className="metric-value">¥25.00 <span className="metric-unit">/ 天</span></div>
+                  <div className="metric-subtext">午晚餐饮日清日结 · 坚决 0 破戒</div>
+                </div>
+
+                <div className="plan-hud-metric-card card-health">
+                  <div className="metric-header">
+                    <span className="metric-icon">🏃</span>
+                    <span className="metric-label">健康作息筑底</span>
+                  </div>
+                  <div className="metric-value">00:30 <span className="metric-unit">就寝底线</span></div>
+                  <div className="metric-subtext">晨起称重 &lt; 71.0kg · 适度走动拉伸</div>
+                </div>
+
+                <div className="plan-hud-metric-card card-habits">
+                  <div className="metric-header">
+                    <span className="metric-icon">🥛</span>
+                    <span className="metric-label">微习惯打卡</span>
+                  </div>
+                  <div className="metric-value">水 5 杯 <span className="metric-unit">· 牙 3 次</span></div>
+                  <div className="metric-subtext">每小时起身活动 1~2 分钟打断久坐</div>
+                </div>
+              </div>
+
+              {/* Section 3: Action Checklists (全盘行动总清单) */}
+              {dailyHUD && dailyHUD.checklistSections.length > 0 ? (
+                <section className="plan-hud-checklist-bento">
+                  <div className="plan-hud-section-header">
+                    <div className="header-left">
+                      <span className="hud-icon">📋</span>
+                      <h3>全盘行动清单</h3>
+                    </div>
+                    {dailyHUD.totalCount > 0 ? (
+                      <div className="hud-progress-capsule">
+                        <span className="capsule-label">{dailyHUD.checkedCount} / {dailyHUD.totalCount} 项完成</span>
+                        <div className="capsule-bar">
+                          <div
+                            className="capsule-bar-fill"
+                            style={{ width: `${Math.round((dailyHUD.checkedCount / dailyHUD.totalCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="plan-hud-checklist-groups">
+                    {dailyHUD.checklistSections.map((sec, secIdx) => (
+                      <div className="plan-hud-checklist-group" key={secIdx}>
+                        <h4 className="checklist-group-title">
+                          <span className="group-icon">{sec.icon}</span>
+                          <span>{sec.title}</span>
+                          <span className="group-count">({sec.items.length})</span>
+                        </h4>
+                        <div className="checklist-group-items">
+                          {sec.items.map((item, itemIdx) => (
+                            <div className={`hud-checklist-item ${item.checked ? "is-checked" : ""}`} key={itemIdx}>
+                              <span className={`hud-checkbox ${item.checked ? "checked" : ""}`}>
+                                {item.checked ? "✓" : ""}
+                              </span>
+                              <span className="hud-item-text">{renderInlineMarkdown(item.text)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           )
         ) : null}
-        <p className="plan-card-readonly">只读查看 · 如需修改，请进入计划与复盘</p>
+
+        {/* STAGE PLAN HUD CONTENT */}
+        {!loading && !error && kind === "stage" ? (
+          !currentStage || !currentStage.plan_text?.trim() ? (
+            <div className="plan-hud-empty">
+              <p className="empty-title">当前周期暂未填写阶段计划</p>
+              <p className="muted">请在阶段初通过阶段计划制定对话敲定核心战略、底盘指标与项目攻坚节点。</p>
+            </div>
+          ) : showRawText ? (
+            <div className="plan-card-body">
+              <PlanRichText value={currentStage.plan_text} />
+            </div>
+          ) : (
+            <div className="plan-hud-content">
+              {/* Section 1: Mainline & Mindset Dual Bento (核心主线与生活状态) */}
+              <div className="plan-hud-dual-bento">
+                <div className="plan-hud-strategy-card card-mainline">
+                  <div className="strategy-tag">🎯 阶段唯一核心主线</div>
+                  <h4 className="strategy-headline">{stageHUD?.mainline.title || "【核心主线推进】"}</h4>
+                  <p className="strategy-detail">{stageHUD?.mainline.detail || "多线齐头并进，以小切片快速验收推进，全方位收割技术资产。"}</p>
+                </div>
+
+                <div className="plan-hud-strategy-card card-lifestyle">
+                  <div className="strategy-tag">⚡ 生活与作息基调</div>
+                  <h4 className="strategy-headline">{stageHUD?.baselineMood.title || "【状态迅速调整】"}</h4>
+                  <p className="strategy-detail">{stageHUD?.baselineMood.detail || "作息强力拉回，坚决守牢 00:30 就寝底线，心智彻底收敛，全神贯注主线攻坚。"}</p>
+                </div>
+              </div>
+
+              {/* Section 2: Project Milestones Matrix (项目攻坚推进里程碑) */}
+              {stageHUD && stageHUD.projectMilestones.length > 0 ? (
+                <section className="plan-hud-milestones-bento">
+                  <div className="plan-hud-section-header">
+                    <div className="header-left">
+                      <span className="hud-icon">🚩</span>
+                      <h3>推进类项目攻坚验收节点</h3>
+                    </div>
+                    <span className="hud-count-tag">{stageHUD.projectMilestones.length} 个攻坚项目</span>
+                  </div>
+                  <div className="plan-hud-milestones-grid">
+                    {stageHUD.projectMilestones.map((proj, idx) => (
+                      <div className="plan-hud-milestone-card" key={idx}>
+                        <div className="milestone-card-top">
+                          {proj.name ? <span className="milestone-project-name">{proj.name}</span> : null}
+                        </div>
+                        <div className="milestone-deliverable">
+                          {renderInlineMarkdown(proj.milestone)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {/* Section 3: Baseline Redlines & Maintenance (底盘量化指标与维持类项目) */}
+              <div className="plan-hud-metrics-row">
+                <div className="plan-hud-metric-card card-finance">
+                  <div className="metric-header">
+                    <span className="metric-icon">💰</span>
+                    <span className="metric-label">财务底盘红线</span>
+                  </div>
+                  <div className="metric-list">
+                    {stageHUD && stageHUD.financeItems.length > 0 ? (
+                      stageHUD.financeItems.slice(0, 3).map((item, idx) => (
+                        <div className="metric-bullet" key={idx}>• {renderInlineMarkdown(item)}</div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="metric-bullet">• 午晚餐饮限额：25.00 元/天</div>
+                        <div className="metric-bullet">• 弹性消费上限：冲动/零食/奶茶 ≤ 1 笔</div>
+                        <div className="metric-bullet">• 中转站收支：严格零新增负债</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="plan-hud-metric-card card-health">
+                  <div className="metric-header">
+                    <span className="metric-icon">🏃</span>
+                    <span className="metric-label">健康底盘红线</span>
+                  </div>
+                  <div className="metric-list">
+                    {stageHUD && stageHUD.healthItems.length > 0 ? (
+                      stageHUD.healthItems.slice(0, 3).map((item, idx) => (
+                        <div className="metric-bullet" key={idx}>• {renderInlineMarkdown(item)}</div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="metric-bullet">• 严格守住 00:30 就寝底线</div>
+                        <div className="metric-bullet">• 晨起空腹称重 &lt; 71.0 kg</div>
+                        <div className="metric-bullet">• 有效运动 ≥ 1~2 次 · 不自律 ≤ 2 次</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="plan-hud-metric-card card-habits">
+                  <div className="metric-header">
+                    <span className="metric-icon">🛡️</span>
+                    <span className="metric-label">维护项目与关键节点</span>
+                  </div>
+                  <div className="metric-list">
+                    {stageHUD && stageHUD.maintenanceProjects.length > 0 ? (
+                      stageHUD.maintenanceProjects.slice(0, 2).map((m, idx) => (
+                        <div className="metric-bullet" key={idx}>
+                          <strong>{m.name}</strong>：{renderInlineMarkdown(m.milestone.slice(0, 35))}
+                        </div>
+                      ))
+                    ) : null}
+                    {stageHUD && stageHUD.miscItems.length > 0 ? (
+                      stageHUD.miscItems.slice(0, 2).map((m, idx) => (
+                        <div className="metric-bullet is-highlight" key={`misc-${idx}`}>
+                          {renderInlineMarkdown(m.slice(0, 40))}
+                        </div>
+                      ))
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {/* Bottom Bar: Switch View & Readonly Hint */}
+        <div className="plan-hud-footer">
+          <button
+            className="plan-hud-toggle-raw"
+            onClick={() => setShowRawText(!showRawText)}
+            type="button"
+          >
+            {showRawText ? "← 返回战术速览看板" : "查看完整原始文本 →"}
+          </button>
+          <span className="plan-card-readonly-hint">只读速览 · 沟通确认即生效</span>
+        </div>
       </section>
     </div>
   );
