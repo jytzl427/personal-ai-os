@@ -4472,3 +4472,1200 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   font-weight: 600;
   color: var(--ink-2, #475569);
 }
+
+
+/* ==========================================================================
+   FRONTEND V3 UPGRADE STYLES (Steps 1 to 6)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Step 1: Live Navigation Badges, Command Trigger & Command Palette
+   -------------------------------------------------------------------------- */
+
+.sidebar-cmd-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 12px 12px 16px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  color: var(--ink-3);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.sidebar-cmd-trigger:hover {
+  background: var(--surface-2);
+  border-color: var(--accent-border);
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(21, 78, 63, 0.08);
+}
+
+.cmd-trigger-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.cmd-trigger-text {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-trigger-kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-2);
+  letter-spacing: 0.5px;
+}
+
+.nav-count-pill {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+}
+
+.nav-count-pill.is-urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+  animation: pulsePill 2s infinite ease-in-out;
+}
+
+.nav-count-pill.is-project {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@keyframes pulsePill {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.88; }
+}
+
+/* Command Palette Modal */
+.cmd-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 13vh;
+  animation: fadeIn 0.18s ease-out;
+}
+
+.cmd-palette-modal {
+  width: 100%;
+  max-width: 580px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.05);
+  border-radius: var(--radius-lg, 14px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: popIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cmd-palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cmd-palette-search-icon {
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.cmd-palette-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.cmd-palette-input::placeholder {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.cmd-palette-esc-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.cmd-palette-list {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.cmd-palette-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+.cmd-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  color: var(--ink);
+}
+
+.cmd-palette-item:hover,
+.cmd-palette-item.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cmd-palette-item-icon {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+}
+
+.cmd-palette-item-title {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-palette-item-meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.cmd-palette-item.is-selected .cmd-palette-item-meta {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.cmd-palette-enter-hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-left: 6px;
+}
+
+.cmd-palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.cmd-palette-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cmd-palette-shortcuts span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmd-palette-shortcuts kbd {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+.cmd-palette-brand {
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* Page enter transition */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-view {
+  animation: pageEnter 0.22s var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+/* --------------------------------------------------------------------------
+   Step 2: Tasks & Ideas Bento Pulse Strip, Filter Pills & Project Links
+   -------------------------------------------------------------------------- */
+
+.task-page-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 860px) {
+  .task-page-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.task-pulse-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pulse-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+}
+
+.pulse-chip:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 2px 6px rgba(21, 78, 63, 0.06);
+}
+
+.pulse-chip.has-urgent {
+  border-color: #fca5a5;
+  background: #fff8f8;
+}
+
+.pulse-chip-icon {
+  font-size: 13px;
+}
+
+.pulse-chip-label {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.pulse-chip-value {
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse-chip.has-urgent .pulse-chip-value {
+  color: #b91c1c;
+}
+
+.pulse-mini-bar {
+  width: 44px;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-left: 2px;
+}
+
+.pulse-mini-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.task-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-filter-pills,
+.ideas-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-2);
+  padding: 3px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--line);
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-pill:hover {
+  color: var(--ink);
+}
+
+.filter-pill.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.filter-pill-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  line-height: 1.4;
+}
+
+.filter-pill-badge.is-project {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Project Link Pill inside task row */
+.task-project-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin-right: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.task-project-pill:hover {
+  background: #d1fae5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(21, 78, 63, 0.12);
+}
+
+.task-project-pill .pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.task-project-pill .pill-text {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-project-pill .pill-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Date badge in Tasks table */
+.date-badge-wrap {
+  display: inline-block;
+  border-radius: var(--radius-sm, 6px);
+  padding: 1px 4px;
+  transition: all 0.15s ease;
+}
+
+.date-badge-wrap.is-due-today {
+  background: #ecfdf5;
+  outline: 1px solid #a7f3d0;
+}
+
+.date-badge-wrap.is-overdue {
+  background: #fef2f2;
+  outline: 1px solid #fecaca;
+}
+
+/* Urgency 1 indicator in Ideas */
+.idea-urgency-1 {
+  box-shadow: inset 3.5px 0 0 #dc2626;
+  background: rgba(220, 38, 38, 0.025);
+}
+
+.ideas-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ideas-section-heading .heading-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Step 3: Finance Center Bento Pulse Board & Quick Ledger
+   -------------------------------------------------------------------------- */
+
+.finance-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.finance-pulse-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 126px;
+  transition: all 0.18s ease;
+}
+
+.finance-pulse-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 12px rgba(21, 78, 63, 0.06);
+}
+
+.pulse-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pulse-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.pulse-card-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.pulse-card-tag.is-ok {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.pulse-card-tag.is-warn {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.pulse-card-tag.is-danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.pulse-card-tag.is-neutral {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+}
+
+.pulse-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pulse-stat-number {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.pulse-stat-number .stat-cur {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+
+.pulse-stat-number .stat-max {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse-meter-track {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pulse-meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.35s ease, background-color 0.2s ease;
+}
+
+.pulse-meter-fill.is-ok {
+  background: #10b981;
+}
+
+.pulse-meter-fill.is-warn {
+  background: #f59e0b;
+}
+
+.pulse-meter-fill.is-danger {
+  background: #ef4444;
+}
+
+.pulse-card-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.pulse-card-sub strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pulse-card-badge-row {
+  margin: 2px 0;
+}
+
+.pulse-shield-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.pulse-shield-badge.is-ok {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.pulse-shield-badge.is-warn {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+/* Category Stacked Bar */
+.category-stacked-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  background: var(--surface-3);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.stacked-bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.stacked-bar-empty {
+  width: 100%;
+  height: 100%;
+  background: var(--surface-3);
+}
+
+.category-legend-list {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.category-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.legend-pct {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quick Ledger Enhancements */
+.quick-preset .preset-icon {
+  margin-right: 4px;
+  font-size: 13px;
+}
+
+.amount-input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.amount-input-wrap .currency-symbol {
+  position: absolute;
+  left: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.amount-input-wrap .amount-input {
+  width: 100%;
+  padding-left: 28px !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* --------------------------------------------------------------------------
+   Step 4: Health SVG Dual-Track Charts & Bedtime Status Styling
+   -------------------------------------------------------------------------- */
+
+.health-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.health-chart-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.18s ease;
+}
+
+.health-chart-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 12px rgba(21, 78, 63, 0.06);
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.chart-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chart-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.chart-card-sub {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.chart-diff-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-diff-badge.is-ok {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.chart-diff-badge.is-warn {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.chart-canvas-wrap {
+  width: 100%;
+  height: 130px;
+  position: relative;
+}
+
+.health-svg-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.chart-empty-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* Bedtime cell highlight in Health table */
+input.time-input.bedtime-safe {
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+input.time-input.bedtime-late {
+  border-color: #fde68a !important;
+  background-color: #fffbeb !important;
+  color: #92400e !important;
+}
+
+/* --------------------------------------------------------------------------
+   Step 5: Plans & Reviews Editorial Split View Layout
+   -------------------------------------------------------------------------- */
+
+.editorial-split-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .editorial-split-layout {
+    grid-template-columns: 310px minmax(0, 1fr);
+  }
+}
+
+.editorial-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editorial-create-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.create-box-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-dates-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.stage-dates-row .date-sep {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.create-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.create-btn.full-width {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.create-box-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.editorial-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 640px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.editorial-nav-empty {
+  padding: 32px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.editorial-card-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  position: relative;
+}
+
+.editorial-card-item:hover {
+  background: var(--surface);
+  border-color: var(--accent-border);
+  box-shadow: 0 2px 6px rgba(21, 78, 63, 0.06);
+}
+
+.editorial-card-item.is-active {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: inset 3.5px 0 0 var(--accent), 0 3px 10px rgba(21, 78, 63, 0.08);
+}
+
+.card-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-item-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.card-item-snippet {
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.card-item-time {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.editorial-card-item:hover .card-item-actions {
+  opacity: 1;
+}
+
+.card-action-btn {
+  background: transparent;
+  border: none;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 1px 4px;
+}
+
+.card-action-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Right Editorial Canvas */
+.editorial-canvas {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px 28px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  min-height: 520px;
+}
+
+.editorial-canvas-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.canvas-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.canvas-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+}
+
+.canvas-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-save-pill {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.view-mode-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--surface-2);
+  padding: 3px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--line);
+}
+
+.view-mode-toggle .toggle-btn {
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-mode-toggle .toggle-btn:hover {
+  color: var(--ink);
+}
+
+.view-mode-toggle .toggle-btn.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.canvas-body {
+  min-height: 380px;
+}
+
+.canvas-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.canvas-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px dashed var(--line);
+}
+
+.canvas-empty-state .empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.canvas-empty-state .empty-desc {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+
+.canvas-unselected {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  color: var(--ink-3);
+}
+
+.canvas-unselected .unselected-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.canvas-unselected h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin: 0 0 6px;
+}
+
+.canvas-unselected p {
+  font-size: 13px;
+  max-width: 320px;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Step 6: Global Polish, Tabular Numbers & Table Hover Tracking
+   -------------------------------------------------------------------------- */
+
+.col-date,
+.col-money,
+.col-number,
+.col-time,
+.status-chip strong,
+.nav-count-pill,
+.pulse-stat-number,
+.pulse-chip-value,
+.stat-cur,
+.stat-max,
+.amount-input {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth table row tracking */
+.database-table tbody tr {
+  transition: background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.database-table tbody tr:hover {
+  box-shadow: inset 2.5px 0 0 var(--accent);
+}

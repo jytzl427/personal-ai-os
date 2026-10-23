@@ -48,7 +48,7 @@ function renderInlineMarkdown(rawText: string): React.ReactNode {
   });
 }
 
-function PlanRichText({ value }: { value?: string | null }) {
+export function PlanRichText({ value }: { value?: string | null }) {
   const blocks = parseTaskBlocks(String(value ?? "")).filter((block) => block.type === "divider" || block.text.trim());
   let numberedIndex = 0;
   return (

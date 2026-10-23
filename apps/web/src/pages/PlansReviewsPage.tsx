@@ -4,6 +4,7 @@ import { DateField } from "../components/DateField.js";
 import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { RichTextBlockEditor, richTextToPlainText } from "../components/RichTextBlockEditor.js";
+import { PlanRichText } from "../components/ReadOnlyPlanCard.js";
 import { PropertySelect } from "../components/PropertySelect.js";
 import { SegmentedControl } from "../components/SegmentedControl.js";
 import { Tag, type TagTone } from "../components/Tag.js";
@@ -84,10 +85,13 @@ export function PlansReviewsPage({ tab, onNavigate }: { tab: PlanReviewTab; onNa
       if (tab === "daily-plan") {
         const result = await apiJson<{ plans: DailyPlan[] }>("/plans");
         setDailyPlans(result.plans);
+        if (result.plans.length > 0 && !selectedPlan) {
+          void openPlan(result.plans[0].plan_date);
+        }
       } else if (tab === "stage-plan") {
         const result = await apiJson<{ stages: StagePlan[] }>("/stage-plans");
         setStagePlans(result.stages);
-        const nextStage = selectedStage ? result.stages.find((stage) => stage.id === selectedStage.id) ?? null : result.stages[0] ?? null;
+        const nextStage = selectedStage ? result.stages.find((stage) => stage.id === selectedStage.id) ?? result.stages[0] ?? null : result.stages[0] ?? null;
         setSelectedStage(nextStage);
         setStageDraft(String(nextStage?.plan_text ?? ""));
       } else {
@@ -292,42 +296,123 @@ function DailyPlanDatabase({ date, onDateChange, plans, selected, draft, onDraft
   onArchive: (date: string) => void;
   onDelete: (date: string) => void;
 }) {
+  const [viewMode, setViewMode] = useState<"read" | "edit">("read");
+
   return (
-    <>
-      <section className="quick-ledger plan-create-bar">
-        <div className="form-row">
-          <label className="form-field"><span>计划日期</span><DateField ariaLabel="每日计划日期" value={date} onChange={onDateChange} /></label>
-          <button className="primary-button align-end" onClick={onCreate} type="button">新建空白计划</button>
-        </div>
-        <p className="helper-text plan-manual-hint">计划只保存你在这里填写的内容，不会自动拉取任务。</p>
-      </section>
-      {selected?.plan ? <section className="plan-inline-preview plan-editor-panel panel" id="plan-editor-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{formatDate(selected.plan.plan_date)} · 每日计划</h2>
-            <span className="muted">停止编辑约 0.8 秒后自动保存</span>
+    <div className="editorial-split-layout">
+      <aside className="editorial-sidebar">
+        <div className="editorial-create-box">
+          <div className="create-box-row">
+            <DateField ariaLabel="每日计划日期" value={date} onChange={onDateChange} />
+            <button className="primary-button create-btn" onClick={onCreate} type="button">+ 新建</button>
           </div>
-          <div className="plan-editor-actions">
-            <Tag tone={statusTone(selected.plan.status)}>{statusLabel(selected.plan.status)}</Tag>
-            <button className="secondary-button" onClick={onClose} type="button">收起编辑</button>
-          </div>
+          <p className="create-box-hint">记录今日战略主线与执行切片</p>
         </div>
-        <div className="plan-rich-editor"><RichTextBlockEditor blockAriaLabel="每日计划内容块" value={draft} onChange={onDraftChange} /><p className="plan-editor-hint">输入 / 可插入标题、待办、列表和引用；一级、二级标题会自动调整字号。</p></div>
-      </section> : null}
-      <section className="table-panel plan-database-panel">
-        <DatabaseTable
-          empty="还没有每日计划，选择日期后新建一份空白计划。"
-          rows={plans}
-          columns={[
-            { key: "date", label: "日期", className: "col-plan-date", render: (plan) => <button className="plan-open-button" onClick={() => onOpen(plan.plan_date)} type="button">{formatDate(plan.plan_date)}</button> },
-            { key: "content", label: "计划内容", className: "col-plan-content", render: (plan) => <button className="plan-preview-button" onClick={() => onOpen(plan.plan_date)} type="button">{planTextPreview(plan)}</button> },
-            { key: "status", label: "状态", className: "col-plan-status", render: (plan) => <Tag tone={statusTone(plan.status)}>{statusLabel(plan.status)}</Tag> },
-            { key: "updated", label: "最近修改", className: "col-plan-updated", render: (plan) => <span className="plan-updated-time">{plan.updated_at ? String(plan.updated_at).slice(0, 16).replace("T", " ") : "—"}</span> },
-            { key: "actions", label: "操作", className: "col-plan-actions", render: (plan) => <span className="table-actions"><button className="text-link" onClick={() => onOpen(plan.plan_date)} type="button">编辑</button><button className="text-link" onClick={() => onArchive(plan.plan_date)} type="button">归档</button><DeleteButton label={`删除每日计划 ${formatDate(plan.plan_date)}`} onClick={() => onDelete(plan.plan_date)} /></span> }
-          ]}
-        />
-      </section>
-    </>
+
+        <div className="editorial-nav-list" role="tablist" aria-label="每日计划列表">
+          {plans.length === 0 ? (
+            <div className="editorial-nav-empty">暂无每日计划，请在上方新建</div>
+          ) : (
+            plans.map((plan) => {
+              const isSelected = selected?.plan?.plan_date === plan.plan_date;
+              return (
+                <div
+                  key={plan.plan_date}
+                  className={`editorial-card-item ${isSelected ? "is-active" : ""}`}
+                  onClick={() => onOpen(plan.plan_date)}
+                >
+                  <div className="card-item-top">
+                    <span className="card-item-date">{formatDate(plan.plan_date)}</span>
+                    <Tag tone={statusTone(plan.status)}>{statusLabel(plan.status)}</Tag>
+                  </div>
+                  <p className="card-item-snippet">{planTextPreview(plan)}</p>
+                  <div className="card-item-footer">
+                    <span className="card-item-time">
+                      {plan.updated_at ? String(plan.updated_at).slice(5, 16).replace("T", " ") : "未保存"}
+                    </span>
+                    <div className="card-item-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="card-action-btn"
+                        onClick={() => onArchive(plan.plan_date)}
+                        title="归档计划"
+                      >
+                        归档
+                      </button>
+                      <DeleteButton
+                        label={`删除每日计划 ${formatDate(plan.plan_date)}`}
+                        onClick={() => onDelete(plan.plan_date)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </aside>
+
+      <main className="editorial-canvas">
+        {selected?.plan ? (
+          <div className="editorial-canvas-inner">
+            <header className="canvas-header">
+              <div className="canvas-title-group">
+                <h2 className="canvas-title">{formatDate(selected.plan.plan_date)} · 每日计划</h2>
+                <div className="canvas-meta-row">
+                  <span className="auto-save-pill">● 自动保存就绪</span>
+                  <Tag tone={statusTone(selected.plan.status)}>{statusLabel(selected.plan.status)}</Tag>
+                </div>
+              </div>
+              <div className="canvas-actions">
+                <div className="view-mode-toggle" role="radiogroup" aria-label="阅读与编辑视图切换">
+                  <button
+                    type="button"
+                    className={`toggle-btn ${viewMode === "read" ? "active" : ""}`}
+                    onClick={() => setViewMode("read")}
+                  >
+                    ✨ 阅读视图
+                  </button>
+                  <button
+                    type="button"
+                    className={`toggle-btn ${viewMode === "edit" ? "active" : ""}`}
+                    onClick={() => setViewMode("edit")}
+                  >
+                    ✍️ 编辑视图
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="canvas-body">
+              {viewMode === "read" ? (
+                draft.trim() ? (
+                  <PlanRichText value={draft} />
+                ) : (
+                  <div className="canvas-empty-state">
+                    <p className="empty-title">这是一份空白计划</p>
+                    <p className="empty-desc">点击右上角「✍️ 编辑视图」开始书写你的每日主线与行动清单</p>
+                    <button type="button" className="secondary-button" onClick={() => setViewMode("edit")}>
+                      ✍️ 切换到编辑视图
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="canvas-editor-wrap">
+                  <RichTextBlockEditor blockAriaLabel="每日计划内容块" value={draft} onChange={onDraftChange} />
+                  <p className="plan-editor-hint">输入 / 可插入标题、待办、列表和引用；一级、二级标题会自动调整字号。</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="canvas-unselected">
+            <div className="unselected-icon">📄</div>
+            <h3>请选择或新建一份计划</h3>
+            <p>在左侧选择一份历史计划进行查看与编辑，或点击上方「新建」开始制定。</p>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -346,43 +431,129 @@ function StagePlanDatabase({ start, end, onStartChange, onEndChange, stages, sel
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const [viewMode, setViewMode] = useState<"read" | "edit">("read");
+
   return (
-    <>
-      <section className="quick-ledger plan-create-bar">
-        <div className="form-row">
-          <label className="form-field"><span>开始日期</span><DateField ariaLabel="阶段计划开始日期" value={start} onChange={onStartChange} /></label>
-          <label className="form-field"><span>结束日期</span><DateField ariaLabel="阶段计划结束日期" value={end} onChange={onEndChange} /></label>
-          <button className="primary-button align-end" onClick={onCreate} type="button">新建阶段计划</button>
-        </div>
-        <p className="helper-text plan-manual-hint">阶段计划按一个时间周期记录，例如一周；它独立于项目、任务和复盘。</p>
-      </section>
-      {selected ? <section className="plan-inline-preview plan-editor-panel panel" id="stage-plan-editor-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{formatDate(selected.period_start)}—{formatDate(selected.period_end)} · 阶段计划</h2>
-            <span className="muted">停止编辑约 0.8 秒后自动保存</span>
+    <div className="editorial-split-layout">
+      <aside className="editorial-sidebar">
+        <div className="editorial-create-box">
+          <div className="create-box-row stage-dates-row">
+            <DateField ariaLabel="阶段计划开始日期" value={start} onChange={onStartChange} />
+            <span className="date-sep">—</span>
+            <DateField ariaLabel="阶段计划结束日期" value={end} onChange={onEndChange} />
           </div>
-          <div className="plan-editor-actions">
-            <Tag tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Tag>
-            <button className="secondary-button" onClick={onClose} type="button">收起编辑</button>
-          </div>
+          <button className="primary-button create-btn full-width" onClick={onCreate} type="button">
+            + 新建阶段计划
+          </button>
+          <p className="create-box-hint">周周期定战略与指标，承接复盘输入</p>
         </div>
-        <div className="plan-rich-editor"><RichTextBlockEditor blockAriaLabel="阶段计划内容块" value={draft} onChange={onDraftChange} /><p className="plan-editor-hint">输入 / 可插入标题、待办、列表和引用；一级、二级标题会自动调整字号。</p></div>
-      </section> : null}
-      <section className="table-panel plan-database-panel">
-        <DatabaseTable
-          empty="还没有阶段计划，请先设置周期后新建一份空白计划。"
-          rows={stages}
-          columns={[
-            { key: "period", label: "计划周期", className: "col-plan-date", render: (stage) => <button className="plan-open-button" onClick={() => onSelect(stage)} type="button">{formatDate(stage.period_start)}—{formatDate(stage.period_end)}</button> },
-            { key: "content", label: "计划内容", className: "col-plan-content", render: (stage) => <button className="plan-preview-button" onClick={() => onSelect(stage)} type="button">{planTextPreview({ plan_text: stage.plan_text } as DailyPlan)}</button> },
-            { key: "status", label: "状态", className: "col-plan-status", render: (stage) => <Tag tone={statusTone(stage.status)}>{statusLabel(stage.status)}</Tag> },
-            { key: "updated", label: "最近修改", className: "col-plan-updated", render: (stage) => <span className="plan-updated-time">{stage.updated_at ? String(stage.updated_at).slice(0, 16).replace("T", " ") : "—"}</span> },
-            { key: "actions", label: "操作", className: "col-plan-actions", render: (stage) => <span className="table-actions"><button className="text-link" onClick={() => onSelect(stage)} type="button">编辑</button><button className="text-link" onClick={() => onArchive(stage.id)} type="button">归档</button><DeleteButton label={"删除阶段计划 " + formatDate(stage.period_start) + "至" + formatDate(stage.period_end)} onClick={() => onDelete(stage.id)} /></span> }
-          ]}
-        />
-      </section>
-    </>
+
+        <div className="editorial-nav-list" role="tablist" aria-label="阶段计划列表">
+          {stages.length === 0 ? (
+            <div className="editorial-nav-empty">暂无阶段计划，请在上方新建</div>
+          ) : (
+            stages.map((stage) => {
+              const isSelected = selected?.id === stage.id;
+              return (
+                <div
+                  key={stage.id}
+                  className={`editorial-card-item ${isSelected ? "is-active" : ""}`}
+                  onClick={() => onSelect(stage)}
+                >
+                  <div className="card-item-top">
+                    <span className="card-item-date">{formatDate(stage.period_start)}—{formatDate(stage.period_end)}</span>
+                    <Tag tone={statusTone(stage.status)}>{statusLabel(stage.status)}</Tag>
+                  </div>
+                  <p className="card-item-snippet">{planTextPreview({ plan_text: stage.plan_text } as DailyPlan)}</p>
+                  <div className="card-item-footer">
+                    <span className="card-item-time">
+                      {stage.updated_at ? String(stage.updated_at).slice(5, 16).replace("T", " ") : "未保存"}
+                    </span>
+                    <div className="card-item-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="card-action-btn"
+                        onClick={() => onArchive(stage.id)}
+                        title="归档计划"
+                      >
+                        归档
+                      </button>
+                      <DeleteButton
+                        label={`删除阶段计划 ${formatDate(stage.period_start)}至${formatDate(stage.period_end)}`}
+                        onClick={() => onDelete(stage.id)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </aside>
+
+      <main className="editorial-canvas">
+        {selected ? (
+          <div className="editorial-canvas-inner">
+            <header className="canvas-header">
+              <div className="canvas-title-group">
+                <h2 className="canvas-title">
+                  {formatDate(selected.period_start)}—{formatDate(selected.period_end)} · 阶段计划
+                </h2>
+                <div className="canvas-meta-row">
+                  <span className="auto-save-pill">● 自动保存就绪</span>
+                  <Tag tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Tag>
+                </div>
+              </div>
+              <div className="canvas-actions">
+                <div className="view-mode-toggle" role="radiogroup" aria-label="阅读与编辑视图切换">
+                  <button
+                    type="button"
+                    className={`toggle-btn ${viewMode === "read" ? "active" : ""}`}
+                    onClick={() => setViewMode("read")}
+                  >
+                    ✨ 阅读视图
+                  </button>
+                  <button
+                    type="button"
+                    className={`toggle-btn ${viewMode === "edit" ? "active" : ""}`}
+                    onClick={() => setViewMode("edit")}
+                  >
+                    ✍️ 编辑视图
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="canvas-body">
+              {viewMode === "read" ? (
+                draft.trim() ? (
+                  <PlanRichText value={draft} />
+                ) : (
+                  <div className="canvas-empty-state">
+                    <p className="empty-title">这是一份空白阶段计划</p>
+                    <p className="empty-desc">点击右上角「✍️ 编辑视图」开始书写四大板块指标与项目推进节点</p>
+                    <button type="button" className="secondary-button" onClick={() => setViewMode("edit")}>
+                      ✍️ 切换到编辑视图
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="canvas-editor-wrap">
+                  <RichTextBlockEditor blockAriaLabel="阶段计划内容块" value={draft} onChange={onDraftChange} />
+                  <p className="plan-editor-hint">输入 / 可插入标题、待办、列表和引用；一级、二级标题会自动调整字号。</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="canvas-unselected">
+            <div className="unselected-icon">🎯</div>
+            <h3>请选择或新建一份阶段计划</h3>
+            <p>在左侧选择一份阶段计划进行查看与编辑，或在上方新建。</p>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 

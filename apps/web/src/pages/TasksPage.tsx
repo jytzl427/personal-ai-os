@@ -12,6 +12,7 @@ import { SegmentedControl } from "../components/SegmentedControl.js";
 import { CalendarIcon } from "../components/Icons.js";
 import type { TagTone } from "../components/Tag.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
+import { todayYmd } from "../lib/dates.js";
 import type { Route } from "../lib/route.js";
 import { IdeasDatabase } from "./IdeasPage.js";
 import { RecurringTasksPage } from "./RecurringTasksPage.js";
@@ -28,6 +29,7 @@ type Task = {
   row_version?: number;
   archive_requested?: number | boolean | null;
   archived_at?: string | null;
+  project_id?: string | null;
   project_name?: string | null;
 };
 
@@ -60,7 +62,33 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"tasks" | "recurring">(initialTab === "recurring" ? "recurring" : "tasks");
   const [planCard, setPlanCard] = useState<"daily" | "stage" | null>(null);
+  const [taskFilter, setTaskFilter] = useState<"all" | "today" | "project">("all");
   const sortedTasks = useMemo(() => sortTasks(tasks), [tasks]);
+
+  const today = todayYmd();
+  const urgentCount = useMemo(
+    () => sortedTasks.filter((t) => t.status === "todo" && Boolean(t.due_date && t.due_date <= today)).length,
+    [sortedTasks, today]
+  );
+  const projectMilestoneCount = useMemo(
+    () => sortedTasks.filter((t) => Boolean(t.project_name) && t.status === "todo").length,
+    [sortedTasks]
+  );
+  const doneCount = useMemo(
+    () => sortedTasks.filter((t) => t.status === "done").length,
+    [sortedTasks]
+  );
+  const completionRate = sortedTasks.length > 0 ? (doneCount / sortedTasks.length) * 100 : 0;
+
+  const filteredTasks = useMemo(() => {
+    if (taskFilter === "today") {
+      return sortedTasks.filter((t) => Boolean(t.due_date && t.due_date <= today));
+    }
+    if (taskFilter === "project") {
+      return sortedTasks.filter((t) => Boolean(t.project_name));
+    }
+    return sortedTasks;
+  }, [sortedTasks, taskFilter, today]);
 
   useEffect(() => {
     apiJson<{ tasks: Task[] }>("/tasks")
@@ -128,13 +156,60 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
         />
       </PageHeader>
       <div className="task-page-toolbar">
-        <div className="task-plan-buttons">
-          <button className="secondary-button" onClick={() => setPlanCard("daily")} type="button">
-            <CalendarIcon /> 每日计划
-          </button>
-          <button className="secondary-button" onClick={() => setPlanCard("stage")} type="button">
-            <CalendarIcon /> 阶段计划
-          </button>
+        <div className="task-pulse-strip">
+          <div className={`pulse-chip ${urgentCount > 0 ? "has-urgent" : ""}`} title="今日及临期待办">
+            <span className="pulse-chip-icon">🔥</span>
+            <span className="pulse-chip-label">今日/逾期</span>
+            <span className="pulse-chip-value">{urgentCount}</span>
+          </div>
+          <div className="pulse-chip" title="关联推进项目的待办验收节点">
+            <span className="pulse-chip-icon">🎯</span>
+            <span className="pulse-chip-label">项目节点</span>
+            <span className="pulse-chip-value">{projectMilestoneCount}</span>
+          </div>
+          <div className="pulse-chip" title={`已完成任务：${doneCount} / ${sortedTasks.length}`}>
+            <span className="pulse-chip-icon">✨</span>
+            <span className="pulse-chip-label">已完成</span>
+            <span className="pulse-chip-value">{doneCount}</span>
+            <div className="pulse-mini-bar" aria-hidden="true">
+              <div className="pulse-mini-bar-fill" style={{ width: `${Math.min(100, completionRate)}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="task-toolbar-actions">
+          <div className="task-filter-pills" role="tablist" aria-label="待办过滤">
+            <button
+              type="button"
+              className={`filter-pill ${taskFilter === "all" ? "active" : ""}`}
+              onClick={() => setTaskFilter("all")}
+            >
+              全部 ({sortedTasks.length})
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${taskFilter === "today" ? "active" : ""}`}
+              onClick={() => setTaskFilter("today")}
+            >
+              今日及临期 {urgentCount > 0 && <span className="filter-pill-badge">{urgentCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${taskFilter === "project" ? "active" : ""}`}
+              onClick={() => setTaskFilter("project")}
+            >
+              项目节点 {projectMilestoneCount > 0 && <span className="filter-pill-badge is-project">{projectMilestoneCount}</span>}
+            </button>
+          </div>
+
+          <div className="task-plan-buttons">
+            <button className="secondary-button" onClick={() => setPlanCard("daily")} type="button">
+              <CalendarIcon /> 每日计划
+            </button>
+            <button className="secondary-button" onClick={() => setPlanCard("stage")} type="button">
+              <CalendarIcon /> 阶段计划
+            </button>
+          </div>
         </div>
       </div>
       {planCard ? <ReadOnlyPlanCard kind={planCard} onClose={() => setPlanCard(null)} /> : null}
@@ -145,7 +220,7 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
         <DatabaseTable
           empty={loading ? "正在读取任务…" : "还没有任务，从下方添加第一条。"}
           rowState={(task) => savingId === task.id ? "saving" : failedId === task.id ? "failed" : undefined}
-          rows={sortedTasks}
+          rows={filteredTasks}
           columns={[
             {
               key: "delete",
@@ -171,6 +246,18 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               className: "col-title",
               render: (task) => (
                 <div className={`task-title-cell ${task.status === "done" ? "is-done" : ""}`}>
+                  {task.project_name ? (
+                    <button
+                      type="button"
+                      className="task-project-pill"
+                      onClick={() => task.project_id ? onNavigate({ name: "project", id: task.project_id }) : onNavigate({ name: "projects" })}
+                      title={`前往项目：${task.project_name}`}
+                    >
+                      <span className="pill-dot" />
+                      <span className="pill-text">{task.project_name}</span>
+                      <span className="pill-arrow">↗</span>
+                    </button>
+                  ) : null}
                   <CellText
                     autoFocus={focusTaskId === task.id}
                     autoGrow
@@ -188,13 +275,20 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               key: "date",
               label: "任务日期",
               className: "col-date",
-              render: (task) => (
-                <DateField
-                  ariaLabel={"任务日期 " + (task.title || "未命名任务")}
-                  value={task.due_date}
-                  onChange={(value) => void saveTask(task.id, { due_date: value || null })}
-                />
-              )
+              render: (task) => {
+                const isToday = task.due_date === today;
+                const isOverdue = Boolean(task.due_date && task.due_date < today && task.status === "todo");
+                const dateClass = isOverdue ? "date-badge-wrap is-overdue" : isToday ? "date-badge-wrap is-due-today" : "date-badge-wrap";
+                return (
+                  <div className={dateClass}>
+                    <DateField
+                      ariaLabel={"任务日期 " + (task.title || "未命名任务")}
+                      value={task.due_date}
+                      onChange={(value) => void saveTask(task.id, { due_date: value || null })}
+                    />
+                  </div>
+                );
+              }
             },
             {
               key: "status",

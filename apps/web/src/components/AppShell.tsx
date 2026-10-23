@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { apiJson } from "../lib/api.js";
+import { todayYmd } from "../lib/dates.js";
 import { activeNavName, navigation, pageTitle, type Route } from "../lib/route.js";
+import { CommandPalette } from "./CommandPalette.js";
 import {
   AlertIcon,
   ArchiveIcon,
@@ -55,6 +57,10 @@ export function AppShell({
 }) {
   const currentNav = activeNavName(route);
   const [attention, setAttention] = useState<AttentionSummary | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [todoCount, setTodoCount] = useState(0);
+  const [urgentCount, setUrgentCount] = useState(0);
+  const [projectCount, setProjectCount] = useState(0);
   const retentionCheckStarted = useRef(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -86,18 +92,57 @@ export function AppShell({
       .catch(() => setAttention(null));
   }
 
+  function loadBadges() {
+    const today = todayYmd();
+    apiJson<{ tasks: Array<{ status: string; due_date?: string | null; archived_at?: string | null }> }>("/tasks")
+      .then((res) => {
+        const activeTodos = (res.tasks || []).filter((t) => t.status === "todo" && !t.archived_at);
+        setTodoCount(activeTodos.length);
+        const urgent = activeTodos.filter((t) => Boolean(t.due_date && t.due_date <= today));
+        setUrgentCount(urgent.length);
+      })
+      .catch(() => undefined);
+
+    apiJson<{ projects: Array<{ status?: string; category?: string; archived_at?: string | null }> }>("/projects")
+      .then((res) => {
+        const active = (res.projects || []).filter(
+          (p) => p.status !== "done" && p.category !== "maintenance" && p.category !== "long_term" && !p.archived_at
+        );
+        setProjectCount(active.length);
+      })
+      .catch(() => undefined);
+  }
+
   useEffect(() => {
     document.title = pageTitle(route) + " · Personal AI OS";
   }, [route]);
 
   useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     loadAttention();
+    loadBadges();
     const onVisible = () => {
-      if (document.visibilityState === "visible") loadAttention();
+      if (document.visibilityState === "visible") {
+        loadAttention();
+        loadBadges();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    const timer = window.setInterval(loadAttention, 5 * 60 * 1000);
+    const timer = window.setInterval(() => {
+      loadAttention();
+      loadBadges();
+    }, 2 * 60 * 1000);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
@@ -107,6 +152,7 @@ export function AppShell({
 
   return (
     <div className={`app-shell ${collapsed ? "is-sidebar-collapsed" : ""}`}>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={onNavigate} />
       <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
         <div className="brand">
           <div
@@ -135,10 +181,25 @@ export function AppShell({
           </button>
         </div>
 
+        {!collapsed && (
+          <button
+            type="button"
+            className="sidebar-cmd-trigger"
+            onClick={() => setPaletteOpen(true)}
+            title="快捷指挥中心 (Ctrl+K)"
+          >
+            <span className="cmd-trigger-icon">🔍</span>
+            <span className="cmd-trigger-text">快速跳转或操作…</span>
+            <kbd className="cmd-trigger-kbd">Ctrl K</kbd>
+          </button>
+        )}
+
         <nav aria-label="主导航" className="main-nav">
           {!collapsed && <div className="nav-section-label">核心工作台</div>}
           {navigation.map((item) => {
             const isActive = item.label === currentNav;
+            const isTasks = item.label === "任务";
+            const isProjects = item.label === "项目";
             return (
               <button
                 className={isActive ? "nav-item active" : "nav-item"}
@@ -149,6 +210,16 @@ export function AppShell({
               >
                 <span className="nav-icon">{getNavIcon(item.label)}</span>
                 {!collapsed && <span className="nav-label">{item.label}</span>}
+                {!collapsed && isTasks && todoCount > 0 && (
+                  <span className={`nav-count-pill ${urgentCount > 0 ? "is-urgent" : ""}`} title={urgentCount > 0 ? `${urgentCount} 项今日或逾期待办` : `${todoCount} 项待办`}>
+                    {todoCount}
+                  </span>
+                )}
+                {!collapsed && isProjects && projectCount > 0 && (
+                  <span className="nav-count-pill is-project" title={`${projectCount} 个活跃推进项目`}>
+                    {projectCount}
+                  </span>
+                )}
                 {isActive ? <span className="nav-active-indicator" /> : null}
               </button>
             );

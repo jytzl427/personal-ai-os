@@ -49,7 +49,13 @@ export function IdeasDatabase({ embedded = false }: { embedded?: boolean } = {})
   const [savingId, setSavingId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const sortedIdeas = useMemo(() => sortIdeas(ideas), [ideas]);
+
+  const filteredIdeas = useMemo(() => {
+    if (categoryFilter === "all") return sortedIdeas;
+    return sortedIdeas.filter((item) => (item.category || "short_term") === categoryFilter);
+  }, [sortedIdeas, categoryFilter]);
 
   useEffect(() => {
     apiJson<{ ideas: Idea[] }>("/ideas")
@@ -100,12 +106,22 @@ export function IdeasDatabase({ embedded = false }: { embedded?: boolean } = {})
     }
   }
 
+  const filterPills = (
+    <div className="ideas-filter-pills" role="tablist" aria-label="想法分类过滤">
+      <button type="button" className={`filter-pill ${categoryFilter === "all" ? "active" : ""}`} onClick={() => setCategoryFilter("all")}>全部</button>
+      <button type="button" className={`filter-pill ${categoryFilter === "project" ? "active" : ""}`} onClick={() => setCategoryFilter("project")}>项目灵感</button>
+      <button type="button" className={`filter-pill ${categoryFilter === "short_term" ? "active" : ""}`} onClick={() => setCategoryFilter("short_term")}>短期想法</button>
+      <button type="button" className={`filter-pill ${categoryFilter === "long_term" ? "active" : ""}`} onClick={() => setCategoryFilter("long_term")}>长期想法</button>
+    </div>
+  );
+
   const table = (
     <section className="table-panel database-panel ideas-database-panel">
       <DatabaseTable
         empty={loading ? "正在读取想法…" : "还没有想法，从下方添加第一条。"}
         rowState={(idea) => savingId === idea.id ? "saving" : failedId === idea.id ? "failed" : undefined}
-        rows={sortedIdeas}
+        rowClassName={(idea) => idea.urgency === 1 ? "idea-urgency-1" : undefined}
+        rows={filteredIdeas}
         columns={[
           {
             key: "delete",
@@ -203,8 +219,20 @@ export function IdeasDatabase({ embedded = false }: { embedded?: boolean } = {})
   );
 
   const heading = embedded
-    ? <div className="section-heading"><h2>想法</h2><span className="page-meta">{loading ? "读取中…" : sortedIdeas.length + " 条未归档"}</span></div>
-    : <PageHeader meta={loading ? "读取中…" : sortedIdeas.length + " 条未归档"} title="想法" />;
+    ? (
+      <div className="section-heading ideas-section-heading">
+        <div className="heading-left">
+          <h2>想法</h2>
+          <span className="page-meta">{loading ? "读取中…" : sortedIdeas.length + " 条未归档"}</span>
+        </div>
+        {filterPills}
+      </div>
+    )
+    : (
+      <PageHeader meta={loading ? "读取中…" : sortedIdeas.length + " 条未归档"} title="想法">
+        {filterPills}
+      </PageHeader>
+    );
 
   const content = (
     <>

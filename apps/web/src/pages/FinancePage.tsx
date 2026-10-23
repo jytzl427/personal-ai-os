@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CellText } from "../components/CellText.js";
 import { DatabaseTable } from "../components/DatabaseTable.js";
 import { DateField } from "../components/DateField.js";
@@ -56,6 +56,40 @@ const incomePresets: QuickPreset[] = [
   { name: "生活费", major: "生活费/工资", minor: "生活费", event: "生活费" },
   { name: "其他", major: "其他/突发收入", minor: "其他" }
 ];
+
+function getPresetIcon(name: string): string {
+  switch (name) {
+    case "早餐": return "🥣";
+    case "午餐": return "🍱";
+    case "晚餐": return "🍲";
+    case "咖啡": return "☕";
+    case "日用品": return "🧻";
+    case "饮用水": return "💧";
+    case "交通费": return "🚇";
+    case "订阅": return "🔄";
+    case "分期": return "💳";
+    case "电费": return "⚡";
+    case "水费": return "🚰";
+    case "电话费": return "📱";
+    case "冲动消费": return "🛍️";
+    case "医药": return "💊";
+    case "休闲娱乐": return "🎮";
+    case "生活费": return "💰";
+    case "其他": return "📦";
+    default: return "🚀";
+  }
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  日常消费: "#10b981",
+  品质生活: "#3b82f6",
+  固定支出: "#f59e0b",
+  突发消费: "#ef4444",
+  项目支出: "#8b5cf6",
+  项目收入: "#10b981",
+  "生活费/工资": "#3b82f6",
+  "其他/突发收入": "#8b5cf6"
+};
 
 function presetKey(preset: QuickPreset) {
   return preset.id ?? `${preset.major}-${preset.minor}-${preset.name}`;
@@ -115,9 +149,20 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
   const [accountAmount, setAccountAmount] = useState("");
   const [accountEvent, setAccountEvent] = useState("");
   const [accountNote, setAccountNote] = useState("");
+  const [todayMealCents, setTodayMealCents] = useState(0);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function loadTodayMeal() {
+    try {
+      const res = await apiJson<{ expenses?: Entry[] }>(`/finance/expenses?from=${today}&to=${today}`);
+      const sum = (res.expenses ?? [])
+        .filter((e) => e.category_minor === "饭费")
+        .reduce((acc, cur) => acc + (cur.amount_cents || 0), 0);
+      setTodayMealCents(sum);
+    } catch {}
+  }
 
   async function loadEntries() {
     if (activeTab !== "expenses" && activeTab !== "incomes") return;
@@ -172,7 +217,10 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
     }
   }
 
-  useEffect(() => { void loadAccounts(); }, []);
+  useEffect(() => {
+    void loadAccounts();
+    void loadTodayMeal();
+  }, []);
   useEffect(() => {
     void Promise.all([
       apiJson<{ expense: FinanceTaxonomyGroup; income: FinanceTaxonomyGroup }>("/finance/taxonomy"),
@@ -213,6 +261,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       setError(null);
       setMessage("已记下，不关联资金账户");
       await loadEntries();
+      void loadTodayMeal();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "记账失败");
     }
@@ -225,6 +274,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       const saved = result.expense ?? result.income;
       if (saved) setEntries((current) => current.map((entry) => entry.id === id ? saved : entry));
       setError(null);
+      void loadTodayMeal();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "账目保存失败");
     }
@@ -235,6 +285,8 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       const path = kind === "expense" ? "/finance/expenses/" : "/finance/incomes/";
       await apiJson(path + id, { method: "DELETE" });
       setEntries((current) => current.filter((entry) => entry.id !== id));
+      setError(null);
+      void loadTodayMeal();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "账目删除失败");
     }
@@ -321,6 +373,28 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
     }
   }
 
+  const periodTotalCents = useMemo(() => entries.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0), [entries]);
+  const impulseEntries = useMemo(() => entries.filter((e) => e.category_minor === "冲动消费" || (e.event && e.event.includes("冲动"))), [entries]);
+  const impulseTotalCents = useMemo(() => impulseEntries.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0), [impulseEntries]);
+  const impulseCount = impulseEntries.length;
+
+  const categoryDistribution = useMemo(() => {
+    if (entries.length === 0 || periodTotalCents === 0) return [];
+    const map = new Map<string, number>();
+    for (const entry of entries) {
+      const cat = entry.category_major || "其他";
+      map.set(cat, (map.get(cat) || 0) + entry.amount_cents);
+    }
+    return Array.from(map.entries())
+      .map(([category, amount]) => ({
+        category,
+        amount,
+        pct: (amount / periodTotalCents) * 100,
+        color: CATEGORY_COLORS[category] || "#64748b"
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [entries, periodTotalCents]);
+
   return (
     <div className="page-stack page-finance">
       <PageHeader meta="支出、收入与账户分开管理" title="财务">
@@ -335,6 +409,103 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       {message && !error ? <div className="notice">{message}</div> : null}
       {activeTab === "expenses" || activeTab === "incomes" ? (
         <>
+          <div className="finance-pulse-grid">
+            <div className="finance-pulse-card meal-radar-card">
+              <div className="pulse-card-header">
+                <span className="pulse-card-title">🍱 今日餐饮限额雷达</span>
+                <span className={`pulse-card-tag ${todayMealCents > 2500 ? "is-danger" : todayMealCents >= 2000 ? "is-warn" : "is-ok"}`}>
+                  {todayMealCents > 2500 ? "已超标" : todayMealCents >= 2000 ? "临界警戒" : "守线平稳"}
+                </span>
+              </div>
+              <div className="pulse-card-main">
+                <div className="pulse-stat-number">
+                  <span className="stat-cur">¥{(todayMealCents / 100).toFixed(2)}</span>
+                  <span className="stat-max"> / ¥25.00</span>
+                </div>
+                <div className="pulse-meter-track" title={`今日饭费使用率 ${Math.round((todayMealCents / 2500) * 100)}%`}>
+                  <div
+                    className={`pulse-meter-fill ${todayMealCents > 2500 ? "is-danger" : todayMealCents >= 2000 ? "is-warn" : "is-ok"}`}
+                    style={{ width: `${Math.min(100, (todayMealCents / 2500) * 100)}%` }}
+                  />
+                </div>
+                <div className="pulse-card-sub">
+                  {todayMealCents <= 2500 ? (
+                    <span>今日午晚限额节余 <strong>¥{((2500 - todayMealCents) / 100).toFixed(2)}</strong></span>
+                  ) : (
+                    <span className="text-danger">超出日限额 <strong>¥{((todayMealCents - 2500) / 100).toFixed(2)}</strong></span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="finance-pulse-card period-summary-card">
+              <div className="pulse-card-header">
+                <span className="pulse-card-title">📊 筛选周期{kindLabel}大盘</span>
+                <span className="pulse-card-tag is-neutral">{entries.length} 笔明细</span>
+              </div>
+              <div className="pulse-card-main">
+                <div className="pulse-stat-number">
+                  <span className="stat-cur">¥{(periodTotalCents / 100).toFixed(2)}</span>
+                </div>
+                <div className="pulse-card-badge-row">
+                  {kind === "expense" ? (
+                    impulseCount === 0 ? (
+                      <div className="pulse-shield-badge is-ok">
+                        <span className="badge-icon">🛡️</span>
+                        <span>0 冲动消费 · 守线完美</span>
+                      </div>
+                    ) : (
+                      <div className="pulse-shield-badge is-warn">
+                        <span className="badge-icon">⚠️</span>
+                        <span>{impulseCount} 笔冲动消费 (¥{(impulseTotalCents / 100).toFixed(2)})</span>
+                      </div>
+                    )
+                  ) : (
+                    <div className="pulse-shield-badge is-ok">
+                      <span className="badge-icon">💰</span>
+                      <span>资金回流平稳</span>
+                    </div>
+                  )}
+                </div>
+                <div className="pulse-card-sub">
+                  <span>当前视图：{range === "today" ? "今日" : range === "week" ? "本周" : range === "month" ? "本月" : range === "custom" ? `${fromDate} ~ ${toDate}` : "全部历史"}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="finance-pulse-card distribution-card">
+              <div className="pulse-card-header">
+                <span className="pulse-card-title">🎨 分类结构分布</span>
+                <span className="pulse-card-tag is-neutral">{categoryDistribution.length} 个分类</span>
+              </div>
+              <div className="pulse-card-main">
+                <div className="category-stacked-bar" title="分类占比">
+                  {categoryDistribution.length === 0 ? (
+                    <div className="stacked-bar-empty" />
+                  ) : (
+                    categoryDistribution.map((item) => (
+                      <div
+                        key={item.category}
+                        className="stacked-bar-segment"
+                        style={{ width: `${item.pct}%`, backgroundColor: item.color }}
+                        title={`${item.category}: ¥${(item.amount / 100).toFixed(2)} (${item.pct.toFixed(1)}%)`}
+                      />
+                    ))
+                  )}
+                </div>
+                <div className="category-legend-list">
+                  {categoryDistribution.slice(0, 4).map((item) => (
+                    <div key={item.category} className="category-legend-item">
+                      <span className="legend-dot" style={{ backgroundColor: item.color }} />
+                      <span className="legend-name">{item.category}</span>
+                      <span className="legend-pct">{item.pct.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <section className="quick-ledger">
             <div className="ledger-heading">
               <div>
@@ -355,7 +526,8 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
                   }}
                   type="button"
                 >
-                  {preset.name}
+                  <span className="preset-icon">{getPresetIcon(preset.name)}</span>
+                  <span>{preset.name}</span>
                 </button>
               ))}
             </div>
@@ -365,7 +537,13 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
               <label className="form-field"><span>日期</span><DateField ariaLabel="记账日期" value={date} onChange={setDate} /></label>
             </div>
             <div className="quick-input-row">
-              <label className="form-field amount-field"><span>金额（元）</span><input className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void quickAdd(); }} /></label>
+              <label className="form-field amount-field">
+                <span>金额（元）</span>
+                <div className="amount-input-wrap">
+                  <span className="currency-symbol">¥</span>
+                  <input className="amount-input" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void quickAdd(); }} />
+                </div>
+              </label>
               <label className="form-field event-field"><span>事件</span><input className="cell-input" placeholder={minor === "日用品" ? "例如：纸巾" : "可填写具体事件"} value={event} onChange={(event) => setEvent(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void quickAdd(); }} /></label>
               <button className="primary-button" onClick={() => void quickAdd()} type="button">记一笔</button>
             </div>

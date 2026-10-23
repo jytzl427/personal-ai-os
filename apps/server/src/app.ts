@@ -1148,6 +1148,13 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const task = context.database.prepare(`
       SELECT tasks.*,
         (
+          SELECT pt.project_id 
+          FROM project_task_plans pt 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_id,
+        (
           SELECT p.name 
           FROM project_task_plans pt 
           JOIN projects p ON p.id = pt.project_id 
@@ -2550,6 +2557,13 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const params = overdue ? [today] : date ? [date] : from && to ? [from, to] : [];
     const rows = context.database.prepare(
       `SELECT tasks.id, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.due_date, tasks.scheduled_date, tasks.recurrence_id, tasks.recurrence_date, tasks.archive_requested, tasks.archived_at, tasks.row_version, tasks.created_at, tasks.updated_at,
+        (
+          SELECT pt.project_id 
+          FROM project_task_plans pt 
+          WHERE pt.todo_task_id = tasks.id 
+            AND pt.archived_at IS NULL 
+          LIMIT 1
+        ) AS project_id,
         (
           SELECT p.name 
           FROM project_task_plans pt 

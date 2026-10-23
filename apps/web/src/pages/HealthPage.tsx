@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AddRowButton } from "../components/AddRowButton.js";
 import { CellText } from "../components/CellText.js";
 import { Checkbox } from "../components/Checkbox.js";
@@ -205,6 +205,8 @@ export function HealthPage() {
         </div>
       </div>
 
+      <HealthChartsGrid logs={logs} />
+
       <section className="table-panel database-panel health-table-panel">
         <DatabaseTable
           empty="还没有健康记录。"
@@ -212,7 +214,7 @@ export function HealthPage() {
           columns={[
             { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteRecord(row.log_date)} /> },
             { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
-            { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
+            { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} isBedtime value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
             { key: "sleep", label: "睡眠时长", className: "col-time col-time-sleep", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
             { key: "wake", label: "起床", className: "col-time col-time-wake", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void save(row.log_date, { wake_local: value || null })} /> },
             { key: "weight", label: "空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void save(row.log_date, { weight_kg: value })} /> },
@@ -277,7 +279,7 @@ export function HealthPage() {
   );
 }
 
-function TimeCell({ value, ariaLabel, onCommit }: { value: string; ariaLabel: string; onCommit: (value: string) => void }) {
+function TimeCell({ value, ariaLabel, isBedtime, onCommit }: { value: string; ariaLabel: string; isBedtime?: boolean; onCommit: (value: string) => void }) {
   const normalizedValue = typeof value === "string" ? value.slice(0, 5) : "";
   const [draft, setDraft] = useState(normalizedValue);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -289,11 +291,17 @@ function TimeCell({ value, ariaLabel, onCommit }: { value: string; ariaLabel: st
     }
   }, [normalizedValue]);
 
+  const bedtimeClass = useMemo(() => {
+    if (!isBedtime || !normalizedValue) return "";
+    const isSafe = (normalizedValue >= "18:00" && normalizedValue <= "23:59") || (normalizedValue >= "00:00" && normalizedValue <= "00:30");
+    return isSafe ? "bedtime-safe" : "bedtime-late";
+  }, [isBedtime, normalizedValue]);
+
   return (
     <input
       ref={inputRef}
       aria-label={ariaLabel}
-      className="cell-input time-input"
+      className={`cell-input time-input ${bedtimeClass}`}
       max="23:59"
       min="00:00"
       onFocus={() => {
@@ -364,5 +372,269 @@ function WeightCell({ value, ariaLabel, onCommit }: { value?: number | null; ari
       placeholder="kg"
       value={draft}
     />
+  );
+}
+
+function HealthChartsGrid({ logs }: { logs: Health[] }) {
+  const chartLogs = useMemo(() => {
+    return [...logs].slice(0, 14).reverse();
+  }, [logs]);
+
+  // Weight Trend Data
+  const weightPoints = useMemo(() => {
+    return chartLogs
+      .filter((r) => r.weight_kg != null && r.weight_kg > 0)
+      .map((r) => ({ date: r.log_date, weight: r.weight_kg! }));
+  }, [chartLogs]);
+
+  const weightDiff = useMemo(() => {
+    const validWeights = logs.map((r) => r.weight_kg).filter((w): w is number => w != null && w > 0);
+    if (validWeights.length < 2) return null;
+    return validWeights[0] - validWeights[1];
+  }, [logs]);
+
+  // SVG Calculations for Weight Area Chart
+  const weightChart = useMemo(() => {
+    if (weightPoints.length === 0) return null;
+    const weights = weightPoints.map((p) => p.weight);
+    const minW = Math.min(...weights, 71.0) - 0.4;
+    const maxW = Math.max(...weights, 71.0) + 0.4;
+    const rangeW = maxW - minW || 1;
+
+    const width = 420;
+    const height = 130;
+    const padL = 36;
+    const padR = 28;
+    const padT = 24;
+    const padB = 26;
+    const plotW = width - padL - padR;
+    const plotH = height - padT - padB;
+
+    const coords = weightPoints.map((p, idx) => {
+      const x = padL + (weightPoints.length === 1 ? plotW / 2 : (idx / (weightPoints.length - 1)) * plotW);
+      const y = padT + (1 - (p.weight - minW) / rangeW) * plotH;
+      return { ...p, x, y };
+    });
+
+    const targetY = padT + (1 - (71.0 - minW) / rangeW) * plotH;
+
+    const lineD = coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, "");
+    const areaD = coords.length > 0
+      ? `${lineD} L ${coords[coords.length - 1].x.toFixed(1)} ${(padT + plotH).toFixed(1)} L ${coords[0].x.toFixed(1)} ${(padT + plotH).toFixed(1)} Z`
+      : "";
+
+    let minIdx = 0;
+    let maxIdx = 0;
+    coords.forEach((c, idx) => {
+      if (c.weight < coords[minIdx].weight) minIdx = idx;
+      if (c.weight > coords[maxIdx].weight) maxIdx = idx;
+    });
+
+    return { coords, lineD, areaD, targetY, padL, padR, padT, padB, plotW, plotH, minIdx, maxIdx };
+  }, [weightPoints]);
+
+  // Sleep Bar Chart Data
+  const sleepChart = useMemo(() => {
+    const width = 420;
+    const height = 130;
+    const padL = 28;
+    const padR = 20;
+    const padT = 24;
+    const padB = 24;
+    const plotW = width - padL - padR;
+    const plotH = height - padT - padB;
+
+    const items = chartLogs.map((r) => {
+      const mins = r.sleep_duration_minutes ?? sleepMinutes(r.bedtime_local, r.wake_local);
+      const hours = mins ? mins / 60 : 0;
+      const bt = r.bedtime_local;
+      const isCompliant = bt ? ((bt >= "18:00" && bt <= "23:59") || (bt >= "00:00" && bt <= "00:30")) : null;
+      return {
+        date: r.log_date,
+        bedtime: bt,
+        wake: r.wake_local,
+        hours,
+        isCompliant
+      };
+    });
+
+    const maxH = Math.max(9.5, ...items.map((i) => i.hours));
+    const count = items.length || 1;
+    const slotW = plotW / count;
+    const barW = Math.max(8, Math.min(18, slotW * 0.65));
+
+    const bars = items.map((item, idx) => {
+      const barH = (item.hours / maxH) * plotH;
+      const x = padL + idx * slotW + (slotW - barW) / 2;
+      const y = padT + plotH - barH;
+      const color = item.isCompliant === false ? "#f59e0b" : "#10b981";
+      return { ...item, x, y, barW, barH, color };
+    });
+
+    const safeCount = items.filter((i) => i.isCompliant === true).length;
+    const totalRecorded = items.filter((i) => i.isCompliant !== null).length;
+
+    return { bars, safeCount, totalRecorded, padL, padR, padT, padB, plotW, plotH };
+  }, [chartLogs]);
+
+  return (
+    <div className="health-charts-grid">
+      {/* Weight Chart */}
+      <div className="health-chart-card weight-trend-card">
+        <div className="chart-card-header">
+          <div className="chart-header-left">
+            <span className="chart-card-title">📉 空腹体重走势（近14天）</span>
+            <span className="chart-card-sub">目标线 &lt; 71.0 kg</span>
+          </div>
+          {weightDiff != null && (
+            <span className={`chart-diff-badge ${weightDiff <= 0 ? "is-ok" : "is-warn"}`}>
+              {weightDiff <= 0 ? `↓ ${Math.abs(weightDiff).toFixed(2)} kg` : `↑ ${weightDiff.toFixed(2)} kg`}
+            </span>
+          )}
+        </div>
+        <div className="chart-canvas-wrap">
+          {weightChart ? (
+            <svg viewBox="0 0 420 130" className="health-svg-chart" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="weightAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#154e3f" stopOpacity="0.22" />
+                  <stop offset="100%" stopColor="#154e3f" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              <line
+                x1={weightChart.padL}
+                y1={weightChart.targetY}
+                x2={420 - weightChart.padR}
+                y2={weightChart.targetY}
+                stroke="#10b981"
+                strokeWidth="1.2"
+                strokeDasharray="4 4"
+              />
+              <text
+                x={420 - weightChart.padR}
+                y={weightChart.targetY - 4}
+                textAnchor="end"
+                fontSize="10"
+                fontWeight="600"
+                fill="#059669"
+              >
+                目标 71.0kg
+              </text>
+
+              <path d={weightChart.areaD} fill="url(#weightAreaGrad)" />
+              <path d={weightChart.lineD} fill="none" stroke="#154e3f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+
+              {weightChart.coords.map((pt, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === weightChart.coords.length - 1;
+                const isExtreme = idx === weightChart.minIdx || idx === weightChart.maxIdx;
+                const showLabel = isFirst || isLast || isExtreme;
+
+                return (
+                  <g key={pt.date}>
+                    <circle cx={pt.x} cy={pt.y} r={showLabel ? 4 : 2.5} fill="#ffffff" stroke="#154e3f" strokeWidth="2" />
+                    {showLabel && (
+                      <text
+                        x={pt.x}
+                        y={pt.y - 7}
+                        textAnchor="middle"
+                        fontSize="10"
+                        fontWeight="700"
+                        fill="#154e3f"
+                        className="svg-weight-val"
+                      >
+                        {pt.weight}
+                      </text>
+                    )}
+                    {(isFirst || isLast) && (
+                      <text
+                        x={pt.x}
+                        y={130 - 6}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fill="#94a3b8"
+                      >
+                        {pt.date.slice(5)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          ) : (
+            <div className="chart-empty-placeholder">暂无近14天空腹体重数据</div>
+          )}
+        </div>
+      </div>
+
+      {/* Sleep Chart */}
+      <div className="health-chart-card sleep-trend-card">
+        <div className="chart-card-header">
+          <div className="chart-header-left">
+            <span className="chart-card-title">🌙 睡眠时长与 00:30 底线</span>
+            <span className="chart-card-sub">柱色：翠绿 ≤00:30 · 琥珀 &gt;00:30</span>
+          </div>
+          <span className="chart-diff-badge is-ok">
+            {sleepChart.safeCount}/{sleepChart.totalRecorded || 14} 守线
+          </span>
+        </div>
+        <div className="chart-canvas-wrap">
+          {sleepChart.bars.length > 0 ? (
+            <svg viewBox="0 0 420 130" className="health-svg-chart" preserveAspectRatio="none">
+              <line
+                x1={sleepChart.padL}
+                y1={sleepChart.padT + sleepChart.plotH}
+                x2={420 - sleepChart.padR}
+                y2={sleepChart.padT + sleepChart.plotH}
+                stroke="#e2e8f0"
+                strokeWidth="1"
+              />
+
+              {sleepChart.bars.map((bar) => (
+                <g key={bar.date}>
+                  {bar.hours > 0 ? (
+                    <>
+                      <rect
+                        x={bar.x}
+                        y={bar.y}
+                        width={bar.barW}
+                        height={Math.max(3, bar.barH)}
+                        rx="3"
+                        fill={bar.color}
+                        opacity={0.88}
+                      >
+                        <title>{`${bar.date}: 睡眠 ${bar.hours.toFixed(1)}h (上床: ${bar.bedtime || "未记"})`}</title>
+                      </rect>
+                      <text
+                        x={bar.x + bar.barW / 2}
+                        y={Math.max(12, bar.y - 4)}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fontWeight="600"
+                        fill="#475569"
+                      >
+                        {bar.hours.toFixed(1)}
+                      </text>
+                    </>
+                  ) : null}
+                  <text
+                    x={bar.x + bar.barW / 2}
+                    y={130 - 6}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fill="#94a3b8"
+                  >
+                    {bar.date.slice(8)}日
+                  </text>
+                </g>
+              ))}
+            </svg>
+          ) : (
+            <div className="chart-empty-placeholder">暂无近14天睡眠数据</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
