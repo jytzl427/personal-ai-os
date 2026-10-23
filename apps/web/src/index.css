@@ -4900,13 +4900,34 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   color: var(--accent);
 }
 
-/* Project Link Pill inside task row */
+/* Project Link Pill inside task memo */
+.task-memo-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.task-memo-cell .task-project-pill {
+  flex-shrink: 0;
+  margin-right: 0;
+}
+
+.tasks-database-panel .col-title {
+  width: 34%;
+  min-width: 240px;
+}
+
+.tasks-database-panel .col-memo {
+  width: 24%;
+  min-width: 170px;
+}
+
 .task-project-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 8px;
-  margin-right: 8px;
   background: var(--accent-soft);
   border: 1px solid var(--accent-border);
   border-radius: 12px;

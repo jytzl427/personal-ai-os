@@ -246,18 +246,6 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               className: "col-title",
               render: (task) => (
                 <div className={`task-title-cell ${task.status === "done" ? "is-done" : ""}`}>
-                  {task.project_name ? (
-                    <button
-                      type="button"
-                      className="task-project-pill"
-                      onClick={() => task.project_id ? onNavigate({ name: "project", id: task.project_id }) : onNavigate({ name: "projects" })}
-                      title={`前往项目：${task.project_name}`}
-                    >
-                      <span className="pill-dot" />
-                      <span className="pill-text">{task.project_name}</span>
-                      <span className="pill-arrow">↗</span>
-                    </button>
-                  ) : null}
                   <CellText
                     autoFocus={focusTaskId === task.id}
                     autoGrow
@@ -309,16 +297,30 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
               label: "备忘",
               className: "col-memo",
               render: (task) => {
-                const memoValue = task.description?.trim()
-                  ? task.description
-                  : (task.project_name ?? "");
+                const hasCustomMemo = Boolean(task.description && task.description.trim() && task.description.trim() !== task.project_name);
                 return (
-                  <CellText
-                    multiline
-                    placeholder={task.project_name ? task.project_name : "添加备忘…"}
-                    value={memoValue}
-                    onCommit={(value) => { if (value !== (task.description ?? "")) void saveTask(task.id, { description: value }); }}
-                  />
+                  <div className="task-memo-cell">
+                    {task.project_name ? (
+                      <button
+                        type="button"
+                        className="task-project-pill"
+                        onClick={() => task.project_id ? onNavigate({ name: "project", id: task.project_id }) : onNavigate({ name: "projects" })}
+                        title={`前往项目：${task.project_name}（点击直达）`}
+                      >
+                        <span className="pill-dot" />
+                        <span className="pill-text">{task.project_name}</span>
+                        <span className="pill-arrow">↗</span>
+                      </button>
+                    ) : null}
+                    <CellText
+                      multiline
+                      placeholder={task.project_name ? "" : "添加备忘…"}
+                      value={hasCustomMemo ? (task.description ?? "") : ""}
+                      onCommit={(value) => {
+                        void saveTask(task.id, { description: value.trim() ? value.trim() : null });
+                      }}
+                    />
+                  </div>
                 );
               }
             }
