@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Tag } from "./Tag.js";
 import { CloseIcon } from "./Icons.js";
 import { apiJson } from "../lib/api.js";
@@ -346,7 +347,22 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
     return parseStageHUD(currentStage.plan_text);
   }, [currentStage]);
 
-  return (
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="read-only-plan-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section
         aria-label={kind === "daily" ? "每日计划速览" : "阶段计划速览"}
@@ -672,6 +688,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
           <span className="plan-card-readonly-hint">只读速览 · 沟通确认即生效</span>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 
 export function ConfirmDialog({
   message,
@@ -24,7 +25,9 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onCancel]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       aria-labelledby={titleId}
       aria-describedby={messageId}
@@ -44,7 +47,7 @@ export function ConfirmDialog({
           <button className="primary-button danger-confirm-button" onClick={onConfirm} type="button">{confirmLabel}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
-
