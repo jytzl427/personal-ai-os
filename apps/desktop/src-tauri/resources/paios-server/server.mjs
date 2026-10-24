@@ -17391,7 +17391,8 @@ function getOrCreateProjectParentTask(database, projectId, projectName, initialD
   `).run(parentTaskId, projectId);
   return parentTaskId;
 }
-function syncUpcomingCheckpointsToTodos(database, todayDate) {
+var AUTO_SYNC_CONTENT = "auto_stage_sync";
+function getActiveStageWindow(database, todayDate) {
   const timezone = "Asia/Shanghai";
   const today = todayDate ?? (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
   const parts = today.split("-").map(Number);
@@ -17400,20 +17401,59 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
   const day = parts[2] ?? 21;
   const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
   const tomorrow2 = tomorrowObj.toISOString().slice(0, 10);
+  try {
+    const activeStage = database.prepare(`
+      SELECT period_start, period_end
+      FROM period_plans
+      WHERE status = 'confirmed' AND archived_at IS NULL AND period_end >= ?
+      ORDER BY period_start DESC
+      LIMIT 1
+    `).get(today);
+    if (activeStage && activeStage.period_end) {
+      return {
+        start: activeStage.period_start || today,
+        end: activeStage.period_end,
+        hasActiveStage: true
+      };
+    }
+  } catch {
+  }
+  return {
+    start: today,
+    end: tomorrow2,
+    hasActiveStage: false
+  };
+}
+function syncUpcomingCheckpointsToTodos(database, todayDate) {
+  const timezone = "Asia/Shanghai";
+  const today = todayDate ?? (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
   const touchedParentIds = /* @__PURE__ */ new Set();
+  const stageWindow = getActiveStageWindow(database, today);
+  const windowEnd = stageWindow.end;
   const staleLinks = database.prepare(`
-    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id, t.content AS task_content
     FROM project_task_plans pt
     JOIN tasks t ON t.id = pt.todo_task_id
     LEFT JOIN projects p ON p.id = pt.project_id
     WHERE pt.todo_task_id IS NOT NULL
       AND (
         pt.archived_at IS NOT NULL
+        OR pt.status IN ('done', 'cancelled')
+        OR p.id IS NULL
         OR p.status IN ('archived', 'done')
         OR p.archived_at IS NOT NULL
+        OR (
+          t.content = ?
+          AND (
+            p.status NOT IN ('active', 'planned')
+            OR p.category = 'maintenance'
+            OR pt.due_date IS NULL
+            OR pt.due_date > ?
+          )
+        )
       )
-  `).all();
+  `).all(AUTO_SYNC_CONTENT, windowEnd);
   for (const stale of staleLinks) {
     if (stale.parent_id)
       touchedParentIds.add(stale.parent_id);
@@ -17462,8 +17502,9 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
       AND pt.due_date IS NOT NULL
       AND pt.due_date <= ?
       AND p.archived_at IS NULL
-      AND p.status NOT IN ('done', 'archived')
-  `).all(tomorrow2);
+      AND p.status IN ('active', 'planned')
+      AND (p.category IS NULL OR p.category != 'maintenance')
+  `).all(windowEnd);
   let count = 0;
   for (const item of candidates) {
     const rawDesc = typeof item.description === "string" ? item.description.trim() : "";
@@ -17487,8 +17528,8 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
     database.transaction(() => {
       database.prepare(`
         INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at)
-        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)
-      `).run(todoTaskId, item.title, rawDesc, priority, item.due_date, parentTaskId, timestamp, timestamp);
+        VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)
+      `).run(todoTaskId, item.title, rawDesc, AUTO_SYNC_CONTENT, priority, item.due_date, parentTaskId, timestamp, timestamp);
       database.prepare(`
         INSERT INTO task_project_links (task_id, project_id)
         VALUES (?, ?)
@@ -21003,10 +21044,12 @@ function createApp(context) {
     const timezone = "Asia/Shanghai";
     const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
     const tomorrowStr = new Date(Date.parse(todayStr + "T00:00:00+08:00") + 864e5).toLocaleDateString("en-CA", { timeZone: timezone });
-    const project = context.database.prepare("SELECT id, name, status, archived_at FROM projects WHERE id = ?").get(current.project_id);
+    const project = context.database.prepare("SELECT id, name, status, category, archived_at FROM projects WHERE id = ?").get(current.project_id);
     const isProjectActive = Boolean(project && project.archived_at === null && project.status !== "done" && project.status !== "archived");
+    const isAdvancingProject = isProjectActive && project?.status !== "idea" && project?.category !== "maintenance";
     const dueDate = body.due_date === void 0 ? current.due_date ?? null : body.due_date;
-    const isDueWithinTwoDays = isProjectActive && typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
+    const stageWindow = getActiveStageWindow(context.database, todayStr);
+    const isDueWithinStage = isAdvancingProject && typeof dueDate === "string" && dueDate.length > 0 && dueDate <= stageWindow.end;
     let todoTaskId = typeof current.todo_task_id === "string" ? current.todo_task_id : null;
     const write = context.database.transaction(() => {
       if (!isProjectActive && todoTaskId) {
@@ -21022,14 +21065,24 @@ function createApp(context) {
           }
         }
         todoTaskId = null;
-      } else if (isProjectActive && (body.add_to_todo === true || isDueWithinTwoDays) && !todoTaskId && status !== "cancelled" && status !== "done") {
+      } else if (todoTaskId && !isDueWithinStage && body.add_to_todo !== true) {
+        const existingTask = context.database.prepare("SELECT content, parent_id FROM tasks WHERE id = ?").get(todoTaskId);
+        if (existingTask && existingTask.content === AUTO_SYNC_CONTENT) {
+          context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ? WHERE id = ? AND archived_at IS NULL").run(timestamp, timestamp, todoTaskId);
+          todoTaskId = null;
+          if (existingTask.parent_id) {
+            refreshParentTaskDueDate(context.database, existingTask.parent_id, timestamp);
+          }
+        }
+      } else if (isProjectActive && (body.add_to_todo === true || isDueWithinStage) && !todoTaskId && status !== "cancelled" && status !== "done") {
         todoTaskId = randomUUID10();
         const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
         const priority = isDueTodayOrOverdue ? "P1" : "P2";
         const projectName = project?.name ?? "";
         const rawDesc = typeof body.description === "string" ? body.description.trim() : String(current.description ?? "").trim();
         const parentTaskId = getOrCreateProjectParentTask(context.database, String(current.project_id), projectName, dueDate, timestamp);
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, priority, dueDate, parentTaskId, timestamp, timestamp);
+        const taskContent = body.add_to_todo === true ? "" : AUTO_SYNC_CONTENT;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, taskContent, priority, dueDate, parentTaskId, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         refreshParentTaskDueDate(context.database, parentTaskId, timestamp);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "\u9879\u76EE\u4EFB\u52A1\u5DF2\u52A0\u5165\u5F85\u529E\uFF1A" + title, false, timestamp);

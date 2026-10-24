@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { openDatabase } from "@paios/db";
 import { createApp } from "./app.js";
 
@@ -212,6 +213,56 @@ test("completed projects never have active todo tasks and milestone edits in com
     tasksRes = await request(app, "/api/v1/tasks", "GET");
     assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("完结测试项目")), false);
     assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("新里程碑")), false);
+  } finally {
+    database.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("stage plan dynamically drives project todo sync: active checkpoints in stage window sync, idea projects and out-of-stage checkpoints do not", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "paios-stage-sync-"));
+  const database = openDatabase(dataDir);
+  const app = createApp({ database, config: { dataDir, bind: "127.0.0.1", port: 4738 } });
+  try {
+    // 1. Insert a confirmed stage plan for 2026-10-25 ~ 2026-11-01
+    const stageId = randomUUID();
+    database.prepare(`
+      INSERT INTO period_plans (id, period_start, period_end, status, plan_text, created_at, updated_at)
+      VALUES (?, '2026-10-25', '2026-11-01', 'confirmed', '阶段计划', '2026-10-25T00:00:00Z', '2026-10-25T00:00:00Z')
+    `).run(stageId);
+
+    // 2. Create an active advancing project with 2 milestones (one in stage window, one outside)
+    const advProj = await request(app, "/api/v1/projects", "POST", { name: "VoltGuard", category: "advancement", status: "active" });
+    const advId = advProj.body.project.id as string;
+
+    const inStagePlan = await request(app, `/api/v1/projects/${advId}/task-plans`, "POST", { title: "阶段一验收", due_date: "2026-10-30" });
+    const outStagePlan = await request(app, `/api/v1/projects/${advId}/task-plans`, "POST", { title: "阶段二验收", due_date: "2026-11-10" });
+
+    // 3. Create an idea project with a milestone on 2026-10-28
+    const ideaProj = await request(app, "/api/v1/projects", "POST", { name: "专升本", category: "advancement", status: "idea" });
+    const ideaId = ideaProj.body.project.id as string;
+    await request(app, `/api/v1/projects/${ideaId}/task-plans`, "POST", { title: "专升本调研", due_date: "2026-10-28" });
+
+    // 4. Request tasks - triggers syncUpcomingCheckpointsToTodos
+    let tasksRes = await request(app, "/api/v1/tasks", "GET");
+    const tasks = tasksRes.body.tasks as Array<Record<string, unknown>>;
+
+    // VoltGuard Phase 1 (10-30) should be synced
+    assert.equal(tasks.some((t) => t.title === "阶段一验收"), true);
+    assert.equal(tasks.some((t) => t.title === "🎯 VoltGuard"), true);
+
+    // VoltGuard Phase 2 (11-10) should NOT be synced
+    assert.equal(tasks.some((t) => t.title === "阶段二验收"), false);
+
+    // 专升本 (idea) should NOT be synced
+    assert.equal(tasks.some((t) => t.title === "专升本调研"), false);
+    assert.equal(tasks.some((t) => t.title === "🎯 专升本"), false);
+
+    // 5. Postpone Phase 1 outside stage window (e.g. 2026-11-15) -> should be unlinked/pruned from active todos
+    await request(app, `/api/v1/project-task-plans/${inStagePlan.body.project_task.id}`, "PATCH", { due_date: "2026-11-15" });
+    tasksRes = await request(app, "/api/v1/tasks", "GET");
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.title === "阶段一验收"), false);
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.title === "🎯 VoltGuard"), false);
   } finally {
     database.close();
     rmSync(dataDir, { recursive: true, force: true });

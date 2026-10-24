@@ -156,7 +156,9 @@ export function getOrCreateProjectParentTask(database: PaiosDatabase, projectId:
   return parentTaskId;
 }
 
-export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDate?: string): number {
+export const AUTO_SYNC_CONTENT = "auto_stage_sync";
+
+export function getActiveStageWindow(database: PaiosDatabase, todayDate?: string): { start: string; end: string; hasActiveStage: boolean } {
   const timezone = "Asia/Shanghai";
   const today = todayDate ?? new Date().toLocaleDateString("en-CA", { timeZone: timezone });
   const parts = today.split("-").map(Number);
@@ -165,22 +167,70 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
   const day = parts[2] ?? 21;
   const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
   const tomorrow = tomorrowObj.toISOString().slice(0, 10);
+
+  try {
+    const activeStage = database.prepare(`
+      SELECT period_start, period_end
+      FROM period_plans
+      WHERE status = 'confirmed' AND archived_at IS NULL AND period_end >= ?
+      ORDER BY period_start DESC
+      LIMIT 1
+    `).get(today) as { period_start: string; period_end: string } | undefined;
+
+    if (activeStage && activeStage.period_end) {
+      return {
+        start: activeStage.period_start || today,
+        end: activeStage.period_end,
+        hasActiveStage: true
+      };
+    }
+  } catch {
+    // If period_plans table does not exist yet or query fails
+  }
+
+  return {
+    start: today,
+    end: tomorrow,
+    hasActiveStage: false
+  };
+}
+
+export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDate?: string): number {
+  const timezone = "Asia/Shanghai";
+  const today = todayDate ?? new Date().toLocaleDateString("en-CA", { timeZone: timezone });
   const timestamp = new Date().toISOString();
   const touchedParentIds = new Set<string>();
 
-  // Prune todos only when the milestone or project was archived/done/deleted
+  const stageWindow = getActiveStageWindow(database, today);
+  const windowEnd = stageWindow.end;
+
+  // Prune todos when:
+  // 1. Milestone was archived or done/cancelled
+  // 2. Project was archived or done
+  // 3. Auto-synced task whose project is no longer advancing, or milestone due_date is outside the stage window
   const staleLinks = database.prepare(`
-    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id, t.content AS task_content
     FROM project_task_plans pt
     JOIN tasks t ON t.id = pt.todo_task_id
     LEFT JOIN projects p ON p.id = pt.project_id
     WHERE pt.todo_task_id IS NOT NULL
       AND (
         pt.archived_at IS NOT NULL
+        OR pt.status IN ('done', 'cancelled')
+        OR p.id IS NULL
         OR p.status IN ('archived', 'done')
         OR p.archived_at IS NOT NULL
+        OR (
+          t.content = ?
+          AND (
+            p.status NOT IN ('active', 'planned')
+            OR p.category = 'maintenance'
+            OR pt.due_date IS NULL
+            OR pt.due_date > ?
+          )
+        )
       )
-  `).all() as Array<{ plan_id: string; todo_task_id: string; task_status: string; parent_id?: string | null }>;
+  `).all(AUTO_SYNC_CONTENT, windowEnd) as Array<{ plan_id: string; todo_task_id: string; task_status: string; parent_id?: string | null; task_content?: string | null }>;
 
   for (const stale of staleLinks) {
     if (stale.parent_id) touchedParentIds.add(stale.parent_id);
@@ -224,7 +274,7 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
     if (item.parent_id) touchedParentIds.add(item.parent_id);
   }
 
-  // Find all active checkpoints due on or before tomorrow (overdue, today, or tomorrow)
+  // Find all active checkpoints in advancing projects due within the stage window (or overdue)
   const candidates = database.prepare(`
     SELECT pt.id, pt.project_id, pt.title, pt.description, pt.due_date, pt.todo_task_id, p.name AS project_name
     FROM project_task_plans pt
@@ -234,8 +284,9 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
       AND pt.due_date IS NOT NULL
       AND pt.due_date <= ?
       AND p.archived_at IS NULL
-      AND p.status NOT IN ('done', 'archived')
-  `).all(tomorrow) as Array<{
+      AND p.status IN ('active', 'planned')
+      AND (p.category IS NULL OR p.category != 'maintenance')
+  `).all(windowEnd) as Array<{
     id: string;
     project_id: string;
     title: string;
@@ -271,11 +322,12 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
     database.transaction(() => {
       database.prepare(`
         INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at)
-        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)
       `).run(
         todoTaskId,
         item.title,
         rawDesc,
+        AUTO_SYNC_CONTENT,
         priority,
         item.due_date,
         parentTaskId,

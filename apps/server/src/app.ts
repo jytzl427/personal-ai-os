@@ -21,7 +21,7 @@ import { generateDailyPlanForDate, readDailyPlan } from "./planner.js";
 import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
-import { addProjectActivity, getOrCreateProjectParentTask, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
+import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
   database: PaiosDatabase;
@@ -1523,10 +1523,12 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const timezone = "Asia/Shanghai";
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: timezone });
     const tomorrowStr = new Date(Date.parse(todayStr + "T00:00:00+08:00") + 86400000).toLocaleDateString("en-CA", { timeZone: timezone });
-    const project = context.database.prepare("SELECT id, name, status, archived_at FROM projects WHERE id = ?").get(current.project_id) as { id: string; name: string; status: string; archived_at: string | null } | undefined;
+    const project = context.database.prepare("SELECT id, name, status, category, archived_at FROM projects WHERE id = ?").get(current.project_id) as { id: string; name: string; status: string; category?: string; archived_at: string | null } | undefined;
     const isProjectActive = Boolean(project && project.archived_at === null && project.status !== "done" && project.status !== "archived");
+    const isAdvancingProject = isProjectActive && project?.status !== "idea" && project?.category !== "maintenance";
     const dueDate = body.due_date === undefined ? (current.due_date as string | null ?? null) : (body.due_date as string | null);
-    const isDueWithinTwoDays = isProjectActive && typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
+    const stageWindow = getActiveStageWindow(context.database, todayStr);
+    const isDueWithinStage = isAdvancingProject && typeof dueDate === "string" && dueDate.length > 0 && dueDate <= stageWindow.end;
 
     let todoTaskId = typeof current.todo_task_id === "string" ? current.todo_task_id : null;
     const write = context.database.transaction(() => {
@@ -1544,14 +1546,25 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
           }
         }
         todoTaskId = null;
-      } else if (isProjectActive && (body.add_to_todo === true || isDueWithinTwoDays) && !todoTaskId && status !== "cancelled" && status !== "done") {
+      } else if (todoTaskId && !isDueWithinStage && body.add_to_todo !== true) {
+        // If an auto-synced milestone was moved outside the stage window or project is no longer advancing, unhook it from active todos
+        const existingTask = context.database.prepare("SELECT content, parent_id FROM tasks WHERE id = ?").get(todoTaskId) as { content: string; parent_id: string | null } | undefined;
+        if (existingTask && existingTask.content === AUTO_SYNC_CONTENT) {
+          context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ? WHERE id = ? AND archived_at IS NULL").run(timestamp, timestamp, todoTaskId);
+          todoTaskId = null;
+          if (existingTask.parent_id) {
+            refreshParentTaskDueDate(context.database, existingTask.parent_id, timestamp);
+          }
+        }
+      } else if (isProjectActive && (body.add_to_todo === true || isDueWithinStage) && !todoTaskId && status !== "cancelled" && status !== "done") {
         todoTaskId = randomUUID();
         const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
         const priority = isDueTodayOrOverdue ? "P1" : "P2";
         const projectName = project?.name ?? "";
         const rawDesc = typeof body.description === "string" ? body.description.trim() : String(current.description ?? "").trim();
         const parentTaskId = getOrCreateProjectParentTask(context.database, String(current.project_id), projectName, dueDate, timestamp);
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, priority, dueDate, parentTaskId, timestamp, timestamp);
+        const taskContent = body.add_to_todo === true ? "" : AUTO_SYNC_CONTENT;
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, taskContent, priority, dueDate, parentTaskId, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         refreshParentTaskDueDate(context.database, parentTaskId, timestamp);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "项目任务已加入待办：" + title, false, timestamp);
