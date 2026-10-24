@@ -98,7 +98,17 @@ export function refreshParentTaskDueDate(database: PaiosDatabase, parentId: stri
       AND archived_at IS NULL
   `).all(parentId) as Array<{ status: string; due_date: string | null }>;
 
-  if (children.length === 0) return;
+  if (children.length === 0) {
+    const totalChildren = database.prepare("SELECT COUNT(*) AS count FROM tasks WHERE parent_id = ?").get(parentId) as { count: number } | undefined;
+    if (totalChildren && totalChildren.count > 0) {
+      database.prepare(`
+        UPDATE tasks
+        SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?, row_version = row_version + 1
+        WHERE id = ? AND archived_at IS NULL
+      `).run(timestamp, timestamp, parentId);
+    }
+    return;
+  }
 
   const allDone = children.length > 0 && children.every((c) => c.status === "done");
   const parentStatus = allDone ? "done" : "todo";
@@ -158,26 +168,47 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
   const timestamp = new Date().toISOString();
   const touchedParentIds = new Set<string>();
 
-  // Prune todos only when the milestone or project was archived/deleted
+  // Prune todos only when the milestone or project was archived/done/deleted
   const staleLinks = database.prepare(`
-    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id
     FROM project_task_plans pt
     JOIN tasks t ON t.id = pt.todo_task_id
     LEFT JOIN projects p ON p.id = pt.project_id
     WHERE pt.todo_task_id IS NOT NULL
       AND (
         pt.archived_at IS NOT NULL
-        OR p.status IN ('archived')
+        OR p.status IN ('archived', 'done')
         OR p.archived_at IS NOT NULL
       )
-  `).all() as Array<{ plan_id: string; todo_task_id: string; task_status: string }>;
+  `).all() as Array<{ plan_id: string; todo_task_id: string; task_status: string; parent_id?: string | null }>;
 
   for (const stale of staleLinks) {
-    const taskRow = database.prepare("SELECT parent_id FROM tasks WHERE id = ?").get(stale.todo_task_id) as { parent_id?: string | null } | undefined;
-    if (taskRow?.parent_id) touchedParentIds.add(taskRow.parent_id);
-    database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
-    database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
+    if (stale.parent_id) touchedParentIds.add(stale.parent_id);
+    database.prepare(`
+      UPDATE tasks
+      SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?
+      WHERE id = ? AND archived_at IS NULL
+    `).run(timestamp, timestamp, stale.todo_task_id);
     database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ?, row_version = row_version + 1 WHERE id = ?").run(timestamp, stale.plan_id);
+  }
+
+  // Also archive any project parent tasks (or orphan tasks) whose project is done or archived
+  const completedProjectTasks = database.prepare(`
+    SELECT t.id, t.parent_id
+    FROM tasks t
+    JOIN task_project_links l ON l.task_id = t.id
+    JOIN projects p ON p.id = l.project_id
+    WHERE t.archived_at IS NULL
+      AND (p.status IN ('archived', 'done') OR p.archived_at IS NOT NULL)
+  `).all() as Array<{ id: string; parent_id: string | null }>;
+
+  for (const item of completedProjectTasks) {
+    if (item.parent_id) touchedParentIds.add(item.parent_id);
+    database.prepare(`
+      UPDATE tasks
+      SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?
+      WHERE (id = ? OR parent_id = ?) AND archived_at IS NULL
+    `).run(timestamp, timestamp, item.id, item.id);
   }
 
   // Keep task status and milestone status in sync

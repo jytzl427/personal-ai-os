@@ -167,3 +167,53 @@ test("project tasks keep completion status, archive only when done and checked, 
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("completed projects never have active todo tasks and milestone edits in completed projects never create todos", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "paios-project-completed-tasks-"));
+  const database = openDatabase(dataDir);
+  const app = createApp({ database, config: { dataDir, bind: "127.0.0.1", port: 4738 } });
+  try {
+    // 1. Create active project with milestone and todo task
+    const created = await request(app, "/api/v1/projects", "POST", { name: "完结测试项目" });
+    const projectId = created.body.project.id as string;
+    const plan = await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "里程碑1", add_to_todo: true, due_date: "2026-10-24" });
+    const todoId = plan.body.project_task.todo_task_id as string;
+    assert.ok(todoId);
+
+    // Verify it appears in active todos
+    let tasksRes = await request(app, "/api/v1/tasks", "GET");
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.id === todoId), true);
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.title === "🎯 完结测试项目"), true);
+
+    // 2. Mark project status as done
+    const updated = await request(app, `/api/v1/projects/${projectId}`, "PATCH", { status: "done", row_version: created.body.project.row_version });
+    assert.equal(updated.response.status, 200);
+
+    // Verify tasks are now archived and NOT in active todos
+    tasksRes = await request(app, "/api/v1/tasks", "GET");
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.id === todoId), false);
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => t.title === "🎯 完结测试项目"), false);
+
+    // 3. Edit milestone in the completed project (e.g. changing title, due date, status)
+    const patchedPlan = await request(app, `/api/v1/project-task-plans/${plan.body.project_task.id}`, "PATCH", { title: "修改里程碑名称", due_date: "2026-10-24", status: "done" });
+    assert.equal(patchedPlan.response.status, 200);
+    assert.equal(patchedPlan.body.project_task.todo_task_id, null);
+
+    // Verify still NO tasks in active todos
+    tasksRes = await request(app, "/api/v1/tasks", "GET");
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("完结测试项目")), false);
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("修改里程碑名称")), false);
+
+    // 4. Try adding new milestone with add_to_todo: true in the completed project
+    const newPlan = await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "新里程碑", add_to_todo: true, due_date: "2026-10-24" });
+    assert.equal(newPlan.response.status, 201);
+    assert.equal(newPlan.body.project_task.todo_task_id, null);
+
+    tasksRes = await request(app, "/api/v1/tasks", "GET");
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("完结测试项目")), false);
+    assert.equal(tasksRes.body.tasks.some((t: Record<string, unknown>) => String(t.title ?? "").includes("新里程碑")), false);
+  } finally {
+    database.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

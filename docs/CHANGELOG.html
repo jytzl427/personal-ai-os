@@ -645,7 +645,7 @@
           <div class="stat-label">从 v1.0 至 v3.4 持续迭代</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num">45/45<span class="unit">测试全通</span></div>
+          <div class="stat-num">46/46<span class="unit">测试全通</span></div>
           <div class="stat-label">Node.js 原生自动化质量防护</div>
         </div>
         <div class="stat-card">
@@ -801,9 +801,16 @@
               <li><strong>统一 32px 侧边留白</strong>：两大卡片与下方快捷记账及明细表格横向边缘严格对齐，彻底告别贴边生硬感。</li>
             </ul>
 
+            <div class="section-title"><span class="tag-badge tag-bugfix">缺陷修复</span> 完结/归档项目任务防穿透与父子任务归档链路闭环</div>
+            <ul class="change-list">
+              <li><strong>完结项目待办绝对隔离</strong>：彻底修复已完结（status = done）或已归档项目修改节点时意外将验收节点推入待办任务列表的逻辑缺陷。只要项目未恢复推进，无论是修改节点名称、日期、状态，还是新增节点，均绝对禁止向待办注入任务。</li>
+              <li><strong>完结项目任务全量自动归档</strong>：项目标记完成或归档时，自动级联将该项目下的所有关联待办（父任务 🎯 项目名 及全部子节点任务）标记为归档，不再滞留于日常待办任务池中。</li>
+              <li><strong>父任务归档多端联动</strong>：在待办列表中勾选父任务归档复选框时，同步将该父任务与名下所有子任务完成并归档；子任务全部归档后父任务自动随之归档，彻底杜绝孤儿任务残留。</li>
+            </ul>
+
             <div class="section-title"><span class="tag-badge tag-arch">框架</span> 交付验证与全自动化流水线</div>
             <ul class="change-list">
-              <li><strong>45 项单元测试通过</strong>：Node.js 原生测试套件全部通过；前端 Vite 生产构建 0 错误。</li>
+              <li><strong>46 项单元测试全量通过</strong>：新增完结项目与节点任务隔离自动化回归测试用例，Node.js 原生测试套件全部通过；前端 Vite 生产构建 0 错误。</li>
               <li><strong>Tauri 桌面端 EXE 构建</strong>：同步构建桌面端可执行程序并覆写至发布目录。</li>
             </ul>
           </div>

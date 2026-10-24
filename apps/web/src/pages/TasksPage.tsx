@@ -221,6 +221,32 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
     }
   }
 
+  async function toggleParentArchive(parent: Task, shouldArchive: boolean) {
+    const children = childrenByParent.get(parent.id) || [];
+    const nextStatus: TaskStatus = shouldArchive ? "done" : "todo";
+    if (shouldArchive) {
+      setTasks((current) => current.filter((t) => t.id !== parent.id && t.parent_id !== parent.id));
+    } else {
+      setTasks((current) =>
+        current.map((t) => {
+          if (t.parent_id === parent.id || t.id === parent.id) {
+            return { ...t, archive_requested: shouldArchive, status: nextStatus };
+          }
+          return t;
+        })
+      );
+    }
+    try {
+      await Promise.all([
+        ...children.map((c) => apiJson<{ task: Task }>("/tasks/" + c.id, jsonRequest("PATCH", { archive_requested: shouldArchive, status: nextStatus }))),
+        apiJson<{ task: Task }>("/tasks/" + parent.id, jsonRequest("PATCH", { archive_requested: shouldArchive, status: nextStatus }))
+      ]);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "批量归档任务失败");
+      void loadTasks();
+    }
+  }
+
   async function saveTask(id: string, patch: Partial<Task> & { status?: TaskStatus }) {
     const current = tasks.find((task) => task.id === id);
     if (!current) return;
@@ -354,12 +380,12 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
                 return (
                   <Checkbox
                     ariaLabel={"归档任务 " + (task.title || "未命名任务")}
-                    checked={hasChildren ? allDone : Boolean(task.archive_requested)}
+                    checked={hasChildren ? (allDone && Boolean(task.archive_requested)) : Boolean(task.archive_requested)}
                     onChange={(checked) => {
                       if (hasChildren) {
-                        void toggleParentSubtasks(task, checked);
+                        void toggleParentArchive(task, checked);
                       } else {
-                        void saveTask(task.id, { archive_requested: checked });
+                        void saveTask(task.id, { archive_requested: checked, ...(checked && task.status === "todo" ? { status: "done" } : {}) });
                       }
                     }}
                   />

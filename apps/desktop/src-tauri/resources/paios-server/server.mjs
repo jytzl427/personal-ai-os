@@ -17348,8 +17348,17 @@ function refreshParentTaskDueDate(database, parentId, timestamp = (/* @__PURE__ 
     WHERE parent_id = ?
       AND archived_at IS NULL
   `).all(parentId);
-  if (children.length === 0)
+  if (children.length === 0) {
+    const totalChildren = database.prepare("SELECT COUNT(*) AS count FROM tasks WHERE parent_id = ?").get(parentId);
+    if (totalChildren && totalChildren.count > 0) {
+      database.prepare(`
+        UPDATE tasks
+        SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?, row_version = row_version + 1
+        WHERE id = ? AND archived_at IS NULL
+      `).run(timestamp, timestamp, parentId);
+    }
     return;
+  }
   const allDone = children.length > 0 && children.every((c) => c.status === "done");
   const parentStatus = allDone ? "done" : "todo";
   const minDue = children.filter((c) => c.status !== "done" && c.status !== "cancelled" && Boolean(c.due_date)).map((c) => c.due_date).sort()[0] || children.filter((c) => Boolean(c.due_date)).map((c) => c.due_date).sort()[0] || null;
@@ -17394,24 +17403,43 @@ function syncUpcomingCheckpointsToTodos(database, todayDate) {
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
   const touchedParentIds = /* @__PURE__ */ new Set();
   const staleLinks = database.prepare(`
-    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status
+    SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status, t.parent_id
     FROM project_task_plans pt
     JOIN tasks t ON t.id = pt.todo_task_id
     LEFT JOIN projects p ON p.id = pt.project_id
     WHERE pt.todo_task_id IS NOT NULL
       AND (
         pt.archived_at IS NOT NULL
-        OR p.status IN ('archived')
+        OR p.status IN ('archived', 'done')
         OR p.archived_at IS NOT NULL
       )
   `).all();
   for (const stale of staleLinks) {
-    const taskRow = database.prepare("SELECT parent_id FROM tasks WHERE id = ?").get(stale.todo_task_id);
-    if (taskRow?.parent_id)
-      touchedParentIds.add(taskRow.parent_id);
-    database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
-    database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
+    if (stale.parent_id)
+      touchedParentIds.add(stale.parent_id);
+    database.prepare(`
+      UPDATE tasks
+      SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?
+      WHERE id = ? AND archived_at IS NULL
+    `).run(timestamp, timestamp, stale.todo_task_id);
     database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ?, row_version = row_version + 1 WHERE id = ?").run(timestamp, stale.plan_id);
+  }
+  const completedProjectTasks = database.prepare(`
+    SELECT t.id, t.parent_id
+    FROM tasks t
+    JOIN task_project_links l ON l.task_id = t.id
+    JOIN projects p ON p.id = l.project_id
+    WHERE t.archived_at IS NULL
+      AND (p.status IN ('archived', 'done') OR p.archived_at IS NOT NULL)
+  `).all();
+  for (const item of completedProjectTasks) {
+    if (item.parent_id)
+      touchedParentIds.add(item.parent_id);
+    database.prepare(`
+      UPDATE tasks
+      SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ?
+      WHERE (id = ? OR parent_id = ?) AND archived_at IS NULL
+    `).run(timestamp, timestamp, item.id, item.id);
   }
   const desynced = database.prepare(`
     SELECT pt.id AS plan_id, pt.todo_task_id, pt.status AS plan_status, t.status AS task_status, t.parent_id
@@ -20765,7 +20793,7 @@ function createApp(context) {
       if (result3.changes !== 1)
         return;
       if (shouldArchiveTask({ archive_requested: nextArchiveRequested, status: nextStatus, archived_at: current.archived_at })) {
-        context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'user' WHERE id = ? AND archived_at IS NULL").run(timestamp, id);
+        context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'user' WHERE (id = ? OR parent_id = ?) AND archived_at IS NULL").run(timestamp, id, id);
       }
     });
     write();
@@ -20932,9 +20960,10 @@ function createApp(context) {
     const timestamp = now4();
     let todoTaskId = null;
     const write = context.database.transaction(() => {
-      if (body.add_to_todo === true) {
+      const project = context.database.prepare("SELECT name, status, archived_at FROM projects WHERE id = ?").get(projectId);
+      const isProjectActive = Boolean(project && project.archived_at === null && project.status !== "done" && project.status !== "archived");
+      if (body.add_to_todo === true && isProjectActive) {
         todoTaskId = randomUUID10();
-        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(projectId);
         const projectName = project?.name ?? "";
         const rawDesc = typeof body.description === "string" ? body.description.trim() : "";
         const parentTaskId = getOrCreateProjectParentTask(context.database, projectId, projectName, body.due_date, timestamp);
@@ -20974,26 +21003,33 @@ function createApp(context) {
     const timezone = "Asia/Shanghai";
     const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-CA", { timeZone: timezone });
     const tomorrowStr = new Date(Date.parse(todayStr + "T00:00:00+08:00") + 864e5).toLocaleDateString("en-CA", { timeZone: timezone });
+    const project = context.database.prepare("SELECT id, name, status, archived_at FROM projects WHERE id = ?").get(current.project_id);
+    const isProjectActive = Boolean(project && project.archived_at === null && project.status !== "done" && project.status !== "archived");
     const dueDate = body.due_date === void 0 ? current.due_date ?? null : body.due_date;
-    const isDueWithinTwoDays = typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
+    const isDueWithinTwoDays = isProjectActive && typeof dueDate === "string" && dueDate.length > 0 && dueDate <= tomorrowStr;
     let todoTaskId = typeof current.todo_task_id === "string" ? current.todo_task_id : null;
     const write = context.database.transaction(() => {
-      if (status === "cancelled" && todoTaskId) {
-        const existingTask = context.database.prepare("SELECT status FROM tasks WHERE id = ?").get(todoTaskId);
+      if (!isProjectActive && todoTaskId) {
+        context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'system', updated_at = ? WHERE id = ? AND archived_at IS NULL").run(timestamp, timestamp, todoTaskId);
+        todoTaskId = null;
+      } else if (status === "cancelled" && todoTaskId) {
+        const existingTask = context.database.prepare("SELECT status, parent_id FROM tasks WHERE id = ?").get(todoTaskId);
         if (existingTask && existingTask.status === "todo") {
           context.database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(todoTaskId);
           context.database.prepare("DELETE FROM tasks WHERE id = ?").run(todoTaskId);
+          if (existingTask.parent_id) {
+            refreshParentTaskDueDate(context.database, existingTask.parent_id, timestamp);
+          }
         }
         todoTaskId = null;
-      } else if ((body.add_to_todo === true || isDueWithinTwoDays || status === "done") && !todoTaskId && status !== "cancelled") {
+      } else if (isProjectActive && (body.add_to_todo === true || isDueWithinTwoDays) && !todoTaskId && status !== "cancelled" && status !== "done") {
         todoTaskId = randomUUID10();
         const isDueTodayOrOverdue = typeof dueDate === "string" && dueDate <= todayStr;
         const priority = isDueTodayOrOverdue ? "P1" : "P2";
-        const project = context.database.prepare("SELECT name FROM projects WHERE id = ?").get(current.project_id);
         const projectName = project?.name ?? "";
         const rawDesc = typeof body.description === "string" ? body.description.trim() : String(current.description ?? "").trim();
         const parentTaskId = getOrCreateProjectParentTask(context.database, String(current.project_id), projectName, dueDate, timestamp);
-        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, status === "done" ? "done" : "todo", priority, dueDate, parentTaskId, timestamp, timestamp);
+        context.database.prepare("INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at) VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)").run(todoTaskId, title, rawDesc, priority, dueDate, parentTaskId, timestamp, timestamp);
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, current.project_id);
         refreshParentTaskDueDate(context.database, parentTaskId, timestamp);
         addProjectActivity(context.database, String(current.project_id), "task_committed", "\u9879\u76EE\u4EFB\u52A1\u5DF2\u52A0\u5165\u5F85\u529E\uFF1A" + title, false, timestamp);
@@ -21159,6 +21195,20 @@ function createApp(context) {
       return c.json({ ok: false, error: { code: "STALE_VERSION", message: "Project was changed by another operation" } }, 409);
     if (nextArchiveRequested && nextEndDate)
       context.database.prepare("UPDATE projects SET archived_at = ?, archive_reason = 'auto', archived_by = 'user', updated_at = ? WHERE id = ? AND archived_at IS NULL").run(now4(), now4(), id);
+    const effectiveStatus = data.status ?? current.status;
+    const isProjectClosing = effectiveStatus === "done" || effectiveStatus === "archived" || nextArchiveRequested && nextEndDate;
+    if (isProjectClosing) {
+      context.database.prepare(`
+        UPDATE tasks
+        SET archived_at = ?, archive_reason = 'auto', archived_by = 'user', updated_at = ?
+        WHERE archived_at IS NULL
+          AND (
+            id IN (SELECT task_id FROM task_project_links WHERE project_id = ?)
+            OR parent_id IN (SELECT task_id FROM task_project_links WHERE project_id = ?)
+          )
+      `).run(now4(), now4(), id, id);
+      context.database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ? WHERE project_id = ? AND todo_task_id IS NOT NULL").run(now4(), id);
+    }
     return c.json({ ok: true, project: context.database.prepare("SELECT * FROM projects WHERE id = ?").get(id) });
   });
   app.delete("/api/v1/projects/:id", (c) => {
@@ -21190,6 +21240,16 @@ function createApp(context) {
     const result3 = context.database.prepare("UPDATE projects SET archive_requested = 1, archived_at = ?, archive_reason = 'user', archived_by = 'user', updated_at = ?, row_version = row_version + 1 WHERE id = ? AND archived_at IS NULL").run(now4(), now4(), c.req.param("id"));
     if (result3.changes !== 1)
       return notFound(c, "project");
+    context.database.prepare(`
+      UPDATE tasks
+      SET archived_at = ?, archive_reason = 'auto', archived_by = 'user', updated_at = ?
+      WHERE archived_at IS NULL
+        AND (
+          id IN (SELECT task_id FROM task_project_links WHERE project_id = ?)
+          OR parent_id IN (SELECT task_id FROM task_project_links WHERE project_id = ?)
+        )
+    `).run(now4(), now4(), c.req.param("id"), c.req.param("id"));
+    context.database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ? WHERE project_id = ? AND todo_task_id IS NOT NULL").run(now4(), c.req.param("id"));
     return c.json({ ok: true });
   });
   app.post("/api/v1/projects/:id/restore", (c) => {
