@@ -397,8 +397,9 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
   const weightChart = useMemo(() => {
     if (weightPoints.length === 0) return null;
     const weights = weightPoints.map((p) => p.weight);
-    const minW = Math.min(...weights, 71.0) - 0.4;
-    const maxW = Math.max(...weights, 71.0) + 0.4;
+    const avgWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 0;
+    const minW = Math.min(...weights) - 0.4;
+    const maxW = Math.max(...weights) + 0.4;
     const rangeW = maxW - minW || 1;
 
     const width = 420;
@@ -416,7 +417,7 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
       return { ...p, x, y };
     });
 
-    const targetY = padT + (1 - (71.0 - minW) / rangeW) * plotH;
+    const avgY = padT + (1 - (avgWeight - minW) / rangeW) * plotH;
 
     const lineD = coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, "");
     const areaD = coords.length > 0
@@ -430,7 +431,7 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
       if (c.weight > coords[maxIdx].weight) maxIdx = idx;
     });
 
-    return { coords, lineD, areaD, targetY, padL, padR, padT, padB, plotW, plotH, minIdx, maxIdx };
+    return { coords, lineD, areaD, avgY, avgWeight, padL, padR, padT, padB, plotW, plotH, minIdx, maxIdx };
   }, [weightPoints]);
 
   // Sleep Bar Chart Data
@@ -484,7 +485,7 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
         <div className="chart-card-header">
           <div className="chart-header-left">
             <span className="chart-card-title">📉 空腹体重走势（近14天）</span>
-            <span className="chart-card-sub">目标线 &lt; 71.0 kg</span>
+            <span className="chart-card-sub">{weightChart ? `近14天均值：${weightChart.avgWeight.toFixed(1)} kg` : "均值走势参考"}</span>
           </div>
           {weightDiff != null && (
             <span className={`chart-diff-badge ${weightDiff <= 0 ? "is-ok" : "is-warn"}`}>
@@ -504,22 +505,22 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
 
               <line
                 x1={weightChart.padL}
-                y1={weightChart.targetY}
+                y1={weightChart.avgY}
                 x2={420 - weightChart.padR}
-                y2={weightChart.targetY}
-                stroke="#10b981"
+                y2={weightChart.avgY}
+                stroke="#0ea5e9"
                 strokeWidth="1.2"
                 strokeDasharray="4 4"
               />
               <text
                 x={420 - weightChart.padR}
-                y={weightChart.targetY - 4}
+                y={weightChart.avgY - 4}
                 textAnchor="end"
                 fontSize="10"
                 fontWeight="600"
-                fill="#059669"
+                fill="#0284c7"
               >
-                目标 71.0kg
+                均值 {weightChart.avgWeight.toFixed(1)}kg
               </text>
 
               <path d={weightChart.areaD} fill="url(#weightAreaGrad)" />
@@ -576,7 +577,7 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
             <span className="chart-card-sub">柱色：翠绿 ≤00:30 · 琥珀 &gt;00:30</span>
           </div>
           <span className="chart-diff-badge is-ok">
-            {sleepChart.safeCount}/{sleepChart.totalRecorded || 14} 守线
+            准时入睡 {sleepChart.safeCount} 天
           </span>
         </div>
         <div className="chart-canvas-wrap">

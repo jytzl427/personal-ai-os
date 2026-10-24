@@ -30,7 +30,7 @@ At the start of a connection, call `system_status`. Continue only when `database
 - Evening: `today_get` → `reviews_daily_generate` → draft answers; leave finalization to the user.
 - Idea: read the idea → `ideas_promote_to_task` → report the confirmation ticket; no task exists until the user approves it.
 
-Detailed rules are split into [`references/tasks-and-recurrence.md`](references/tasks-and-recurrence.md), [`references/finance.md`](references/finance.md), [`references/health-and-reviews.md`](references/health-and-reviews.md), [`references/projects.md`](references/projects.md), and [`references/stage-planning.md`](references/stage-planning.md). Read the relevant reference before a domain write or review.
+Detailed rules are split into [`references/tasks-and-recurrence.md`](references/tasks-and-recurrence.md), [`references/finance.md`](references/finance.md), [`references/health-and-reviews.md`](references/health-and-reviews.md), [`references/projects.md`](references/projects.md), [`references/stage-planning.md`](references/stage-planning.md), and [`references/daily-plan-template.md`](references/daily-plan-template.md). Read the relevant reference before a domain write or review.
 
 ## Safety boundary
 

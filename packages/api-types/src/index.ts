@@ -21,7 +21,7 @@ export const processedSchema = z.union([z.boolean(), z.number().int().min(0).max
 export const createTaskSchema = z.object({
   title: z.string().trim().min(0).max(200), description: z.string().max(10000).optional(), content: z.string().max(10000).optional(),
   status: taskWriteStatusSchema.optional(), priority: prioritySchema.optional(), due_date: dateSchema().nullable().optional(), scheduled_date: dateSchema().nullable().optional(),
-  estimate_minutes: z.number().int().positive().max(1440).nullable().optional(), archive_requested: archiveRequestedSchema.optional(), project_id: z.string().min(1).nullable().optional(), milestone_id: z.string().min(1).nullable().optional()
+  estimate_minutes: z.number().int().positive().max(1440).nullable().optional(), archive_requested: archiveRequestedSchema.optional(), project_id: z.string().min(1).nullable().optional(), milestone_id: z.string().min(1).nullable().optional(), parent_id: z.string().min(1).nullable().optional()
 });
 export const patchTaskSchema = createTaskSchema.partial().extend({ row_version: z.number().int().positive().optional() });
 export const recurrenceRuleSchema = z.object({ frequency: z.enum(["daily", "weekly", "monthly", "yearly"]), interval: z.number().int().min(1).max(1000).default(1), weekdays: z.array(z.number().int().min(1).max(7)).max(7).optional(), day_of_month: z.number().int().min(1).max(31).optional(), month: z.number().int().min(1).max(12).optional() });

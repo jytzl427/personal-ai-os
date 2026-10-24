@@ -80,16 +80,29 @@ function getPresetIcon(name: string): string {
   }
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  日常消费: "#10b981",
-  品质生活: "#3b82f6",
-  固定支出: "#f59e0b",
-  突发消费: "#ef4444",
-  项目支出: "#8b5cf6",
-  项目收入: "#10b981",
-  "生活费/工资": "#3b82f6",
-  "其他/突发收入": "#8b5cf6"
+const MINOR_CATEGORY_COLORS: Record<string, string> = {
+  饭费: "#10b981",
+  餐饮: "#10b981",
+  饮用水: "#06b6d4",
+  交通费: "#3b82f6",
+  休闲娱乐: "#8b5cf6",
+  日用品: "#ec4899",
+  订阅: "#f59e0b",
+  分期: "#f97316",
+  电费: "#eab308",
+  水费: "#14b8a6",
+  电话费: "#6366f1",
+  冲动消费: "#ef4444",
+  医药: "#059669",
+  生活费: "#3b82f6",
+  其他: "#64748b"
 };
+
+function getCategoryColor(name: string, index: number): string {
+  if (MINOR_CATEGORY_COLORS[name]) return MINOR_CATEGORY_COLORS[name];
+  const palette = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ec4899", "#06b6d4", "#ef4444", "#64748b"];
+  return palette[index % palette.length];
+}
 
 function presetKey(preset: QuickPreset) {
   return preset.id ?? `${preset.major}-${preset.minor}-${preset.name}`;
@@ -149,18 +162,26 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
   const [accountAmount, setAccountAmount] = useState("");
   const [accountEvent, setAccountEvent] = useState("");
   const [accountNote, setAccountNote] = useState("");
-  const [todayMealCents, setTodayMealCents] = useState(0);
+  const [todayExpenseCount, setTodayExpenseCount] = useState(0);
+  const [todayTotalExpenseCents, setTodayTotalExpenseCents] = useState(0);
+  const [todayTotalIncomeCents, setTodayTotalIncomeCents] = useState(0);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadTodayMeal() {
+  async function loadTodaySummary() {
     try {
-      const res = await apiJson<{ expenses?: Entry[] }>(`/finance/expenses?from=${today}&to=${today}`);
-      const sum = (res.expenses ?? [])
-        .filter((e) => e.category_minor === "饭费")
-        .reduce((acc, cur) => acc + (cur.amount_cents || 0), 0);
-      setTodayMealCents(sum);
+      const [expRes, incRes] = await Promise.all([
+        apiJson<{ expenses?: Entry[] }>(`/finance/expenses?from=${today}&to=${today}`),
+        apiJson<{ incomes?: Entry[] }>(`/finance/incomes?from=${today}&to=${today}`)
+      ]);
+      const exps = expRes.expenses ?? [];
+      const incs = incRes.incomes ?? [];
+      const expTotal = exps.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0);
+      const incTotal = incs.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0);
+      setTodayExpenseCount(exps.length);
+      setTodayTotalExpenseCents(expTotal);
+      setTodayTotalIncomeCents(incTotal);
     } catch {}
   }
 
@@ -219,7 +240,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
 
   useEffect(() => {
     void loadAccounts();
-    void loadTodayMeal();
+    void loadTodaySummary();
   }, []);
   useEffect(() => {
     void Promise.all([
@@ -261,7 +282,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       setError(null);
       setMessage("已记下，不关联资金账户");
       await loadEntries();
-      void loadTodayMeal();
+      void loadTodaySummary();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "记账失败");
     }
@@ -274,7 +295,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       const saved = result.expense ?? result.income;
       if (saved) setEntries((current) => current.map((entry) => entry.id === id ? saved : entry));
       setError(null);
-      void loadTodayMeal();
+      void loadTodaySummary();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "账目保存失败");
     }
@@ -286,7 +307,7 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       await apiJson(path + id, { method: "DELETE" });
       setEntries((current) => current.filter((entry) => entry.id !== id));
       setError(null);
-      void loadTodayMeal();
+      void loadTodaySummary();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "账目删除失败");
     }
@@ -378,19 +399,58 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
   const impulseTotalCents = useMemo(() => impulseEntries.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0), [impulseEntries]);
   const impulseCount = impulseEntries.length;
 
+  const entertainmentEntries = useMemo(
+    () => entries.filter((e) =>
+      e.category_minor === "休闲娱乐" ||
+      (e.category_major === "品质生活" && e.category_minor !== "日用品") ||
+      (e.event && (e.event.includes("娱乐") || e.event.includes("游戏") || e.event.includes("咖啡") || e.event.includes("奶茶") || e.event.includes("外卖")))
+    ),
+    [entries]
+  );
+  const entertainmentTotalCents = useMemo(
+    () => entertainmentEntries.reduce((acc, cur) => acc + (cur.amount_cents || 0), 0),
+    [entertainmentEntries]
+  );
+  const entertainmentCount = entertainmentEntries.length;
+
+  const impulseAndEntertainmentTypes = useMemo(() => {
+    const map = new Map<string, { count: number; cents: number; isImpulse: boolean }>();
+    for (const e of impulseEntries) {
+      const label = e.event?.trim() || e.category_minor || "冲动消费";
+      const curr = map.get(label) || { count: 0, cents: 0, isImpulse: true };
+      curr.count += 1;
+      curr.cents += e.amount_cents || 0;
+      curr.isImpulse = true;
+      map.set(label, curr);
+    }
+    for (const e of entertainmentEntries) {
+      const label = e.event?.trim() || e.category_minor || "休闲娱乐";
+      if (map.has(label)) {
+        const curr = map.get(label)!;
+        curr.count += 1;
+        curr.cents += e.amount_cents || 0;
+      } else {
+        map.set(label, { count: 1, cents: e.amount_cents || 0, isImpulse: false });
+      }
+    }
+    return Array.from(map.entries()).map(([name, data]) => ({ name, ...data }));
+  }, [impulseEntries, entertainmentEntries]);
+
   const categoryDistribution = useMemo(() => {
     if (entries.length === 0 || periodTotalCents === 0) return [];
     const map = new Map<string, number>();
     for (const entry of entries) {
-      const cat = entry.category_major || "其他";
-      map.set(cat, (map.get(cat) || 0) + entry.amount_cents);
+      const cat = (entry.category_minor && entry.category_minor.trim()) || (entry.category_major && entry.category_major.trim()) || "其他";
+      map.set(cat, (map.get(cat) || 0) + (entry.amount_cents || 0));
     }
+    // Only categories with actual spending (> 0)
     return Array.from(map.entries())
-      .map(([category, amount]) => ({
+      .filter(([, amount]) => amount > 0)
+      .map(([category, amount], idx) => ({
         category,
         amount,
         pct: (amount / periodTotalCents) * 100,
-        color: CATEGORY_COLORS[category] || "#64748b"
+        color: getCategoryColor(category, idx)
       }))
       .sort((a, b) => b.amount - a.amount);
   }, [entries, periodTotalCents]);
@@ -410,98 +470,141 @@ export function FinancePage({ tab, onNavigate }: { tab: FinanceTab; onNavigate: 
       {activeTab === "expenses" || activeTab === "incomes" ? (
         <>
           <div className="finance-pulse-grid">
-            <div className="finance-pulse-card meal-radar-card">
-              <div className="pulse-card-header">
-                <span className="pulse-card-title">🍱 今日餐饮限额雷达</span>
-                <span className={`pulse-card-tag ${todayMealCents > 2500 ? "is-danger" : todayMealCents >= 2000 ? "is-warn" : "is-ok"}`}>
-                  {todayMealCents > 2500 ? "已超标" : todayMealCents >= 2000 ? "临界警戒" : "守线平稳"}
+            {/* 框1：今日与周期开销总览 */}
+            <div className="finance-pulse-card fin-overview-card">
+              <div className="fin-card-top">
+                <div className="fin-card-badge-header">
+                  <span className="fin-badge-icon">{kind === "expense" ? "💳" : "💰"}</span>
+                  <span className="fin-card-heading-title">{kind === "expense" ? "支出与资金大盘" : "资金流入与统计"}</span>
+                </div>
+                {kind === "expense" ? (
+                  <span className={`fin-pill-tag ${impulseCount === 0 ? "is-safe" : "is-alert"}`}>
+                    <span className="pill-pulse-dot" />
+                    {impulseCount === 0 ? "0 冲动 · 守线健康" : `${impulseCount} 笔冲动消费`}
+                  </span>
+                ) : (
+                  <span className={`fin-pill-tag ${todayTotalIncomeCents > 0 ? "is-safe" : "is-neutral"}`}>
+                    <span className="pill-pulse-dot" />
+                    {todayTotalIncomeCents > 0 ? "今日有入账" : "今日暂无入账"}
+                  </span>
+                )}
+              </div>
+
+              <div className="fin-dual-metrics">
+                <div className="fin-metric-cell">
+                  <div className="fin-metric-label">{kind === "expense" ? "今日实际支出" : "今日实际流入"}</div>
+                  <div className="fin-metric-val">
+                    <span className="fin-currency">¥</span>
+                    <span className="fin-num">{((kind === "expense" ? todayTotalExpenseCents : todayTotalIncomeCents) / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="fin-metric-sub">{kind === "expense" ? `今日记录 ${todayExpenseCount} 笔支出` : (todayTotalIncomeCents > 0 ? "今日资金已入账" : "今日暂无记录")}</div>
+                </div>
+
+                <div className="fin-metric-divider" />
+
+                <div className="fin-metric-cell">
+                  <div className="fin-metric-label">{kind === "expense" ? "筛选周期累计支出" : "筛选周期累计流入"}</div>
+                  <div className="fin-metric-val">
+                    <span className="fin-currency">¥</span>
+                    <span className="fin-num">{(periodTotalCents / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="fin-metric-sub">{range === "today" ? "今日视图" : range === "week" ? "本周视图" : range === "month" ? "本月视图" : "选定周期"} · 共 {entries.length} 笔明细</div>
+                </div>
+              </div>
+
+              <div className="fin-card-footer">
+                <span className="fin-footer-range">当前视图：{range === "today" ? "今日" : range === "week" ? "本周" : range === "month" ? "本月" : range === "custom" ? `${fromDate} ~ ${toDate}` : "全部历史"}</span>
+                {kind === "expense" && impulseCount > 0 && (
+                  <span className="fin-footer-alert">
+                    冲动消费 ¥{(impulseTotalCents / 100).toFixed(2)}
+                  </span>
+                )}
+                {kind === "expense" && entertainmentCount > 0 && (
+                  <span className="fin-footer-entertainment">
+                    娱乐休闲 ¥{(entertainmentTotalCents / 100).toFixed(2)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 框2：消费分类扇形分布图（有该消费才出现） */}
+            <div className="finance-pulse-card fin-donut-card">
+              <div className="fin-card-top">
+                <div className="fin-card-badge-header">
+                  <span className="fin-badge-icon">🍩</span>
+                  <span className="fin-card-heading-title">{kind === "expense" ? "消费分类分布" : "收入来源分布"}</span>
+                </div>
+                <span className="fin-pill-tag is-neutral">
+                  {categoryDistribution.length > 0 ? `${categoryDistribution.length} 个产生开销分类` : "暂无开销记录"}
                 </span>
               </div>
-              <div className="pulse-card-main">
-                <div className="pulse-stat-number">
-                  <span className="stat-cur">¥{(todayMealCents / 100).toFixed(2)}</span>
-                  <span className="stat-max"> / ¥25.00</span>
-                </div>
-                <div className="pulse-meter-track" title={`今日饭费使用率 ${Math.round((todayMealCents / 2500) * 100)}%`}>
-                  <div
-                    className={`pulse-meter-fill ${todayMealCents > 2500 ? "is-danger" : todayMealCents >= 2000 ? "is-warn" : "is-ok"}`}
-                    style={{ width: `${Math.min(100, (todayMealCents / 2500) * 100)}%` }}
-                  />
-                </div>
-                <div className="pulse-card-sub">
-                  {todayMealCents <= 2500 ? (
-                    <span>今日午晚限额节余 <strong>¥{((2500 - todayMealCents) / 100).toFixed(2)}</strong></span>
-                  ) : (
-                    <span className="text-danger">超出日限额 <strong>¥{((todayMealCents - 2500) / 100).toFixed(2)}</strong></span>
-                  )}
-                </div>
-              </div>
-            </div>
 
-            <div className="finance-pulse-card period-summary-card">
-              <div className="pulse-card-header">
-                <span className="pulse-card-title">📊 筛选周期{kindLabel}大盘</span>
-                <span className="pulse-card-tag is-neutral">{entries.length} 笔明细</span>
-              </div>
-              <div className="pulse-card-main">
-                <div className="pulse-stat-number">
-                  <span className="stat-cur">¥{(periodTotalCents / 100).toFixed(2)}</span>
-                </div>
-                <div className="pulse-card-badge-row">
-                  {kind === "expense" ? (
-                    impulseCount === 0 ? (
-                      <div className="pulse-shield-badge is-ok">
-                        <span className="badge-icon">🛡️</span>
-                        <span>0 冲动消费 · 守线完美</span>
-                      </div>
-                    ) : (
-                      <div className="pulse-shield-badge is-warn">
-                        <span className="badge-icon">⚠️</span>
-                        <span>{impulseCount} 笔冲动消费 (¥{(impulseTotalCents / 100).toFixed(2)})</span>
-                      </div>
-                    )
-                  ) : (
-                    <div className="pulse-shield-badge is-ok">
-                      <span className="badge-icon">💰</span>
-                      <span>资金回流平稳</span>
+              <div className="fin-donut-body">
+                {categoryDistribution.length > 0 ? (
+                  <div className="fin-donut-content">
+                    <div className="fin-donut-svg-wrapper">
+                      <svg width="136" height="136" viewBox="0 0 140 140" className="fin-svg-donut">
+                        <circle
+                          cx="70"
+                          cy="70"
+                          r="48"
+                          fill="none"
+                          stroke="#f1f5f9"
+                          strokeWidth="15"
+                        />
+                        {(() => {
+                          const C = 2 * Math.PI * 48;
+                          let acc = 0;
+                          return categoryDistribution.map((item) => {
+                            const sliceLen = (item.pct / 100) * C;
+                            const offset = -acc;
+                            acc += sliceLen;
+                            return (
+                              <circle
+                                key={item.category}
+                                cx="70"
+                                cy="70"
+                                r="48"
+                                fill="none"
+                                stroke={item.color}
+                                strokeWidth="15"
+                                strokeDasharray={`${Math.max(0.5, sliceLen)} ${Math.max(0.1, C - sliceLen)}`}
+                                strokeDashoffset={offset}
+                                transform="rotate(-90 70 70)"
+                                strokeLinecap="round"
+                                className="donut-segment"
+                              >
+                                <title>{`${item.category}: ¥${(item.amount / 100).toFixed(2)} (${item.pct.toFixed(1)}%)`}</title>
+                              </circle>
+                            );
+                          });
+                        })()}
+                        <text x="70" y="63" textAnchor="middle" className="donut-center-caption">
+                          {kind === "expense" ? "周期总支出" : "周期总收入"}
+                        </text>
+                        <text x="70" y="82" textAnchor="middle" className="donut-center-amount">
+                          ¥{(periodTotalCents / 100).toFixed(0)}
+                        </text>
+                      </svg>
                     </div>
-                  )}
-                </div>
-                <div className="pulse-card-sub">
-                  <span>当前视图：{range === "today" ? "今日" : range === "week" ? "本周" : range === "month" ? "本月" : range === "custom" ? `${fromDate} ~ ${toDate}` : "全部历史"}</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="finance-pulse-card distribution-card">
-              <div className="pulse-card-header">
-                <span className="pulse-card-title">🎨 分类结构分布</span>
-                <span className="pulse-card-tag is-neutral">{categoryDistribution.length} 个分类</span>
-              </div>
-              <div className="pulse-card-main">
-                <div className="category-stacked-bar" title="分类占比">
-                  {categoryDistribution.length === 0 ? (
-                    <div className="stacked-bar-empty" />
-                  ) : (
-                    categoryDistribution.map((item) => (
-                      <div
-                        key={item.category}
-                        className="stacked-bar-segment"
-                        style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                        title={`${item.category}: ¥${(item.amount / 100).toFixed(2)} (${item.pct.toFixed(1)}%)`}
-                      />
-                    ))
-                  )}
-                </div>
-                <div className="category-legend-list">
-                  {categoryDistribution.slice(0, 4).map((item) => (
-                    <div key={item.category} className="category-legend-item">
-                      <span className="legend-dot" style={{ backgroundColor: item.color }} />
-                      <span className="legend-name">{item.category}</span>
-                      <span className="legend-pct">{item.pct.toFixed(0)}%</span>
+                    <div className="fin-donut-legend-grid">
+                      {categoryDistribution.slice(0, 6).map((item) => (
+                        <div key={item.category} className="fin-legend-row" title={`${item.category}: ¥${(item.amount / 100).toFixed(2)} (${item.pct.toFixed(1)}%)`}>
+                          <span className="fin-legend-indicator" style={{ backgroundColor: item.color }} />
+                          <span className="fin-legend-label">{item.category}</span>
+                          <span className="fin-legend-cost">¥{(item.amount / 100).toFixed(2)}</span>
+                          <span className="fin-legend-ratio" style={{ color: item.color }}>{item.pct.toFixed(0)}%</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="fin-empty-state">
+                    <span className="fin-empty-icon">🍃</span>
+                    <span className="fin-empty-text">当前视图周期内暂无产生开销的分类</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

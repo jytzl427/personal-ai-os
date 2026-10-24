@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Tag } from "./Tag.js";
 import { CloseIcon } from "./Icons.js";
-import { apiJson } from "../lib/api.js";
+import { apiJson, jsonRequest } from "../lib/api.js";
 import { richTextToPlainText } from "./RichTextBlockEditor.js";
 import { formatDate, todayYmd } from "../lib/dates.js";
 
@@ -36,7 +36,7 @@ export type StageHUDData = {
   financeItems: string[];
   healthItems: string[];
   habitItems: string[];
-  projectMilestones: Array<{ name: string; milestone: string }>;
+  projectMilestones: Array<{ name: string; milestone: string; goal?: string }>;
   maintenanceProjects: Array<{ name: string; milestone: string }>;
   miscItems: string[];
 };
@@ -273,12 +273,30 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
     } else if (currentBlock === "habit") {
       habitItems.push(clean);
     } else if (currentBlock === "projects") {
-      const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
-      if (match) {
-        projectMilestones.push({ name: match[1].trim(), milestone: match[2].trim() });
+      let name = "";
+      let milestone = clean;
+      let goal = "";
+
+      const bracketMatch = clean.match(/^【([^】]+)】\s*(.*)$/);
+      if (bracketMatch) {
+        name = bracketMatch[1].trim();
+        milestone = bracketMatch[2].trim();
       } else {
-        projectMilestones.push({ name: "", milestone: clean });
+        const colonMatch = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
+        if (colonMatch) {
+          name = colonMatch[1].trim();
+          milestone = colonMatch[2].trim();
+        }
       }
+
+      const goalMatch = milestone.match(/(?:目标|阶段目标|工作量)[：:]\s*(.+)$/);
+      if (goalMatch) {
+        goal = goalMatch[1].trim();
+      } else {
+        goal = milestone;
+      }
+
+      projectMilestones.push({ name, milestone, goal });
     } else if (currentBlock === "maintenance") {
       const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
       if (match) {
@@ -297,10 +315,12 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
 export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: () => void }) {
   const [daily, setDaily] = useState<DailyPlanDetail | null>(null);
   const [stages, setStages] = useState<StagePlan[]>([]);
-  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRawText, setShowRawText] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -317,12 +337,6 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
       } else {
         const stageList = (result as { stages: StagePlan[] }).stages ?? [];
         setStages(stageList);
-        // Default to active stage for today
-        const today = todayYmd();
-        const activeStage = stageList.find((s) => today >= s.period_start && today <= s.period_end) ?? stageList[0];
-        if (activeStage) {
-          setSelectedStageId(activeStage.id);
-        }
       }
     }).catch((reason: unknown) => {
       if (active) setError(reason instanceof Error ? reason.message : "计划读取失败");
@@ -339,13 +353,66 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
 
   const currentStage = useMemo(() => {
     if (kind !== "stage" || stages.length === 0) return null;
-    return stages.find((s) => s.id === selectedStageId) ?? stages[0];
-  }, [kind, stages, selectedStageId]);
+    const today = todayYmd();
+    return stages.find((s) => today >= s.period_start && today <= s.period_end) ?? stages[0];
+  }, [kind, stages]);
 
   const stageHUD = useMemo(() => {
     if (!currentStage?.plan_text) return null;
     return parseStageHUD(currentStage.plan_text);
   }, [currentStage]);
+
+  async function toggleDailyItem(itemText: string, currentChecked: boolean) {
+    if (!daily?.plan) return;
+    const oldText = daily.plan.plan_text || "";
+    const lines = oldText.split(/\r?\n/);
+    let found = false;
+    const newLines = lines.map((line) => {
+      if (found) return line;
+      const trimmed = line.trim();
+      const content = trimmed.replace(/^[*\-]\s*\[[ x]\]\s*/, "").trim();
+      if ((trimmed.startsWith("- [") || trimmed.startsWith("* [")) && content === itemText.trim()) {
+        found = true;
+        const prefix = line.match(/^(\s*[*\-]\s*\[)[ x](\]\s*)/);
+        if (prefix) {
+          return `${prefix[1]}${currentChecked ? " " : "x"}${prefix[2]}${content}`;
+        }
+        return currentChecked ? line.replace(/\[x\]/, "[ ]") : line.replace(/\[ \]/, "[x]");
+      }
+      return line;
+    });
+
+    if (!found) return;
+    const newText = newLines.join("\n");
+    setDaily((prev) => prev ? { ...prev, plan: { ...prev.plan!, plan_text: newText } } : null);
+
+    try {
+      await apiJson("/plans/" + daily.plan.plan_date, jsonRequest("PATCH", { plan_text: newText }));
+    } catch {
+      setDaily((prev) => prev ? { ...prev, plan: { ...prev.plan!, plan_text: oldText } } : null);
+    }
+  }
+
+  async function saveDirectEdit() {
+    setSavingEdit(true);
+    setError(null);
+    try {
+      if (kind === "daily") {
+        if (!daily?.plan) return;
+        await apiJson("/plans/" + daily.plan.plan_date, jsonRequest("PATCH", { plan_text: editText }));
+        setDaily((prev) => prev ? { ...prev, plan: { ...prev.plan!, plan_text: editText } } : null);
+      } else {
+        if (!currentStage) return;
+        await apiJson("/stage-plans/" + currentStage.id, jsonRequest("PATCH", { plan_text: editText }));
+        setStages((prev) => prev.map((s) => s.id === currentStage.id ? { ...s, plan_text: editText } : s));
+      }
+      setIsEditing(false);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "保存计划修改失败");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -409,36 +476,35 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
           </button>
         </div>
 
-        {/* Stage Plan Switcher Pills (If multiple stage plans exist) */}
-        {kind === "stage" && stages.length > 1 ? (
-          <div className="plan-hud-stage-selector">
-            <span className="selector-label">切换周期：</span>
-            <div className="selector-pills">
-              {stages.map((stage, idx) => {
-                const isActive = stage.id === selectedStageId;
-                const isCurrent = todayYmd() >= stage.period_start && todayYmd() <= stage.period_end;
-                return (
-                  <button
-                    className={`stage-selector-pill ${isActive ? "is-selected" : ""} ${isCurrent ? "is-current" : ""}`}
-                    key={stage.id}
-                    onClick={() => setSelectedStageId(stage.id)}
-                    type="button"
-                  >
-                    <span>{stageHUD && idx === 0 && stageHUD.title ? stageHUD.title.split("（")[0] : `周期 ${stages.length - idx}`}</span>
-                    <span className="pill-dates">{stage.period_start.slice(5)} ~ {stage.period_end.slice(5)}</span>
-                    {isCurrent ? <span className="pill-active-dot" title="当前进行中" /> : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
         {loading ? <p className="muted" style={{ padding: "32px 0", textAlign: "center" }}>正在载入计划情报…</p> : null}
         {error ? <div className="notice error">{error}</div> : null}
 
+        {/* DIRECT EDITING PANE */}
+        {isEditing ? (
+          <div className="plan-hud-editor-pane">
+            <div className="plan-hud-editor-toolbar">
+              <span className="editor-title">✏️ 编辑{kind === "daily" ? "每日" : "阶段"}计划 Markdown 内容</span>
+              <button
+                className="primary-button plan-hud-save-btn"
+                disabled={savingEdit}
+                onClick={() => void saveDirectEdit()}
+                type="button"
+              >
+                {savingEdit ? "正在保存…" : "💾 保存修改"}
+              </button>
+            </div>
+            <textarea
+              aria-label="修改计划内容"
+              className="plan-hud-editor-textarea"
+              onChange={(e) => setEditText(e.target.value)}
+              placeholder="在此直接修改计划 Markdown 文本…"
+              value={editText}
+            />
+          </div>
+        ) : null}
+
         {/* DAILY PLAN HUD CONTENT */}
-        {!loading && !error && kind === "daily" ? (
+        {!loading && !error && !isEditing && kind === "daily" ? (
           !daily?.plan || !daily.plan.plan_text?.trim() ? (
             <div className="plan-hud-empty">
               <p className="empty-title">今日暂未填写计划</p>
@@ -493,7 +559,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                     <span className="metric-label">健康作息筑底</span>
                   </div>
                   <div className="metric-value">00:30 <span className="metric-unit">就寝底线</span></div>
-                  <div className="metric-subtext">晨起称重 &lt; 71.0kg · 适度走动拉伸</div>
+                  <div className="metric-subtext">晨起称重 · 适度走动拉伸</div>
                 </div>
 
                 <div className="plan-hud-metric-card card-habits">
@@ -537,7 +603,15 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                         </h4>
                         <div className="checklist-group-items">
                           {sec.items.map((item, itemIdx) => (
-                            <div className={`hud-checklist-item ${item.checked ? "is-checked" : ""}`} key={itemIdx}>
+                            <div
+                              className={`hud-checklist-item ${item.checked ? "is-checked" : ""}`}
+                              key={itemIdx}
+                              onClick={() => void toggleDailyItem(item.text, item.checked)}
+                              role="checkbox"
+                              aria-checked={item.checked}
+                              tabIndex={0}
+                              title="点击切换完成勾选"
+                            >
                               <span className={`hud-checkbox ${item.checked ? "checked" : ""}`}>
                                 {item.checked ? "✓" : ""}
                               </span>
@@ -555,7 +629,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
         ) : null}
 
         {/* STAGE PLAN HUD CONTENT */}
-        {!loading && !error && kind === "stage" ? (
+        {!loading && !error && !isEditing && kind === "stage" ? (
           !currentStage || !currentStage.plan_text?.trim() ? (
             <div className="plan-hud-empty">
               <p className="empty-title">当前周期暂未填写阶段计划</p>
@@ -582,13 +656,13 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                 </div>
               </div>
 
-              {/* Section 2: Project Milestones Matrix (项目攻坚推进里程碑) */}
+              {/* Section 2: Project Milestones Matrix (项目攻坚推进目标与验收节点) */}
               {stageHUD && stageHUD.projectMilestones.length > 0 ? (
                 <section className="plan-hud-milestones-bento">
                   <div className="plan-hud-section-header">
                     <div className="header-left">
                       <span className="hud-icon">🚩</span>
-                      <h3>推进类项目攻坚验收节点</h3>
+                      <h3>推进类项目攻坚目标与验收节点</h3>
                     </div>
                     <span className="hud-count-tag">{stageHUD.projectMilestones.length} 个攻坚项目</span>
                   </div>
@@ -597,9 +671,10 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                       <div className="plan-hud-milestone-card" key={idx}>
                         <div className="milestone-card-top">
                           {proj.name ? <span className="milestone-project-name">{proj.name}</span> : null}
+                          <span className="milestone-goal-badge">🎯 阶段目标</span>
                         </div>
                         <div className="milestone-deliverable">
-                          {renderInlineMarkdown(proj.milestone)}
+                          {renderInlineMarkdown(proj.goal || proj.milestone)}
                         </div>
                       </div>
                     ))}
@@ -642,7 +717,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                     ) : (
                       <>
                         <div className="metric-bullet">• 严格守住 00:30 就寝底线</div>
-                        <div className="metric-bullet">• 晨起空腹称重 &lt; 71.0 kg</div>
+                        <div className="metric-bullet">• 晨起空腹称重管理走势</div>
                         <div className="metric-bullet">• 有效运动 ≥ 1~2 次 · 不自律 ≤ 2 次</div>
                       </>
                     )}
@@ -678,14 +753,34 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
 
         {/* Bottom Bar: Switch View & Readonly Hint */}
         <div className="plan-hud-footer">
-          <button
-            className="plan-hud-toggle-raw"
-            onClick={() => setShowRawText(!showRawText)}
-            type="button"
-          >
-            {showRawText ? "← 返回战术速览看板" : "查看完整原始文本 →"}
-          </button>
-          <span className="plan-card-readonly-hint">只读速览 · 沟通确认即生效</span>
+          <div className="plan-hud-footer-left">
+            <button
+              className="plan-hud-toggle-raw"
+              onClick={() => {
+                if (isEditing) setIsEditing(false);
+                setShowRawText(!showRawText);
+              }}
+              type="button"
+            >
+              {showRawText ? "← 返回战术速览看板" : "查看完整原始文本 →"}
+            </button>
+            <button
+              className="plan-hud-edit-btn"
+              onClick={() => {
+                if (isEditing) {
+                  setIsEditing(false);
+                } else {
+                  setEditText(kind === "daily" ? (daily?.plan?.plan_text ?? "") : (currentStage?.plan_text ?? ""));
+                  setIsEditing(true);
+                  setShowRawText(false);
+                }
+              }}
+              type="button"
+            >
+              {isEditing ? "取消编辑" : "✏️ 修改计划内容"}
+            </button>
+          </div>
+          <span className="plan-card-readonly-hint">速览看板 · 沟通确认即生效</span>
         </div>
       </section>
     </div>,

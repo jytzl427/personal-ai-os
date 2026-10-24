@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   content TEXT NOT NULL DEFAULT '',
   recurrence_id TEXT,
   recurrence_date TEXT,
+  parent_id TEXT,
   status TEXT NOT NULL DEFAULT 'todo',
   priority TEXT NOT NULL DEFAULT 'P2',
   due_date TEXT,
@@ -1126,7 +1127,18 @@ function applyMigrations(database) {
     });
     migrateCheckpointMemo();
   }
+
+  const taskSubtasksApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("023_task_subtasks");
+  if (!taskSubtasksApplied) {
+    const migrateSubtasks = database.transaction(() => {
+      ensureColumn(database, "tasks", "parent_id", "TEXT");
+      database.exec("CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_id);");
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(23, "023_task_subtasks", nowIso());
+    });
+    migrateSubtasks();
+  }
 }
+
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();
 var WEEKLY_BACKUP_RETAIN = 3;
 var legacyBackupName = /^\d{14}\.db$/;

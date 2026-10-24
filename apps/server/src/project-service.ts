@@ -90,6 +90,62 @@ export function projectPlanningContext(database: PaiosDatabase, projectId: strin
   };
 }
 
+export function refreshParentTaskDueDate(database: PaiosDatabase, parentId: string, timestamp = new Date().toISOString()): void {
+  const children = database.prepare(`
+    SELECT status, due_date
+    FROM tasks
+    WHERE parent_id = ?
+      AND archived_at IS NULL
+  `).all(parentId) as Array<{ status: string; due_date: string | null }>;
+
+  if (children.length === 0) return;
+
+  const allDone = children.length > 0 && children.every((c) => c.status === "done");
+  const parentStatus = allDone ? "done" : "todo";
+
+  const minDue = children
+    .filter((c) => c.status !== "done" && c.status !== "cancelled" && Boolean(c.due_date))
+    .map((c) => c.due_date as string)
+    .sort()[0] || children
+    .filter((c) => Boolean(c.due_date))
+    .map((c) => c.due_date as string)
+    .sort()[0] || null;
+
+  database.prepare(`
+    UPDATE tasks
+    SET status = ?, due_date = ?, updated_at = ?, row_version = row_version + 1
+    WHERE id = ? AND archived_at IS NULL
+  `).run(parentStatus, minDue, timestamp, parentId);
+}
+
+export function getOrCreateProjectParentTask(database: PaiosDatabase, projectId: string, projectName: string, initialDueDate?: string | null, timestamp = new Date().toISOString()): string {
+  const parentTitle = `🎯 ${projectName}`;
+  const existing = database.prepare(`
+    SELECT t.id
+    FROM tasks t
+    JOIN task_project_links l ON l.task_id = t.id
+    WHERE l.project_id = ? AND t.parent_id IS NULL AND t.archived_at IS NULL AND t.title = ?
+    LIMIT 1
+  `).get(projectId, parentTitle) as { id: string } | undefined;
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const parentTaskId = randomUUID();
+  database.prepare(`
+    INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at)
+    VALUES (?, ?, '', '', 'todo', 'P1', ?, NULL, ?, ?)
+  `).run(parentTaskId, parentTitle, initialDueDate ?? null, timestamp, timestamp);
+
+  database.prepare(`
+    INSERT INTO task_project_links (task_id, project_id)
+    VALUES (?, ?)
+  `).run(parentTaskId, projectId);
+
+  return parentTaskId;
+}
+
 export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDate?: string): number {
   const timezone = "Asia/Shanghai";
   const today = todayDate ?? new Date().toLocaleDateString("en-CA", { timeZone: timezone });
@@ -100,8 +156,9 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
   const tomorrowObj = new Date(Date.UTC(year, month - 1, day + 1));
   const tomorrow = tomorrowObj.toISOString().slice(0, 10);
   const timestamp = new Date().toISOString();
+  const touchedParentIds = new Set<string>();
 
-  // Prune uncompleted todos for checkpoints that are now after tomorrow (> tomorrow), or have no due_date, or are done/cancelled
+  // Prune todos only when the milestone or project was archived/deleted
   const staleLinks = database.prepare(`
     SELECT pt.id AS plan_id, pt.todo_task_id, t.status AS task_status
     FROM project_task_plans pt
@@ -109,21 +166,31 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
     LEFT JOIN projects p ON p.id = pt.project_id
     WHERE pt.todo_task_id IS NOT NULL
       AND (
-        pt.due_date IS NULL
-        OR pt.due_date > ?
-        OR pt.status IN ('done', 'cancelled')
-        OR pt.archived_at IS NOT NULL
-        OR p.status IN ('done', 'archived')
+        pt.archived_at IS NOT NULL
+        OR p.status IN ('archived')
         OR p.archived_at IS NOT NULL
       )
-  `).all(tomorrow) as Array<{ plan_id: string; todo_task_id: string; task_status: string }>;
+  `).all() as Array<{ plan_id: string; todo_task_id: string; task_status: string }>;
 
   for (const stale of staleLinks) {
-    if (stale.task_status === "todo") {
-      database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
-      database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
-    }
+    const taskRow = database.prepare("SELECT parent_id FROM tasks WHERE id = ?").get(stale.todo_task_id) as { parent_id?: string | null } | undefined;
+    if (taskRow?.parent_id) touchedParentIds.add(taskRow.parent_id);
+    database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(stale.todo_task_id);
+    database.prepare("DELETE FROM tasks WHERE id = ?").run(stale.todo_task_id);
     database.prepare("UPDATE project_task_plans SET todo_task_id = NULL, updated_at = ?, row_version = row_version + 1 WHERE id = ?").run(timestamp, stale.plan_id);
+  }
+
+  // Keep task status and milestone status in sync
+  const desynced = database.prepare(`
+    SELECT pt.id AS plan_id, pt.todo_task_id, pt.status AS plan_status, t.status AS task_status, t.parent_id
+    FROM project_task_plans pt
+    JOIN tasks t ON t.id = pt.todo_task_id
+    WHERE pt.todo_task_id IS NOT NULL
+      AND pt.status != t.status
+  `).all() as Array<{ plan_id: string; todo_task_id: string; plan_status: string; task_status: string; parent_id?: string | null }>;
+  for (const item of desynced) {
+    database.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(item.plan_status, timestamp, item.todo_task_id);
+    if (item.parent_id) touchedParentIds.add(item.parent_id);
   }
 
   // Find all active checkpoints due on or before tomorrow (overdue, today, or tomorrow)
@@ -150,13 +217,17 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
   let count = 0;
   for (const item of candidates) {
     const rawDesc = typeof item.description === "string" ? item.description.trim() : "";
-    const checkpointMemo = item.project_name ? (rawDesc ? (rawDesc.startsWith(item.project_name) ? rawDesc : `${item.project_name} · ${rawDesc}`) : item.project_name) : rawDesc;
+    const parentTaskId = getOrCreateProjectParentTask(database, item.project_id, item.project_name, item.due_date, timestamp);
+    touchedParentIds.add(parentTaskId);
 
     if (item.todo_task_id) {
-      const exists = database.prepare("SELECT id, description FROM tasks WHERE id = ?").get(item.todo_task_id) as { id: string; description: string | null } | undefined;
+      const exists = database.prepare("SELECT id, description, parent_id FROM tasks WHERE id = ?").get(item.todo_task_id) as { id: string; description: string | null; parent_id: string | null } | undefined;
       if (exists) {
-        if (!exists.description || !exists.description.trim()) {
-          database.prepare("UPDATE tasks SET description = ?, updated_at = ? WHERE id = ?").run(checkpointMemo, timestamp, exists.id);
+        if (!exists.parent_id || exists.parent_id !== parentTaskId) {
+          database.prepare("UPDATE tasks SET parent_id = ?, updated_at = ? WHERE id = ?").run(parentTaskId, timestamp, exists.id);
+        }
+        if (exists.description && exists.description.startsWith(item.project_name)) {
+          database.prepare("UPDATE tasks SET description = ?, updated_at = ? WHERE id = ?").run(rawDesc, timestamp, exists.id);
         }
         continue;
       }
@@ -168,14 +239,15 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
 
     database.transaction(() => {
       database.prepare(`
-        INSERT INTO tasks (id, title, description, content, status, priority, due_date, created_at, updated_at)
-        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?)
+        INSERT INTO tasks (id, title, description, content, status, priority, due_date, parent_id, created_at, updated_at)
+        VALUES (?, ?, ?, '', 'todo', ?, ?, ?, ?, ?)
       `).run(
         todoTaskId,
         item.title,
-        checkpointMemo,
+        rawDesc,
         priority,
         item.due_date,
+        parentTaskId,
         timestamp,
         timestamp
       );
@@ -201,6 +273,10 @@ export function syncUpcomingCheckpointsToTodos(database: PaiosDatabase, todayDat
       );
     })();
     count++;
+  }
+
+  for (const parentId of touchedParentIds) {
+    refreshParentTaskDueDate(database, parentId, timestamp);
   }
 
   return count;
