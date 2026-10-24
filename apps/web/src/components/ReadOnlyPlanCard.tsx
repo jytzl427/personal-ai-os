@@ -41,12 +41,24 @@ export type StageHUDData = {
   miscItems: string[];
 };
 
+function cleanLatexMath(str: string): string {
+  return str
+    .replace(/\$\\le\s*(\d+(?:\.\d+)?)\$/g, "≤ $1")
+    .replace(/\$\\ge\s*(\d+(?:\.\d+)?)\$/g, "≥ $1")
+    .replace(/\$\\le\$/g, "≤")
+    .replace(/\$\\ge\$/g, "≥")
+    .replace(/\\text\{([^}]+)\}/g, "$1")
+    .replace(/\$([^$]+)\$/g, "$1")
+    .replace(/；；+/g, "；")
+    .replace(/；\s*；/g, "；");
+}
+
 function readablePlanText(value?: string | null) {
-  return richTextToPlainText(String(value ?? "")).trim();
+  return cleanLatexMath(richTextToPlainText(String(value ?? ""))).trim();
 }
 
 function renderInlineMarkdown(rawText: string): React.ReactNode {
-  const clean = rawText
+  const clean = cleanLatexMath(rawText)
     .replace(/\*{4,}/g, "")
     .replace(/\*\*\s*\*\*/g, "")
     .trim();
@@ -252,7 +264,7 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
     if (line.includes("推进类项目")) { currentBlock = "projects"; continue; }
     if (line.includes("想法库流转")) { currentBlock = "ideas"; continue; }
 
-    const clean = line.replace(/^[*\-\s]+/, "").replace(/\*\*/g, "").trim();
+    const clean = cleanLatexMath(line.replace(/^[*\-\s]+/, "").replace(/\*\*/g, "").trim());
 
     if (currentBlock === "mainline") {
       if (line.includes("核心主线")) {
@@ -354,6 +366,10 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
   const currentStage = useMemo(() => {
     if (kind !== "stage" || stages.length === 0) return null;
     const today = todayYmd();
+    // Prioritize latest stage if today is within or before its end date
+    if (stages[0] && today <= stages[0].period_end) {
+      return stages[0];
+    }
     return stages.find((s) => today >= s.period_start && today <= s.period_end) ?? stages[0];
   }, [kind, stages]);
 
