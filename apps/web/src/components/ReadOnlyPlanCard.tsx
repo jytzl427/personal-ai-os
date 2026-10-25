@@ -36,15 +36,17 @@ export type StageHUDData = {
   financeItems: string[];
   healthItems: string[];
   habitItems: string[];
-  projectMilestones: Array<{ name: string; milestone: string; goal?: string }>;
+  projectMilestones: Array<{ name: string; goal: string; milestone?: string }>;
   maintenanceProjects: Array<{ name: string; milestone: string }>;
-  miscItems: string[];
+  miscItems: Array<{ title: string; detail: string }>;
 };
 
 function cleanLatexMath(str: string): string {
   return str
     .replace(/\$\\le\s*(\d+(?:\.\d+)?)\$/g, "≤ $1")
     .replace(/\$\\ge\s*(\d+(?:\.\d+)?)\$/g, "≥ $1")
+    .replace(/\\le\b/g, "≤")
+    .replace(/\\ge\b/g, "≥")
     .replace(/\$\\le\$/g, "≤")
     .replace(/\$\\ge\$/g, "≥")
     .replace(/\\text\{([^}]+)\}/g, "$1")
@@ -233,9 +235,9 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
   const financeItems: string[] = [];
   const healthItems: string[] = [];
   const habitItems: string[] = [];
-  const projectMilestones: Array<{ name: string; milestone: string }> = [];
+  const projectMilestones: Array<{ name: string; goal: string; milestone?: string }> = [];
   const maintenanceProjects: Array<{ name: string; milestone: string }> = [];
-  const miscItems: string[] = [];
+  const miscItems: Array<{ title: string; detail: string }> = [];
 
   let currentBlock = "";
 
@@ -285,30 +287,44 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
     } else if (currentBlock === "habit") {
       habitItems.push(clean);
     } else if (currentBlock === "projects") {
+      // User requirement: Only display advancing projects, DO NOT display sub-milestones/checkpoints
+      if (line.includes("推进类项目") || line.includes("攻坚节点")) continue;
+      // Skip date checkpoints (e.g. "10月25日：...", "10/25...", or deeply indented items)
+      if (/^\s*[-*]\s*\d{1,2}月\d{1,2}日/.test(raw) || /^\s*[-*]\s*\d{1,2}\/\d{1,2}/.test(raw)) continue;
+      if (/^\s{4,}[-*]/.test(raw)) continue;
+
       let name = "";
-      let milestone = clean;
       let goal = "";
 
-      const bracketMatch = clean.match(/^【([^】]+)】\s*(.*)$/);
-      if (bracketMatch) {
-        name = bracketMatch[1].trim();
-        milestone = bracketMatch[2].trim();
+      const boldMatch = line.match(/\*\*([^*]+)\*\*/);
+      if (boldMatch) {
+        name = boldMatch[1].trim();
+        const goalMatch = line.match(/[（(](?:攻坚目标|目标|阶段目标)[：:]\s*([^）)]+)[）)]/);
+        if (goalMatch) {
+          goal = goalMatch[1].trim();
+        } else {
+          goal = line.replace(/\*\*[^*]+\*\*/, "").replace(/^[*\-\s：:()（）]+/, "").trim();
+        }
       } else {
-        const colonMatch = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
-        if (colonMatch) {
-          name = colonMatch[1].trim();
-          milestone = colonMatch[2].trim();
+        const bracketMatch = clean.match(/^【([^】]+)】\s*(.*)$/);
+        if (bracketMatch) {
+          name = bracketMatch[1].trim();
+          goal = bracketMatch[2].trim();
+        } else {
+          const colonMatch = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
+          if (colonMatch) {
+            name = colonMatch[1].trim();
+            goal = colonMatch[2].trim();
+          } else {
+            name = clean;
+            goal = "";
+          }
         }
       }
 
-      const goalMatch = milestone.match(/(?:目标|阶段目标|工作量)[：:]\s*(.+)$/);
-      if (goalMatch) {
-        goal = goalMatch[1].trim();
-      } else {
-        goal = milestone;
+      if (name && !name.includes("攻坚节点") && !/^\d{1,2}月\d{1,2}日/.test(name)) {
+        projectMilestones.push({ name, goal: goal || name, milestone: goal || name });
       }
-
-      projectMilestones.push({ name, milestone, goal });
     } else if (currentBlock === "maintenance") {
       const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
       if (match) {
@@ -317,7 +333,15 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
         maintenanceProjects.push({ name: "", milestone: clean });
       }
     } else if (currentBlock === "misc") {
-      miscItems.push(clean);
+      if (line.includes("生效机制")) continue;
+      if (clean === "其他重点补充：" || clean === "其他重点补充") continue;
+
+      const colonMatch = clean.match(/^([^：:]+)[：:]\s*(.+)$/);
+      if (colonMatch) {
+        miscItems.push({ title: colonMatch[1].trim(), detail: colonMatch[2].trim() });
+      } else {
+        miscItems.push({ title: clean, detail: "" });
+      }
     }
   }
 
@@ -672,15 +696,15 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                 </div>
               </div>
 
-              {/* Section 2: Project Milestones Matrix (项目攻坚推进目标与验收节点) */}
+              {/* Section 2: Project Milestones Matrix (推进类项目阶段攻坚总目标) */}
               {stageHUD && stageHUD.projectMilestones.length > 0 ? (
                 <section className="plan-hud-milestones-bento">
                   <div className="plan-hud-section-header">
                     <div className="header-left">
                       <span className="hud-icon">🚩</span>
-                      <h3>推进类项目攻坚目标与验收节点</h3>
+                      <h3>推进类项目阶段攻坚总目标</h3>
                     </div>
-                    <span className="hud-count-tag">{stageHUD.projectMilestones.length} 个攻坚项目</span>
+                    <span className="hud-count-tag">{stageHUD.projectMilestones.length} 个推进项目</span>
                   </div>
                   <div className="plan-hud-milestones-grid">
                     {stageHUD.projectMilestones.map((proj, idx) => (
@@ -734,7 +758,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                       <>
                         <div className="metric-bullet">• 严格守住 00:30 就寝底线</div>
                         <div className="metric-bullet">• 晨起空腹称重管理走势</div>
-                        <div className="metric-bullet">• 有效运动 ≥ 1~2 次 · 不自律 ≤ 2 次</div>
+                        <div className="metric-bullet">• 有效运动 ≥ 3 次 · 不自律 ≤ 4 次</div>
                       </>
                     )}
                   </div>
@@ -743,26 +767,78 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                 <div className="plan-hud-metric-card card-habits">
                   <div className="metric-header">
                     <span className="metric-icon">🛡️</span>
-                    <span className="metric-label">维护项目与关键节点</span>
+                    <span className="metric-label">维持项目与习惯打卡</span>
                   </div>
                   <div className="metric-list">
                     {stageHUD && stageHUD.maintenanceProjects.length > 0 ? (
-                      stageHUD.maintenanceProjects.slice(0, 2).map((m, idx) => (
-                        <div className="metric-bullet" key={idx}>
-                          <strong>{m.name}</strong>：{renderInlineMarkdown(m.milestone.slice(0, 35))}
+                      stageHUD.maintenanceProjects.map((m, idx) => (
+                        <div className="metric-bullet" key={`m-${idx}`}>
+                          <strong>{m.name || "维持项目"}</strong>{m.milestone ? `：${renderInlineMarkdown(m.milestone.slice(0, 35))}` : ""}
                         </div>
                       ))
                     ) : null}
-                    {stageHUD && stageHUD.miscItems.length > 0 ? (
-                      stageHUD.miscItems.slice(0, 2).map((m, idx) => (
-                        <div className="metric-bullet is-highlight" key={`misc-${idx}`}>
-                          {renderInlineMarkdown(m.slice(0, 40))}
-                        </div>
+                    {stageHUD && stageHUD.habitItems.length > 0 ? (
+                      stageHUD.habitItems.slice(0, 2).map((h, idx) => (
+                        <div className="metric-bullet" key={`h-${idx}`}>• {renderInlineMarkdown(h)}</div>
                       ))
-                    ) : null}
+                    ) : (
+                      <>
+                        <div className="metric-bullet">• 饮水 ≥ 5 杯 · 刷牙 ≥ 3 次</div>
+                        <div className="metric-bullet">• 久坐起身打断走动</div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Section 4: Dedicated Misc & Exploration Bento (其他重点补充、深度思考与杂项保障) */}
+              {stageHUD && stageHUD.miscItems.length > 0 ? (
+                <section className="plan-hud-misc-bento">
+                  <div className="plan-hud-section-header">
+                    <div className="header-left">
+                      <span className="hud-icon">💡</span>
+                      <h3>其他重点补充、深度思考与杂项保障</h3>
+                    </div>
+                    <span className="hud-count-tag">{stageHUD.miscItems.length} 个事项</span>
+                  </div>
+                  <div className="plan-hud-misc-grid">
+                    {stageHUD.miscItems.map((item, idx) => {
+                      let icon = "📌";
+                      let tagClass = "misc-default";
+                      if (item.title.includes("英语") || item.title.includes("四级")) {
+                        icon = "🎧";
+                        tagClass = "misc-study";
+                      } else if (item.title.includes("模组") || item.title.includes("世界")) {
+                        icon = "⛏️";
+                        tagClass = "misc-dev";
+                      } else if (item.title.includes("深度思考")) {
+                        icon = "🧠";
+                        tagClass = "misc-thinking";
+                      } else if (item.title.includes("复盘")) {
+                        icon = "📊";
+                        tagClass = "misc-review";
+                      } else if (item.title.includes("杂务") || item.title.includes("生活") || item.title.includes("琐事")) {
+                        icon = "🧹";
+                        tagClass = "misc-chore";
+                      }
+
+                      return (
+                        <div className={`plan-hud-misc-card ${tagClass}`} key={idx}>
+                          <div className="misc-card-header">
+                            <span className="misc-card-icon">{icon}</span>
+                            <span className="misc-card-title">{item.title}</span>
+                          </div>
+                          {item.detail ? (
+                            <div className="misc-card-detail">
+                              {renderInlineMarkdown(item.detail)}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
             </div>
           )
         ) : null}

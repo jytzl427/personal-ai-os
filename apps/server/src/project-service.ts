@@ -70,8 +70,25 @@ export function projectTaskPlans(database: PaiosDatabase, projectId: string) {
   return database.prepare(`
     SELECT * FROM project_task_plans
     WHERE project_id = ? AND archived_at IS NULL
-    ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
+    ORDER BY sort_order ASC, created_at ASC
   `).all(projectId);
+}
+
+export function normalizeProjectMilestoneSortOrders(database: PaiosDatabase): void {
+  try {
+    const projects = database.prepare("SELECT DISTINCT project_id FROM project_task_plans WHERE archived_at IS NULL").all() as Array<{ project_id: string }>;
+    const update = database.transaction(() => {
+      for (const p of projects) {
+        const rows = database.prepare(
+          "SELECT id FROM project_task_plans WHERE project_id = ? AND archived_at IS NULL ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC"
+        ).all(p.project_id) as Array<{ id: string }>;
+        rows.forEach((row, idx) => {
+          database.prepare("UPDATE project_task_plans SET sort_order = ? WHERE id = ?").run(idx, row.id);
+        });
+      }
+    });
+    update();
+  } catch {}
 }
 
 export function projectActivities(database: PaiosDatabase, projectId: string, limit = 50) {

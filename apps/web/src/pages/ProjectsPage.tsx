@@ -715,12 +715,15 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
   async function updateCheckpoint(task: ProjectTask, changes: { title?: string; status?: "todo" | "done"; due_date?: string | null }) {
     try {
+      setData((current) => current ? {
+        ...current,
+        project_tasks: current.project_tasks?.map((t) => t.id === task.id ? { ...t, ...changes } : t)
+      } : current);
       await apiJson(`/project-task-plans/${encodeURIComponent(task.id)}`, jsonRequest("PATCH", changes));
-
-
       load();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "验收节点更新失败");
+      load();
     }
   }
 

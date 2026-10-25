@@ -17324,8 +17324,23 @@ function projectTaskPlans(database, projectId) {
   return database.prepare(`
     SELECT * FROM project_task_plans
     WHERE project_id = ? AND archived_at IS NULL
-    ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC
+    ORDER BY sort_order ASC, created_at ASC
   `).all(projectId);
+}
+function normalizeProjectMilestoneSortOrders(database) {
+  try {
+    const projects = database.prepare("SELECT DISTINCT project_id FROM project_task_plans WHERE archived_at IS NULL").all();
+    const update = database.transaction(() => {
+      for (const p of projects) {
+        const rows = database.prepare("SELECT id FROM project_task_plans WHERE project_id = ? AND archived_at IS NULL ORDER BY sort_order ASC, due_date IS NULL, due_date ASC, created_at ASC").all(p.project_id);
+        rows.forEach((row, idx) => {
+          database.prepare("UPDATE project_task_plans SET sort_order = ? WHERE id = ?").run(idx, row.id);
+        });
+      }
+    });
+    update();
+  } catch {
+  }
 }
 function projectActivities(database, projectId, limit = 50) {
   return database.prepare(`
@@ -19698,6 +19713,10 @@ function createApp(context) {
   const app = new Hono2();
   const uiSessionToken = randomUUID10().replaceAll("-", "");
   try {
+    normalizeProjectMilestoneSortOrders(context.database);
+  } catch {
+  }
+  try {
     syncUpcomingCheckpointsToTodos(context.database);
   } catch {
   }
@@ -21012,7 +21031,9 @@ function createApp(context) {
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, projectId);
         refreshParentTaskDueDate(context.database, parentTaskId, timestamp);
       }
-      context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, timestamp, timestamp);
+      const maxOrder = context.database.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM project_task_plans WHERE project_id = ? AND archived_at IS NULL").get(projectId);
+      const nextSortOrder = maxOrder.m + 1;
+      context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, nextSortOrder, timestamp, timestamp);
       if (todoTaskId)
         addProjectActivity(context.database, projectId, "task_committed", "\u9879\u76EE\u4EFB\u52A1\u5DF2\u52A0\u5165\u5F85\u529E\uFF1A" + title, false, timestamp);
     });

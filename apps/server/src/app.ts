@@ -21,7 +21,7 @@ import { generateDailyPlanForDate, readDailyPlan } from "./planner.js";
 import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
-import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
+import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, normalizeProjectMilestoneSortOrders, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
   database: PaiosDatabase;
@@ -273,6 +273,7 @@ async function readResponseJson(response: Response | undefined): Promise<unknown
 export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: AgentAuth | null } }> {
   const app = new Hono<{ Variables: { agentAuth: AgentAuth | null } }>();
   const uiSessionToken = randomUUID().replaceAll("-", "");
+  try { normalizeProjectMilestoneSortOrders(context.database); } catch {}
   try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
   app.use("/api/*", cors({ origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"], allowHeaders: ["Content-Type", "Authorization", "X-PAIOS-Agent-Transport", "X-Agent-Name", "X-Tool-Name", "X-PAIOS-UI-Session", "X-PAIOS-Idempotency-Key"], credentials: true }));
   app.use("/api/v1/*", async (c, next) => {
@@ -1495,7 +1496,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
         context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(todoTaskId, projectId);
         refreshParentTaskDueDate(context.database, parentTaskId, timestamp);
       }
-      context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, timestamp, timestamp);
+      const maxOrder = context.database.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM project_task_plans WHERE project_id = ? AND archived_at IS NULL").get(projectId) as { m: number };
+      const nextSortOrder = maxOrder.m + 1;
+      context.database.prepare("INSERT INTO project_task_plans (id, project_id, title, description, due_date, status, todo_task_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, projectId, title, typeof body.description === "string" ? body.description : "", body.due_date ?? null, status, todoTaskId, nextSortOrder, timestamp, timestamp);
       if (todoTaskId) addProjectActivity(context.database, projectId, "task_committed", "项目任务已加入待办：" + title, false, timestamp);
     });
     write();
