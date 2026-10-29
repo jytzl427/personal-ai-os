@@ -34,6 +34,7 @@ function getNavIcon(label: string) {
     case "财务":
       return <FinanceIcon />;
     case "健康":
+    case "健康与习惯":
       return <HealthIcon />;
     case "计划与复盘":
       return <PlansIcon />;

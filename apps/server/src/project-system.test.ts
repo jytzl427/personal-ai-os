@@ -268,3 +268,49 @@ test("stage plan dynamically drives project todo sync: active checkpoints in sta
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("project task plans can be reordered by arbitrary position and auto-cascades", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "paios-reorder-"));
+  const database = openDatabase(dataDir);
+  const app = createApp({ database, config: { dataDir, bind: "127.0.0.1", port: 4738 } });
+  try {
+    const created = await request(app, "/api/v1/projects", "POST", { name: "排序测试项目", category: "advancement" });
+    const projectId = created.body.project.id as string;
+
+    const p1 = (await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "节点1" })).body.project_task.id as string;
+    const p2 = (await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "节点2" })).body.project_task.id as string;
+    const p3 = (await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "节点3" })).body.project_task.id as string;
+    const p4 = (await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "节点4" })).body.project_task.id as string;
+    const p5 = (await request(app, `/api/v1/projects/${projectId}/task-plans`, "POST", { title: "节点5" })).body.project_task.id as string;
+
+    // Initial order: [p1, p2, p3, p4, p5]
+    let initialList = [p1, p2, p3, p4, p5];
+
+    // User moves node 5 (fromIndex = 4) to position 2 (toIndex = 1)
+    const [moved] = initialList.splice(4, 1);
+    if (!moved) throw new Error("moved element not found");
+    initialList.splice(1, 0, moved);
+    // Expected order: [p1, p5, p2, p3, p4]
+    assert.deepEqual(initialList, [p1, p5, p2, p3, p4]);
+
+    const reorderRes = await request(app, `/api/v1/projects/${projectId}/task-plans/reorder`, "POST", { plan_ids: initialList });
+    assert.equal(reorderRes.response.status, 200);
+    assert.equal(reorderRes.body.ok, true);
+
+    const reorderedTasks = reorderRes.body.project_tasks as Array<{ id: string; title: string; sort_order: number }>;
+    assert.equal(reorderedTasks.length, 5);
+    assert.equal(reorderedTasks[0]!.id, p1);
+    assert.equal(reorderedTasks[0]!.title, "节点1");
+    assert.equal(reorderedTasks[1]!.id, p5);
+    assert.equal(reorderedTasks[1]!.title, "节点5");
+    assert.equal(reorderedTasks[2]!.id, p2);
+    assert.equal(reorderedTasks[2]!.title, "节点2");
+    assert.equal(reorderedTasks[3]!.id, p3);
+    assert.equal(reorderedTasks[3]!.title, "节点3");
+    assert.equal(reorderedTasks[4]!.id, p4);
+    assert.equal(reorderedTasks[4]!.title, "节点4");
+  } finally {
+    database.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

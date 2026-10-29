@@ -2620,6 +2620,114 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     return c.json({ ok: true });
   });
 
+  // Habits API
+  app.get("/api/v1/habits", (c) => {
+    const habits = context.database.prepare(
+      "SELECT id, name, target_value, unit, frequency, icon, color, is_archived, sort_order, created_at, updated_at FROM habits WHERE is_archived = 0 ORDER BY sort_order ASC, created_at ASC"
+    ).all();
+    return c.json({ ok: true, habits });
+  });
+
+  app.post("/api/v1/habits", async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "name is required" } }, 400);
+    const targetValue = typeof body.target_value === "number" && body.target_value > 0 ? body.target_value : 1;
+    const unit = typeof body.unit === "string" && body.unit.trim() ? body.unit.trim() : "次";
+    const frequency = typeof body.frequency === "string" ? body.frequency : "daily";
+    const icon = typeof body.icon === "string" && body.icon.trim() ? body.icon.trim() : "🌱";
+    const color = typeof body.color === "string" && body.color.trim() ? body.color.trim() : "#10b981";
+    const id = randomUUID();
+    const timestamp = now();
+    const maxOrder = context.database.prepare("SELECT COALESCE(MAX(sort_order), 0) as m FROM habits").get() as { m: number };
+    const sortOrder = typeof body.sort_order === "number" ? body.sort_order : (maxOrder?.m ?? 0) + 1;
+    const isMultiStep = typeof body.is_multi_step === "number" || typeof body.is_multi_step === "boolean" ? (body.is_multi_step ? 1 : 0) : (targetValue > 1 && ["杯", "次", "组"].includes(unit) ? 1 : 0);
+
+    context.database.prepare(`
+      INSERT INTO habits (id, name, target_value, unit, frequency, icon, color, is_multi_step, is_archived, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+    `).run(id, name, targetValue, unit, frequency, icon, color, isMultiStep, sortOrder, timestamp, timestamp);
+
+    const habit = context.database.prepare("SELECT * FROM habits WHERE id = ?").get(id);
+    return c.json({ ok: true, habit });
+  });
+
+  app.patch("/api/v1/habits/:id", async (c) => {
+    const id = c.req.param("id");
+    const current = context.database.prepare("SELECT * FROM habits WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!current) return notFound(c, "habit");
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+
+    const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : current.name;
+    const targetValue = typeof body.target_value === "number" && body.target_value > 0 ? body.target_value : current.target_value;
+    const unit = typeof body.unit === "string" && body.unit.trim() ? body.unit.trim() : current.unit;
+    const frequency = typeof body.frequency === "string" ? body.frequency : current.frequency;
+    const icon = typeof body.icon === "string" && body.icon.trim() ? body.icon.trim() : current.icon;
+    const color = typeof body.color === "string" && body.color.trim() ? body.color.trim() : current.color;
+    const isArchived = typeof body.is_archived === "number" || typeof body.is_archived === "boolean" ? (body.is_archived ? 1 : 0) : current.is_archived;
+    const sortOrder = typeof body.sort_order === "number" ? body.sort_order : current.sort_order;
+    const isMultiStep = typeof body.is_multi_step === "number" || typeof body.is_multi_step === "boolean" ? (body.is_multi_step ? 1 : 0) : (current.is_multi_step ?? 0);
+    const timestamp = now();
+
+    context.database.prepare(`
+      UPDATE habits SET name = ?, target_value = ?, unit = ?, frequency = ?, icon = ?, color = ?, is_multi_step = ?, is_archived = ?, sort_order = ?, updated_at = ?
+      WHERE id = ?
+    `).run(name, targetValue, unit, frequency, icon, color, isMultiStep, isArchived, sortOrder, timestamp, id);
+
+    const habit = context.database.prepare("SELECT * FROM habits WHERE id = ?").get(id);
+    return c.json({ ok: true, habit });
+  });
+
+  app.delete("/api/v1/habits/:id", (c) => {
+    const id = c.req.param("id");
+    const result = context.database.prepare("DELETE FROM habits WHERE id = ?").run(id);
+    if (result.changes !== 1) return notFound(c, "habit");
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/v1/habits/logs", (c) => {
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    if (!from || !to) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "from and to are required" } }, 400);
+    const logs = context.database.prepare(`
+      SELECT hl.id, hl.habit_id, hl.log_date, hl.value, hl.status, hl.note, hl.created_at, hl.updated_at
+      FROM habit_logs hl
+      JOIN habits h ON h.id = hl.habit_id
+      WHERE hl.log_date BETWEEN ? AND ?
+      ORDER BY hl.log_date ASC
+    `).all(from, to);
+    return c.json({ ok: true, logs });
+  });
+
+  app.put("/api/v1/habits/:id/logs/:date", async (c) => {
+    const habitId = c.req.param("id");
+    const date = c.req.param("date");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "date must be YYYY-MM-DD" } }, 400);
+    const habit = context.database.prepare("SELECT * FROM habits WHERE id = ?").get(habitId);
+    if (!habit) return notFound(c, "habit");
+
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+    const value = typeof body.value === "number" ? body.value : (Number(body.value) || 0);
+    const status = typeof body.status === "string" ? body.status : (value > 0 ? "done" : "undone");
+    const note = typeof body.note === "string" ? body.note : null;
+    const timestamp = now();
+
+    const existing = context.database.prepare("SELECT id FROM habit_logs WHERE habit_id = ? AND log_date = ?").get(habitId, date) as { id: string } | undefined;
+    if (existing) {
+      context.database.prepare(`
+        UPDATE habit_logs SET value = ?, status = ?, note = ?, updated_at = ? WHERE id = ?
+      `).run(value, status, note, timestamp, existing.id);
+    } else {
+      context.database.prepare(`
+        INSERT INTO habit_logs (id, habit_id, log_date, value, status, note, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(randomUUID(), habitId, date, value, status, note, timestamp, timestamp);
+    }
+
+    const log = context.database.prepare("SELECT * FROM habit_logs WHERE habit_id = ? AND log_date = ?").get(habitId, date);
+    return c.json({ ok: true, log });
+  });
+
   app.get("/api/v1/tasks", (c) => {
     try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
     const archived = parseArchivedFilter(c);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AddRowButton } from "../components/AddRowButton.js";
+import { createPortal } from "react-dom";
 import { CellText } from "../components/CellText.js";
 import { Checkbox } from "../components/Checkbox.js";
 import { DatabaseTable } from "../components/DatabaseTable.js";
@@ -18,6 +18,32 @@ type Health = {
   sleep_duration_minutes?: number | null;
   exercise_note?: string | null;
   disciplined?: number | boolean | null;
+};
+
+export type Habit = {
+  id: string;
+  name: string;
+  target_value: number;
+  unit: string;
+  frequency: string;
+  icon: string;
+  color: string;
+  is_multi_step?: number;
+  is_archived: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HabitLog = {
+  id: string;
+  habit_id: string;
+  log_date: string;
+  value: number;
+  status: string;
+  note?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 function sleepMinutes(start?: string | null, end?: string | null) {
@@ -67,16 +93,21 @@ function computeDisciplinedStreak(rows: Health[], today: string): number {
 export function HealthPage() {
   const [logs, setLogs] = useState<Health[]>([]);
   const logsRef = useRef<Health[]>(logs);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [visibleCount, setVisibleCount] = useState(7);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+
   const today = todayYmd();
 
   useEffect(() => {
     logsRef.current = logs;
   }, [logs]);
 
-  async function load() {
+  async function loadHealth() {
     try {
       const result = await apiJson<{ health: Health[] }>(`/health?from=${shiftYmd(today, -90)}&to=${today}`);
       const sorted = [...result.health].sort((left, right) => right.log_date.localeCompare(left.log_date));
@@ -87,9 +118,25 @@ export function HealthPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  async function loadHabits() {
+    try {
+      const [habitsRes, logsRes] = await Promise.all([
+        apiJson<{ habits: Habit[] }>("/habits"),
+        apiJson<{ logs: HabitLog[] }>(`/habits/logs?from=${shiftYmd(today, -14)}&to=${today}`)
+      ]);
+      setHabits(habitsRes.habits || []);
+      setHabitLogs(logsRes.logs || []);
+    } catch (reason: unknown) {
+      console.warn("习惯数据加载错误", reason);
+    }
+  }
 
-  async function save(date: string, patch: Partial<Health>) {
+  useEffect(() => {
+    void loadHealth();
+    void loadHabits();
+  }, []);
+
+  async function saveHealth(date: string, patch: Partial<Health>) {
     try {
       const current = logsRef.current.find((row) => row.log_date === date) ?? { log_date: date };
       const next = { ...current, ...patch };
@@ -140,7 +187,7 @@ export function HealthPage() {
   }
 
   async function addToday() {
-    if (!logsRef.current.some((row) => row.log_date === today)) await save(today, { log_date: today });
+    if (!logsRef.current.some((row) => row.log_date === today)) await saveHealth(today, { log_date: today });
   }
 
   function focusToday() {
@@ -156,14 +203,14 @@ export function HealthPage() {
 
   async function handleAddOrFocusToday() {
     if (!logsRef.current.some((row) => row.log_date === today)) {
-      await save(today, { log_date: today });
+      await saveHealth(today, { log_date: today });
       setTimeout(focusToday, 60);
     } else {
       focusToday();
     }
   }
 
-  async function deleteRecord(date: string) {
+  async function deleteHealthRecord(date: string) {
     try {
       await apiJson(`/health/${date}`, { method: "DELETE" });
       const nextRows = logsRef.current.filter((row) => row.log_date !== date);
@@ -175,6 +222,60 @@ export function HealthPage() {
     }
   }
 
+  // Habits Operations
+  async function saveHabitLog(habitId: string, date: string, value: number) {
+    try {
+      const nextVal = Math.max(0, value);
+      const habit = habits.find((h) => h.id === habitId);
+      const isDone = habit ? nextVal >= habit.target_value : nextVal > 0;
+      const status = isDone ? "done" : nextVal > 0 ? "partial" : "undone";
+
+      // Optimistic update
+      setHabitLogs((prev) => {
+        const exists = prev.some((l) => l.habit_id === habitId && l.log_date === date);
+        if (exists) {
+          return prev.map((l) => (l.habit_id === habitId && l.log_date === date ? { ...l, value: nextVal, status } : l));
+        }
+        return [...prev, { id: `temp-${Date.now()}`, habit_id: habitId, log_date: date, value: nextVal, status }];
+      });
+
+      await apiJson(`/habits/${habitId}/logs/${date}`, jsonRequest("PUT", { value: nextVal, status }));
+      setError(null);
+    } catch (reason: unknown) {
+      const errMsg = reason instanceof Error ? reason.message : "习惯打卡保存失败";
+      setError(errMsg);
+      void loadHabits();
+    }
+  }
+
+  async function handleCreateOrUpdateHabit(data: Partial<Habit>) {
+    try {
+      if (editingHabit) {
+        await apiJson(`/habits/${editingHabit.id}`, jsonRequest("PATCH", data));
+        setMessage(`习惯「${data.name || editingHabit.name}」已更新`);
+      } else {
+        await apiJson("/habits", jsonRequest("POST", data));
+        setMessage(`新习惯「${data.name}」创建成功`);
+      }
+      setModalOpen(false);
+      setEditingHabit(null);
+      await loadHabits();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "保存习惯失败");
+    }
+  }
+
+  async function handleDeleteHabit(id: string, name: string) {
+    if (!window.confirm(`确定要删除习惯「${name}」吗？历史打卡也将一并移除。`)) return;
+    try {
+      await apiJson(`/habits/${id}`, { method: "DELETE" });
+      setMessage(`习惯「${name}」已删除`);
+      await loadHabits();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "删除习惯失败");
+    }
+  }
+
   const latestWeight = logs.find((r) => r.weight_kg != null)?.weight_kg;
   const latestSleep = logs[0] ? sleepLabel(logs[0]) : "—";
   const disciplinedStreak = computeDisciplinedStreak(logs, today);
@@ -182,9 +283,23 @@ export function HealthPage() {
   const visibleLogs = logs.slice(0, visibleCount);
   const hasMore = visibleCount < logs.length;
 
+  // Habit metrics today
+  const todayHabitStats = useMemo(() => {
+    if (habits.length === 0) return { total: 0, done: 0, rate: 0 };
+    let done = 0;
+    for (const h of habits) {
+      const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === today);
+      if (log && log.value >= h.target_value) {
+        done++;
+      }
+    }
+    const rate = Math.round((done / habits.length) * 100);
+    return { total: habits.length, done, rate };
+  }, [habits, habitLogs, today]);
+
   return (
     <div className="page-stack page-health">
-      <PageHeader meta="长期记录 · 晨起空腹体重与睡眠自律底盘" title="健康" />
+      <PageHeader meta="长期记录 · 晨起空腹体重、睡眠作息与每日微习惯底盘" title="健康与习惯" />
       {error ? <div className="notice error">{error}</div> : null}
       {message ? <div className="notice">{message}</div> : null}
 
@@ -203,23 +318,35 @@ export function HealthPage() {
             {disciplinedStreak} 天
           </strong>
         </div>
+        <div className="status-chip" title="今日微习惯达成进度">
+          <span className="muted">今日习惯履约</span>
+          <strong style={{ color: todayHabitStats.rate >= 80 ? "var(--ok)" : todayHabitStats.rate >= 50 ? "#0284c7" : "var(--warn)" }}>
+            {todayHabitStats.done} / {todayHabitStats.total} 项 ({todayHabitStats.rate}%)
+          </strong>
+        </div>
       </div>
 
+      {/* 1. Health Charts: Weight & Sleep */}
       <HealthChartsGrid logs={logs} />
 
+      {/* 2. Health Table Panel: In accordance with user feedback: "我希望这个板块在身体指标历史记录下面" */}
       <section className="table-panel database-panel health-table-panel">
+        <div className="table-panel-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px 6px" }}>
+          <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--foreground)" }}>📋 身体指标历史记录</span>
+          <span className="muted" style={{ fontSize: "12px" }}>按日期倒序</span>
+        </div>
         <DatabaseTable
           empty="还没有健康记录。"
           rows={visibleLogs.map((row) => ({ ...row, id: row.log_date }))}
           columns={[
-            { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteRecord(row.log_date)} /> },
+            { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteHealthRecord(row.log_date)} /> },
             { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
-            { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} isBedtime value={row.bedtime_local ?? ""} onCommit={(value) => void save(row.log_date, { bedtime_local: value || null })} /> },
+            { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} isBedtime value={row.bedtime_local ?? ""} onCommit={(value) => void saveHealth(row.log_date, { bedtime_local: value || null })} /> },
             { key: "sleep", label: "睡眠时长", className: "col-time col-time-sleep", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
-            { key: "wake", label: "起床", className: "col-time col-time-wake", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void save(row.log_date, { wake_local: value || null })} /> },
-            { key: "weight", label: "空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void save(row.log_date, { weight_kg: value })} /> },
-            { key: "exercise", label: "运动与消耗", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动、体能消耗…" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void save(row.log_date, { exercise_note: value }); }} /> },
-            { key: "disciplined", label: "是否不自律", className: "col-disciplined", render: (row) => <Checkbox ariaLabel={`${formatDate(row.log_date)} 是否不自律`} checked={Boolean(row.disciplined)} onChange={(checked) => void save(row.log_date, { disciplined: checked })} /> }
+            { key: "wake", label: "起床", className: "col-time col-time-wake", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void saveHealth(row.log_date, { wake_local: value || null })} /> },
+            { key: "weight", label: "空腹体重", className: "col-number", render: (row) => <WeightCell ariaLabel={`${formatDate(row.log_date)} 今日空腹体重`} value={row.weight_kg} onCommit={(value) => void saveHealth(row.log_date, { weight_kg: value })} /> },
+            { key: "exercise", label: "运动与消耗", className: "col-memo", render: (row) => <CellText multiline placeholder="记录运动、体能消耗…" value={row.exercise_note ?? ""} onCommit={(value) => { if (value !== (row.exercise_note ?? "")) void saveHealth(row.log_date, { exercise_note: value }); }} /> },
+            { key: "disciplined", label: "是否不自律", className: "col-disciplined", render: (row) => <Checkbox ariaLabel={`${formatDate(row.log_date)} 是否不自律`} checked={Boolean(row.disciplined)} onChange={(checked) => void saveHealth(row.log_date, { disciplined: checked })} /> }
           ]}
           footer={
             <div className="health-table-footer">
@@ -275,9 +402,712 @@ export function HealthPage() {
           }
         />
       </section>
+
+      {/* 3. Habits Section: Placed strictly UNDER the health table panel */}
+      <HabitsSection
+        habits={habits}
+        habitLogs={habitLogs}
+        today={today}
+        onSaveLog={saveHabitLog}
+        onOpenAdd={() => {
+          setEditingHabit(null);
+          setModalOpen(true);
+        }}
+        onOpenEdit={(h) => {
+          setEditingHabit(h);
+          setModalOpen(true);
+        }}
+        onDelete={handleDeleteHabit}
+      />
+
+      {/* Habit Modal (Create / Edit) - Rendered into document.body with createPortal for true centering */}
+      {modalOpen && (
+        <HabitModal
+          habit={editingHabit}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingHabit(null);
+          }}
+          onSave={handleCreateOrUpdateHabit}
+        />
+      )}
     </div>
   );
 }
+
+// -------------------------------------------------------------
+// HABITS SECTION: Per-Habit Analysis, Multi-step Checkin & Clean Layout
+// -------------------------------------------------------------
+
+function HabitsSection({
+  habits,
+  habitLogs,
+  today,
+  onSaveLog,
+  onOpenAdd,
+  onOpenEdit,
+  onDelete
+}: {
+  habits: Habit[];
+  habitLogs: HabitLog[];
+  today: string;
+  onSaveLog: (habitId: string, date: string, value: number) => void;
+  onOpenAdd: () => void;
+  onOpenEdit: (habit: Habit) => void;
+  onDelete: (id: string, name: string) => void;
+}) {
+  const [showManage, setShowManage] = useState(false);
+
+  // Recent 14 dates array (from 13 days ago to today)
+  const dateList = useMemo(() => {
+    const list: string[] = [];
+    for (let i = 13; i >= 0; i--) {
+      list.push(shiftYmd(today, -i));
+    }
+    return list;
+  }, [today]);
+
+  return (
+    <section className="habits-section-card">
+      <div className="habits-section-header">
+        <div className="habits-header-title-box">
+          <div className="habits-title-row">
+            <span className="habits-section-icon" aria-hidden="true">🌱</span>
+            <h2 className="habits-section-title">微习惯底盘与持续履约</h2>
+          </div>
+          <span className="habits-section-sub">
+            独立14天完成率分析 · 单次/多次灵活打卡 · 随时变动
+          </span>
+        </div>
+        <div className="habits-header-actions">
+          <button
+            type="button"
+            className="habits-pill-btn secondary"
+            onClick={() => setShowManage((prev) => !prev)}
+            title="管理习惯配置"
+          >
+            {showManage ? "完成管理" : "⚙️ 管理习惯"}
+          </button>
+          <button
+            type="button"
+            className="habits-pill-btn primary"
+            onClick={onOpenAdd}
+          >
+            + 新增习惯
+          </button>
+        </div>
+      </div>
+
+      {/* A. Quick Checkin Deck: Single-check, Multi-step Stepper, or Duration Slider */}
+      <div className="habits-quick-deck">
+        {habits.map((h) => {
+          const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === today);
+          const currentVal = log ? log.value : 0;
+          const isDone = currentVal >= h.target_value;
+
+          // Three interaction types:
+          // 1. Duration slider: unit is "分钟" and target > 1 (e.g. 力训 30分钟, 阅读 45分钟)
+          // 2. Multi-step stepper: is_multi_step or (target > 1 with count units)
+          // 3. Single binary check: nap (午睡15分钟), single habit (target = 1) -> 睡或者没睡
+          const isDuration = h.unit === "分钟" && h.target_value > 1;
+          const isMulti = !isDuration && (h.is_multi_step === 1 || (h.target_value > 1 && ["次", "杯", "组", "页", "块"].includes(h.unit)));
+          const isNap = h.name.includes("午睡") || h.name.includes("小憩");
+
+          const progressPercent = Math.min(100, Math.round((currentVal / (h.target_value || 1)) * 100));
+          const maxSliderMinutes = Math.max(60, Math.ceil((h.target_value * 1.5) / 5) * 5);
+
+          return (
+            <div key={h.id} className={`habit-card ${isDone ? "is-done" : ""}`} style={{ "--habit-accent": h.color || "#10b981" } as any}>
+              <div className="habit-card-top">
+                <span className="habit-icon-badge" style={{ backgroundColor: `${h.color}15`, borderColor: `${h.color}35` }}>
+                  {h.icon || "🌱"}
+                </span>
+                <div className="habit-info">
+                  <div className="habit-name-row">
+                    <span className="habit-name" title={h.name}>{h.name}</span>
+                    {showManage && (
+                      <span className="habit-manage-actions">
+                        <button type="button" className="habit-icon-btn" onClick={() => onOpenEdit(h)} title="编辑习惯">✎</button>
+                        <button type="button" className="habit-icon-btn is-delete" onClick={() => onDelete(h.id, h.name)} title="删除习惯">✕</button>
+                      </span>
+                    )}
+                  </div>
+                  <span className="habit-target-hint">
+                    {isDuration
+                      ? `时长控制 · 目标 ${h.target_value} 分钟`
+                      : isMulti
+                      ? `计次积累 · 目标 ${h.target_value} ${h.unit}`
+                      : `单次达标 · 目标 ${h.target_value} ${h.unit}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Interaction Mode: 1. Duration Slider */}
+              {isDuration && (
+                <div className="habit-duration-wrap">
+                  <div className="habit-slider-row">
+                    <input
+                      type="range"
+                      className="habit-range-slider"
+                      min={0}
+                      max={maxSliderMinutes}
+                      step={5}
+                      value={currentVal}
+                      onChange={(e) => onSaveLog(h.id, today, Number(e.target.value))}
+                      style={{ accentColor: h.color || "#10b981" }}
+                      aria-label={`${h.name} 时长调节`}
+                    />
+                  </div>
+                  <div className="habit-slider-labels">
+                    <span className="slider-current-readout">已记录 <strong style={{ color: isDone ? h.color : "inherit" }}>{currentVal}</strong> 分钟</span>
+                    <span className="slider-target-hint muted">目标 {h.target_value} 分钟</span>
+                  </div>
+                  <div className="habit-quick-time-steppers">
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, Math.max(0, currentVal - 5))} title="减少 5 分钟">−5m</button>
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, currentVal + 5)} title="增加 5 分钟">+5m</button>
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, currentVal + 15)} title="增加 15 分钟">+15m</button>
+                    <button
+                      type="button"
+                      className={`habit-quick-btn finish-btn ${isDone ? "is-active" : ""}`}
+                      onClick={() => onSaveLog(h.id, today, isDone ? 0 : h.target_value)}
+                      title={isDone ? "点击重置为 0" : "直接达到目标"}
+                    >
+                      {isDone ? "重置" : "直接满额"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Interaction Mode: 2. Multi-step Dots Stepper */}
+              {isMulti && (
+                <div className="habit-multi-dots-wrap">
+                  <div className="habit-multi-dots">
+                    {Array.from({ length: Math.min(12, Math.max(2, Math.floor(h.target_value))) }).map((_, idx) => {
+                      const stepIndex = idx + 1;
+                      const isReached = currentVal >= stepIndex;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`multi-dot-pill ${isReached ? "is-active" : ""}`}
+                          style={{
+                            backgroundColor: isReached ? h.color : "transparent",
+                            borderColor: isReached ? h.color : "var(--line)"
+                          }}
+                          onClick={() => {
+                            if (currentVal === stepIndex) {
+                              onSaveLog(h.id, today, stepIndex - 1);
+                            } else {
+                              onSaveLog(h.id, today, stepIndex);
+                            }
+                          }}
+                          title={`打卡至第 ${stepIndex} ${h.unit}`}
+                        >
+                          {isReached ? "✓" : stepIndex}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="habit-val-label">
+                    已完成 <strong>{currentVal}</strong> / {h.target_value} {h.unit}
+                  </div>
+                </div>
+              )}
+
+              {/* Interaction Mode: 3. Single Binary Check (e.g. 午睡15分钟 睡或者没睡) */}
+              {!isDuration && !isMulti && (
+                <div className="habit-progress-bar-wrap">
+                  <div className="habit-progress-track">
+                    <div
+                      className="habit-progress-fill"
+                      style={{ width: `${isDone ? 100 : 0}%`, backgroundColor: h.color || "#10b981" }}
+                    />
+                  </div>
+                  <div className="habit-val-label">
+                    状态：<strong style={{ color: isDone ? h.color : "inherit" }}>{isDone ? (isNap ? "已午睡 ✓" : "已达成 ✓") : "未达成"}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Action Button */}
+              <div className="habit-card-actions">
+                <button
+                  type="button"
+                  className={`habit-finish-pill-btn ${isDone ? "is-finished" : ""}`}
+                  style={isDone ? { backgroundColor: h.color, borderColor: h.color } : {}}
+                  onClick={() => {
+                    if (isDuration) {
+                      onSaveLog(h.id, today, isDone ? 0 : h.target_value);
+                    } else if (isMulti) {
+                      if (currentVal >= h.target_value) {
+                        onSaveLog(h.id, today, 0); // Reset
+                      } else {
+                        onSaveLog(h.id, today, currentVal + 1); // +1 step
+                      }
+                    } else {
+                      onSaveLog(h.id, today, isDone ? 0 : 1);
+                    }
+                  }}
+                >
+                  {isDone
+                    ? `✓ 今日已达成 (${isNap ? "已午睡" : isDuration ? `${currentVal}/${h.target_value}分钟` : `${currentVal}/${h.target_value} ${h.unit}`} · 点击撤销)`
+                    : isDuration
+                    ? `+ 满额打卡 (${h.target_value}分钟)`
+                    : isMulti
+                    ? `+ 打卡 1 ${h.unit}`
+                    : isNap
+                    ? "✓ 睡了（打卡午睡）"
+                    : "点击完成打卡"}
+                </button>
+
+                {currentVal > 0 && !isDuration && (
+                  <button
+                    type="button"
+                    className="habit-minus-btn"
+                    onClick={() => onSaveLog(h.id, today, currentVal - 1)}
+                    title="回退 1 次"
+                  >
+                    −
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {habits.length === 0 && (
+          <div className="habits-empty-hint">
+            还没有配置习惯。点击右上角「+ 新增习惯」定制专属于你的习惯体系！
+          </div>
+        )}
+      </div>
+
+      {/* B. Per-Habit 14-Day Completion Rate & Footprint Analysis */}
+      <PerHabitAnalysisList habits={habits} habitLogs={habitLogs} dateList={dateList} today={today} />
+    </section>
+  );
+}
+
+// -------------------------------------------------------------
+// PER-HABIT ANALYSIS: Individual 14-Day Rate & Footprint Track
+// -------------------------------------------------------------
+
+function PerHabitAnalysisList({
+  habits,
+  habitLogs,
+  dateList,
+  today
+}: {
+  habits: Habit[];
+  habitLogs: HabitLog[];
+  dateList: string[];
+  today: string;
+}) {
+  const analysisList = useMemo(() => {
+    return habits.map((h) => {
+      let streak = 0;
+      let checkDate = today;
+
+      // Compute streak backwards
+      while (true) {
+        const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === checkDate);
+        if (log && log.value >= h.target_value) {
+          streak++;
+          checkDate = shiftYmd(checkDate, -1);
+        } else {
+          // If today has not been completed yet, don't break yesterday's streak
+          if (checkDate === today && (!log || log.value < h.target_value)) {
+            checkDate = shiftYmd(checkDate, -1);
+            continue;
+          }
+          break;
+        }
+      }
+
+      // Count success days in the 14-day window
+      let successDays = 0;
+      let totalAmount = 0;
+      const days = dateList.map((d) => {
+        const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === d);
+        const val = log ? log.value : 0;
+        totalAmount += val;
+        const isSuccess = val >= h.target_value;
+        if (isSuccess) successDays++;
+        const status = isSuccess ? "done" : val > 0 ? "partial" : "empty";
+        return { date: d, value: val, status };
+      });
+
+      const rate = Math.round((successDays / dateList.length) * 100);
+      const avgDaily = (totalAmount / dateList.length).toFixed(1);
+
+      return {
+        habit: h,
+        streak,
+        rate,
+        successDays,
+        avgDaily,
+        days
+      };
+    });
+  }, [habits, habitLogs, dateList, today]);
+
+  if (analysisList.length === 0) return null;
+
+  return (
+    <div className="per-habit-analysis-container">
+      <div className="analysis-header-row">
+        <span className="analysis-title">📊 习惯独立 14 天达成率与连续足迹</span>
+        <span className="analysis-sub">根据每个习惯独立统计 · 达标天数与近两周习惯足迹</span>
+      </div>
+
+      <div className="per-habit-list">
+        {analysisList.map(({ habit, streak, rate, successDays, avgDaily, days }) => {
+          const rateColor = rate >= 80 ? "var(--ok, #10b981)" : rate >= 50 ? "#0284c7" : "var(--warn, #f59e0b)";
+
+          return (
+            <div key={habit.id} className="per-habit-card">
+              <div className="per-habit-left">
+                <span className="per-habit-icon" style={{ backgroundColor: `${habit.color}15` }}>{habit.icon}</span>
+                <div className="per-habit-name-box">
+                  <span className="per-habit-name">{habit.name}</span>
+                  <span className="per-habit-target">目标：{habit.target_value} {habit.unit} / 天</span>
+                </div>
+              </div>
+
+              {/* 14-Day Footprint Dots Track */}
+              <div className="per-habit-footprint-wrap">
+                <div className="footprint-track">
+                  {days.map((item) => (
+                    <div
+                      key={item.date}
+                      className={`footprint-dot ${item.status} ${item.date === today ? "is-today" : ""}`}
+                      style={{
+                        backgroundColor: item.status === "done" ? habit.color : item.status === "partial" ? `${habit.color}45` : "transparent",
+                        borderColor: item.status === "empty" ? "var(--line)" : habit.color
+                      }}
+                      title={`${item.date} ${habit.name}: ${item.value}/${habit.target_value} ${habit.unit} (${item.status === "done" ? "达标" : item.status === "partial" ? "部分" : "未打卡"})`}
+                    >
+                      <span className="footprint-date-label">{item.date.slice(8)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="footprint-stats-line">
+                  <span>近14天达标 <strong>{successDays}/14 天</strong></span>
+                  <span>日均完成 <strong>{avgDaily} {habit.unit}</strong></span>
+                </div>
+              </div>
+
+              {/* Individual Rate Badge */}
+              <div className="per-habit-right">
+                <div className="rate-badge-box">
+                  <span className="rate-number" style={{ color: rateColor }}>{rate}%</span>
+                  <span className="rate-label">14天完成率</span>
+                </div>
+                <div className="streak-indicator">
+                  {streak > 0 ? (
+                    <span className="streak-pill">🔥 连胜 {streak} 天</span>
+                  ) : (
+                    <span className="streak-pill is-zero">今日待续</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// HABIT MODAL: Centered Dialog with Rounded Modern Controls
+// -------------------------------------------------------------
+
+function HabitModal({
+  habit,
+  onClose,
+  onSave
+}: {
+  habit: Habit | null;
+  onClose: () => void;
+  onSave: (data: Partial<Habit>) => void;
+}) {
+  const [name, setName] = useState(habit?.name || "");
+  
+  // Determine initial mode
+  const initialMode = habit
+    ? habit.unit === "分钟" && habit.target_value > 1
+      ? "duration"
+      : habit.is_multi_step === 1 || (habit.target_value > 1 && ["次", "杯", "组"].includes(habit.unit))
+      ? "multi"
+      : "single"
+    : "single";
+
+  const [mode, setMode] = useState<"single" | "multi" | "duration">(initialMode);
+  const [targetValue, setTargetValue] = useState(habit?.target_value ? String(habit.target_value) : "1");
+  const [unit, setUnit] = useState(habit?.unit || "次");
+  const [icon, setIcon] = useState(habit?.icon || "🌱");
+  const [color, setColor] = useState(habit?.color || "#10b981");
+
+  const emojiPresets = ["🛌", "👀", "💧", "🪥", "🏃", "📖", "🧘", "🍎", "🍵", "💻", "🎯", "☀️", "🚶", "💪"];
+  const colorPresets = [
+    { name: "翡翠绿", val: "#10b981" },
+    { name: "森林青", val: "#154e3f" },
+    { name: "天空蓝", val: "#0ea5e9" },
+    { name: "深海青", val: "#06b6d4" },
+    { name: "紫罗兰", val: "#8b5cf6" },
+    { name: "琥珀金", val: "#f59e0b" },
+    { name: "珊瑚粉", val: "#ec4899" }
+  ];
+  const unitPresets = ["次", "分钟", "杯", "页", "组", "公里"];
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  function handleModeChange(nextMode: "single" | "multi" | "duration") {
+    setMode(nextMode);
+    if (nextMode === "single") {
+      setTargetValue("1");
+      setUnit("次");
+    } else if (nextMode === "duration") {
+      setUnit("分钟");
+      if (Number(targetValue) <= 1) setTargetValue("30");
+    } else if (nextMode === "multi") {
+      if (unit === "分钟") setUnit("次");
+      if (Number(targetValue) <= 1) setTargetValue("3");
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    const val = Number(targetValue);
+    const finalVal = Number.isFinite(val) && val > 0 ? val : 1;
+    onSave({
+      name: name.trim(),
+      target_value: mode === "single" ? 1 : finalVal,
+      unit: unit.trim() || (mode === "duration" ? "分钟" : "次"),
+      icon: icon.trim() || "🌱",
+      color: color || "#10b981",
+      is_multi_step: mode === "multi" ? 1 : 0
+    });
+  }
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="habit-modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="habit-modal-dialog">
+        <div className="habit-modal-header">
+          <div className="modal-title-group">
+            <h3 className="modal-title">{habit ? "编辑习惯" : "新增个性化微习惯"}</h3>
+            <span className="modal-subtitle">设定专属于你的每日自律目标</span>
+          </div>
+          <button
+            type="button"
+            className="modal-circle-close-btn"
+            onClick={onClose}
+            title="关闭 (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="habit-modal-form-wrap">
+          {/* Scrollable Modal Body: wheel scroll works smoothly with max-height constraint */}
+          <div className="habit-modal-scroll-body">
+            <div className="form-field">
+              <label className="form-label">习惯名称 *</label>
+              <input
+                type="text"
+                required
+                className="form-input rounded-input"
+                placeholder="例如：午睡 (15分钟)、力训 (30分钟)、饮水、刷牙…"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {/* 3 Modes: Single, Multi-step, Duration Slider */}
+            <div className="form-field">
+              <label className="form-label">打卡模式</label>
+              <div className="mode-toggle-group-3">
+                <button
+                  type="button"
+                  className={`mode-toggle-pill ${mode === "single" ? "is-active" : ""}`}
+                  onClick={() => handleModeChange("single")}
+                >
+                  <span>⚪ 单次达标</span>
+                  <small className="muted">每日1次（如午睡15分钟、走动）</small>
+                </button>
+                <button
+                  type="button"
+                  className={`mode-toggle-pill ${mode === "multi" ? "is-active" : ""}`}
+                  onClick={() => handleModeChange("multi")}
+                >
+                  <span>🔵 计次累加</span>
+                  <small className="muted">多次分段（如饮水5杯、刷牙3次）</small>
+                </button>
+                <button
+                  type="button"
+                  className={`mode-toggle-pill ${mode === "duration" ? "is-active" : ""}`}
+                  onClick={() => handleModeChange("duration")}
+                >
+                  <span>⏱️ 时长滑动</span>
+                  <small className="muted">按分钟滑动调节（如力训、阅读）</small>
+                </button>
+              </div>
+            </div>
+
+            {/* If Duration mode: slider preview */}
+            {mode === "duration" && (
+              <div className="duration-target-box">
+                <div className="duration-slider-header">
+                  <span className="form-label" style={{ margin: 0 }}>目标时长：<strong style={{ color: color }}>{targetValue} 分钟</strong></span>
+                  <div className="duration-chip-steppers">
+                    {[15, 30, 45, 60, 90, 120].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        className={`duration-chip-btn ${Number(targetValue) === mins ? "is-active" : ""}`}
+                        onClick={() => setTargetValue(String(mins))}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  className="habit-modal-range-slider"
+                  min={5}
+                  max={180}
+                  step={5}
+                  value={Number(targetValue) || 30}
+                  onChange={(e) => setTargetValue(e.target.value)}
+                  style={{ accentColor: color }}
+                />
+              </div>
+            )}
+
+            {mode !== "duration" && (
+              <div className="form-row">
+                <div className="form-field" style={{ flex: 1 }}>
+                  <label className="form-label">{mode === "multi" ? "每日目标次数 *" : "目标数值 *"}</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="1"
+                    disabled={mode === "single"}
+                    required
+                    className="form-input rounded-input"
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(e.target.value)}
+                  />
+                </div>
+                <div className="form-field" style={{ flex: 1 }}>
+                  <label className="form-label">计量单位</label>
+                  <input
+                    type="text"
+                    disabled={mode === "single"}
+                    className="form-input rounded-input"
+                    placeholder="例如：次、杯、组"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {mode === "multi" && (
+              <div className="preset-chip-row">
+                <span className="muted" style={{ fontSize: "12px" }}>常用单位：</span>
+                {unitPresets.map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    className={`preset-chip-pill ${unit === u ? "is-active" : ""}`}
+                    onClick={() => setUnit(u)}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="form-field">
+              <label className="form-label">代表 Emoji 图标</label>
+              <div className="emoji-preset-grid">
+                {emojiPresets.map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    className={`emoji-pill-btn ${icon === em ? "is-selected" : ""}`}
+                    onClick={() => setIcon(em)}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="form-label">主题色彩</label>
+              <div className="color-preset-row">
+                {colorPresets.map((c) => (
+                  <button
+                    key={c.val}
+                    type="button"
+                    className={`color-preset-circle ${color === c.val ? "is-selected" : ""}`}
+                    style={{ backgroundColor: c.val }}
+                    onClick={() => setColor(c.val)}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky Modal Action Footer */}
+          <div className="modal-action-footer">
+            <button
+              type="button"
+              className="modal-pill-btn secondary"
+              onClick={onClose}
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="modal-pill-btn primary"
+            >
+              {habit ? "保存修改" : "确认添加"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// -------------------------------------------------------------
+// TABLE CELLS (Weight, Time)
+// -------------------------------------------------------------
 
 function TimeCell({ value, ariaLabel, isBedtime, onCommit }: { value: string; ariaLabel: string; isBedtime?: boolean; onCommit: (value: string) => void }) {
   const normalizedValue = typeof value === "string" ? value.slice(0, 5) : "";
@@ -374,6 +1204,10 @@ function WeightCell({ value, ariaLabel, onCommit }: { value?: number | null; ari
     />
   );
 }
+
+// -------------------------------------------------------------
+// HEALTH CHARTS (Weight Area Chart + Sleep Bar Chart)
+// -------------------------------------------------------------
 
 function HealthChartsGrid({ logs }: { logs: Health[] }) {
   const chartLogs = useMemo(() => {

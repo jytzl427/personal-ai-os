@@ -76,6 +76,111 @@ function CheckpointTitleInput({
   );
 }
 
+function CheckpointPositionControl({
+  index,
+  total,
+  taskTitle,
+  onReorder,
+  onMove,
+}: {
+  index: number;
+  total: number;
+  taskTitle?: string;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  onMove: (index: number, direction: -1 | 1) => void;
+}) {
+  const currentPos = index + 1;
+  const [val, setVal] = useState(String(currentPos));
+
+  useEffect(() => {
+    setVal(String(currentPos));
+  }, [currentPos]);
+
+  function commit() {
+    const parsed = parseInt(val, 10);
+    if (isNaN(parsed)) {
+      setVal(String(currentPos));
+      return;
+    }
+    const clamped = Math.max(1, Math.min(total, parsed));
+    setVal(String(clamped));
+    if (clamped !== currentPos) {
+      onReorder(index, clamped - 1);
+    }
+  }
+
+  return (
+    <div className="stepper-reorder-group" title="调整节点顺序与位置">
+      <button
+        aria-label={`上移节点 ${taskTitle || currentPos}`}
+        className="stepper-reorder-btn"
+        disabled={index === 0}
+        onClick={() => onMove(index, -1)}
+        title="上移一位 (▲)"
+        type="button"
+      >
+        ▲
+      </button>
+
+      <div className="stepper-order-picker" title="可直接输入目标序号回车，或点击右侧箭头下拉选择">
+        <span className="stepper-order-prefix">第</span>
+        <input
+          aria-label={`节点 ${taskTitle || currentPos} 序号`}
+          className="stepper-order-input"
+          max={total}
+          min={1}
+          onBlur={commit}
+          onChange={(e) => setVal(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              commit();
+              e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              setVal(String(currentPos));
+              e.currentTarget.blur();
+            }
+          }}
+          type="number"
+          value={val}
+        />
+        <span className="stepper-order-divider">/{total}</span>
+        <div className="stepper-order-dropdown-wrap" title="点击展开位置下拉菜单">
+          <span aria-hidden="true" className="stepper-order-dropdown-arrow">▾</span>
+          <select
+            aria-label={`快捷调整节点 ${taskTitle || currentPos} 排序位置`}
+            className="stepper-order-select-native"
+            onChange={(e) => {
+              const target = parseInt(e.target.value, 10);
+              if (!isNaN(target) && target !== currentPos) {
+                onReorder(index, target - 1);
+              }
+            }}
+            value={currentPos}
+          >
+            {Array.from({ length: total }, (_, i) => i + 1).map((pos) => (
+              <option key={pos} value={pos}>
+                移至第 {pos} 节点 {pos === currentPos ? "(当前)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <button
+        aria-label={`下移节点 ${taskTitle || currentPos}`}
+        className="stepper-reorder-btn"
+        disabled={index === total - 1}
+        onClick={() => onMove(index, 1)}
+        title="下移一位 (▼)"
+        type="button"
+      >
+        ▼
+      </button>
+    </div>
+  );
+}
+
 type ProjectTask = {
   id: string;
   title: string;
@@ -816,26 +921,34 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     }
   }
 
-  async function moveCheckpoint(index: number, direction: -1 | 1) {
+  async function reorderCheckpoint(fromIndex: number, toIndex: number) {
     if (!data?.project_tasks) return;
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= data.project_tasks.length) return;
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= data.project_tasks.length) return;
+    if (toIndex < 0 || toIndex >= data.project_tasks.length) return;
 
     const list = [...data.project_tasks];
-    const [moved] = list.splice(index, 1);
-    list.splice(targetIndex, 0, moved);
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
 
     setData({ ...data, project_tasks: list });
 
     try {
-      await apiJson(
+      const res = await apiJson<{ ok: boolean; project_tasks?: ProjectTask[] }>(
         `/projects/${encodeURIComponent(id)}/task-plans/reorder`,
         jsonRequest("POST", { plan_ids: list.map((t) => t.id) })
       );
+      if (res?.project_tasks) {
+        setData((curr) => (curr ? { ...curr, project_tasks: res.project_tasks! } : curr));
+      }
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "节点排序更新失败");
       load();
     }
+  }
+
+  function moveCheckpoint(index: number, direction: -1 | 1) {
+    void reorderCheckpoint(index, index + direction);
   }
 
   async function saveWorkspaceNotes() {
@@ -1034,28 +1147,13 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
                           </div>
 
                           <div className="stepper-card-actions">
-                            <div className="stepper-reorder-group">
-                              <button
-                                aria-label={`上移节点 ${task.title || idx + 1}`}
-                                className="stepper-reorder-btn"
-                                disabled={idx === 0}
-                                onClick={() => void moveCheckpoint(idx, -1)}
-                                title="上移此节点"
-                                type="button"
-                              >
-                                ▲
-                              </button>
-                              <button
-                                aria-label={`下移节点 ${task.title || idx + 1}`}
-                                className="stepper-reorder-btn"
-                                disabled={idx === checkpoints.length - 1}
-                                onClick={() => void moveCheckpoint(idx, 1)}
-                                title="下移此节点"
-                                type="button"
-                              >
-                                ▼
-                              </button>
-                            </div>
+                            <CheckpointPositionControl
+                              index={idx}
+                              total={checkpoints.length}
+                              taskTitle={task.title}
+                              onReorder={(fromIdx, toIdx) => void reorderCheckpoint(fromIdx, toIdx)}
+                              onMove={moveCheckpoint}
+                            />
                             <button
                               className={`stepper-status-btn ${isDone ? "done" : "todo"}`}
                               onClick={() => void updateCheckpoint(task, { status: isDone ? "todo" : "done" })}

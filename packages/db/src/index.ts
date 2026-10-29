@@ -482,6 +482,36 @@ CREATE TABLE IF NOT EXISTS health_logs (
   archived_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS habits (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  target_value REAL NOT NULL DEFAULT 1,
+  unit TEXT NOT NULL DEFAULT '次',
+  frequency TEXT NOT NULL DEFAULT 'daily',
+  icon TEXT NOT NULL DEFAULT '🌱',
+  color TEXT NOT NULL DEFAULT '#10b981',
+  is_multi_step INTEGER NOT NULL DEFAULT 0,
+  is_archived INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS habit_logs (
+  id TEXT PRIMARY KEY,
+  habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+  log_date TEXT NOT NULL,
+  value REAL NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'done',
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(habit_id, log_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs (log_date);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON habit_logs (habit_id);
+
 CREATE TABLE IF NOT EXISTS reviews (
   id TEXT PRIMARY KEY,
   review_type TEXT NOT NULL CHECK (review_type IN ('daily', 'period', 'project')),
@@ -1136,6 +1166,55 @@ function applyMigrations(database) {
       database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(23, "023_task_subtasks", nowIso());
     });
     migrateSubtasks();
+  }
+  const habitsApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("024_habits_and_logs");
+  if (!habitsApplied) {
+    const migrateHabits = database.transaction(() => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS habits (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          target_value REAL NOT NULL DEFAULT 1,
+          unit TEXT NOT NULL DEFAULT '次',
+          frequency TEXT NOT NULL DEFAULT 'daily',
+          icon TEXT NOT NULL DEFAULT '🌱',
+          color TEXT NOT NULL DEFAULT '#10b981',
+          is_archived INTEGER NOT NULL DEFAULT 0,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS habit_logs (
+          id TEXT PRIMARY KEY,
+          habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+          log_date TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 1,
+          status TEXT NOT NULL DEFAULT 'done',
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(habit_id, log_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs (log_date);
+        CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON habit_logs (habit_id);
+      `);
+      const existing = database.prepare("SELECT COUNT(*) as cnt FROM habits").get() as { cnt: number };
+      if (existing.cnt === 0) {
+        const defaults = [
+          { id: randomUUID(), name: "午睡 (15分钟)", target_value: 1, unit: "次", is_multi_step: 0, icon: "🛌", color: "#0ea5e9", sort_order: 1 },
+          { id: randomUUID(), name: "走动&眼保健操", target_value: 1, unit: "次", is_multi_step: 0, icon: "👀", color: "#8b5cf6", sort_order: 2 },
+          { id: randomUUID(), name: "每日饮水", target_value: 5, unit: "杯", is_multi_step: 1, icon: "💧", color: "#06b6d4", sort_order: 3 },
+          { id: randomUUID(), name: "每日刷牙", target_value: 3, unit: "次", is_multi_step: 1, icon: "🪥", color: "#10b981", sort_order: 4 },
+        ];
+        const stmt = database.prepare("INSERT INTO habits (id, name, target_value, unit, frequency, icon, color, is_archived, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 'daily', ?, ?, 0, ?, ?, ?)");
+        const now = nowIso();
+        for (const h of defaults) {
+          stmt.run(h.id, h.name, h.target_value, h.unit, h.icon, h.color, h.sort_order, now, now);
+        }
+      }
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(24, "024_habits_and_logs", nowIso());
+    });
+    migrateHabits();
   }
 }
 

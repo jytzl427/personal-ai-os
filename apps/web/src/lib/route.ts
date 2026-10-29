@@ -92,7 +92,7 @@ export const navigation: NavItem[] = [
   { label: "任务", route: { name: "tasks" } },
   { label: "项目", route: { name: "projects" } },
   { label: "财务", route: { name: "finance", tab: "expenses" } },
-  { label: "健康", route: { name: "health" } },
+  { label: "健康与习惯", route: { name: "health" } },
   { label: "计划与复盘", route: { name: "plans", tab: "daily-plan" } },
   { label: "归档", route: { name: "archive", tab: "tasks" } },
   { label: "设置", route: { name: "settings" } }
