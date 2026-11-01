@@ -176,7 +176,31 @@ export function TaskDetailPage({ id, onNavigate }: { id: string; onNavigate: (ro
           <div className="panel-heading task-detail-heading"><h2>任务属性</h2><span className="muted">可编辑</span></div>
           <label className="form-field"><span>任务日期</span><DateField ariaLabel="任务日期" value={draft.due_date} onChange={(value) => update({ due_date: value })} /></label>
           <label className="form-field"><span>状态</span><PropertySelect ariaLabel="任务状态" options={[{ value: "todo", label: "未完成" }, { value: "done", label: "完成" }, { value: "cancelled", label: "取消" }]} tone={statusTone(draft.status)} value={draft.status} onChange={(value) => update({ status: value as TaskStatus })} /></label>
-          <label className="detail-check-field"><Checkbox ariaLabel="请求归档任务" checked={draft.archive_requested} onChange={(checked) => update({ archive_requested: checked })} /><span>完成或取消后自动归档</span></label>
+          {(() => {
+            const canArchiveDetail = draft.status === "done" || draft.status === "cancelled";
+            return (
+              <label
+                className={`detail-check-field ${!canArchiveDetail ? "is-disabled" : ""}`}
+                title={canArchiveDetail ? "归档此任务" : "未完成任务不可归档，请先将状态设为「完成」或「取消」"}
+              >
+                <Checkbox
+                  ariaLabel="请求归档任务"
+                  checked={draft.archive_requested}
+                  disabled={!canArchiveDetail}
+                  onChange={(checked) => {
+                    if (!canArchiveDetail) {
+                      setError("只有当任务处于「完成」或「取消」状态时，才能进行归档。");
+                      return;
+                    }
+                    update({ archive_requested: checked });
+                  }}
+                />
+                <span style={{ opacity: canArchiveDetail ? 1 : 0.6 }}>
+                  {canArchiveDetail ? "归档此任务" : "归档（任务完成或取消后可用）"}
+                </span>
+              </label>
+            );
+          })()}
         </aside>
       </div>
     </div>

@@ -223,14 +223,13 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
 
   async function toggleParentArchive(parent: Task, shouldArchive: boolean) {
     const children = childrenByParent.get(parent.id) || [];
-    const nextStatus: TaskStatus = shouldArchive ? "done" : "todo";
     if (shouldArchive) {
       setTasks((current) => current.filter((t) => t.id !== parent.id && t.parent_id !== parent.id));
     } else {
       setTasks((current) =>
         current.map((t) => {
           if (t.parent_id === parent.id || t.id === parent.id) {
-            return { ...t, archive_requested: shouldArchive, status: nextStatus };
+            return { ...t, archive_requested: shouldArchive };
           }
           return t;
         })
@@ -238,8 +237,8 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
     }
     try {
       await Promise.all([
-        ...children.map((c) => apiJson<{ task: Task }>("/tasks/" + c.id, jsonRequest("PATCH", { archive_requested: shouldArchive, status: nextStatus }))),
-        apiJson<{ task: Task }>("/tasks/" + parent.id, jsonRequest("PATCH", { archive_requested: shouldArchive, status: nextStatus }))
+        ...children.map((c) => apiJson<{ task: Task }>("/tasks/" + c.id, jsonRequest("PATCH", { archive_requested: shouldArchive }))),
+        apiJson<{ task: Task }>("/tasks/" + parent.id, jsonRequest("PATCH", { archive_requested: shouldArchive }))
       ]);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "批量归档任务失败");
@@ -375,20 +374,40 @@ export function TasksPage({ initialTab, onNavigate }: { initialTab?: "tasks" | "
                 if (task.is_add_action) return null;
                 const children = childrenByParent.get(task.id) || [];
                 const hasChildren = children.length > 0;
-                const allDone = hasChildren && children.every((c) => c.status === "done");
+                const isTerminal = task.status === "done" || task.status === "cancelled";
+                const allChildrenTerminal = hasChildren
+                  ? children.every((c) => c.status === "done" || c.status === "cancelled")
+                  : true;
+                const canArchive = hasChildren ? (isTerminal && allChildrenTerminal) : isTerminal;
+
+                let archiveTooltip = "点击归档此任务";
+                if (!isTerminal) {
+                  archiveTooltip = "未完成任务不可归档，请先将状态设为「完成」或「取消」";
+                } else if (hasChildren && !allChildrenTerminal) {
+                  archiveTooltip = "存在未完成的子任务，请将子任务全部标记为「完成」或「取消」后再归档";
+                } else if (task.archive_requested) {
+                  archiveTooltip = "已标记归档";
+                }
 
                 return (
-                  <Checkbox
-                    ariaLabel={"归档任务 " + (task.title || "未命名任务")}
-                    checked={hasChildren ? (allDone && Boolean(task.archive_requested)) : Boolean(task.archive_requested)}
-                    onChange={(checked) => {
-                      if (hasChildren) {
-                        void toggleParentArchive(task, checked);
-                      } else {
-                        void saveTask(task.id, { archive_requested: checked, ...(checked && task.status === "todo" ? { status: "done" } : {}) });
-                      }
-                    }}
-                  />
+                  <div className="task-archive-cell" title={archiveTooltip}>
+                    <Checkbox
+                      ariaLabel={"归档任务 " + (task.title || "未命名任务")}
+                      checked={hasChildren ? (allChildrenTerminal && Boolean(task.archive_requested)) : Boolean(task.archive_requested)}
+                      disabled={!canArchive}
+                      onChange={(checked) => {
+                        if (!canArchive) {
+                          setError("只有当任务状态处于「完成」或「取消」时，才能进行归档。");
+                          return;
+                        }
+                        if (hasChildren) {
+                          void toggleParentArchive(task, checked);
+                        } else {
+                          void saveTask(task.id, { archive_requested: checked });
+                        }
+                      }}
+                    />
+                  </div>
                 );
               }
             },

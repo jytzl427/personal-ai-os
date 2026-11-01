@@ -1082,6 +1082,31 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   animation: checkmark-pop 0.2s var(--ease-spring) forwards;
 }
 .ui-checkbox:focus-visible, .database-table input[type="checkbox"]:focus-visible { box-shadow: var(--focus-ring); }
+.ui-checkbox:disabled, .database-table input[type="checkbox"]:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  pointer-events: auto !important;
+  background: var(--surface-subtle, #f1f5f9) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+.ui-checkbox:disabled:hover, .database-table input[type="checkbox"]:disabled:hover {
+  border-color: var(--line) !important;
+  background: var(--surface-subtle, #f1f5f9) !important;
+}
+.ui-checkbox:disabled:active, .database-table input[type="checkbox"]:disabled:active {
+  transform: none !important;
+}
+
+.task-archive-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-check-field.is-disabled {
+  cursor: not-allowed !important;
+}
 
 @keyframes checkbox-bounce {
   0% { transform: scale(1); }
