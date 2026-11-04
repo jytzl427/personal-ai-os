@@ -46,10 +46,10 @@ const THEMES: Record<
     name: "翠竹",
     accent: "#059669",
     rgb: "16, 185, 129",
-    border: "rgba(16, 185, 129, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(209, 250, 229, 0.75) 45%, rgba(110, 231, 183, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(16, 185, 129, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(16, 185, 129, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(16, 185, 129, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(16, 185, 129, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(209, 250, 229, 0.78) 42%, rgba(110, 231, 183, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(16, 185, 129, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(16, 185, 129, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(16, 185, 129, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(16, 185, 129, 0.12)",
     pillColor: "#047857",
     bannerBg: "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)",
@@ -58,10 +58,10 @@ const THEMES: Record<
     name: "暖杏",
     accent: "#d97706",
     rgb: "245, 158, 11",
-    border: "rgba(245, 158, 11, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.75) 45%, rgba(252, 211, 77, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(245, 158, 11, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(245, 158, 11, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(245, 158, 11, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(245, 158, 11, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(254, 243, 199, 0.78) 42%, rgba(252, 211, 77, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(245, 158, 11, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(245, 158, 11, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(245, 158, 11, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(245, 158, 11, 0.12)",
     pillColor: "#b45309",
     bannerBg: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
@@ -70,10 +70,10 @@ const THEMES: Record<
     name: "星河",
     accent: "#8b5cf6",
     rgb: "139, 92, 246",
-    border: "rgba(139, 92, 246, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(243, 232, 255, 0.75) 45%, rgba(216, 180, 254, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(139, 92, 246, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(139, 92, 246, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(139, 92, 246, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(139, 92, 246, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(243, 232, 255, 0.78) 42%, rgba(216, 180, 254, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(139, 92, 246, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(139, 92, 246, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(139, 92, 246, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(139, 92, 246, 0.12)",
     pillColor: "#6d28d9",
     bannerBg: "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)",
@@ -82,10 +82,10 @@ const THEMES: Record<
     name: "青蓝",
     accent: "#0284c7",
     rgb: "14, 165, 233",
-    border: "rgba(14, 165, 233, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.75) 45%, rgba(125, 211, 252, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(14, 165, 233, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(14, 165, 233, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(14, 165, 233, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(14, 165, 233, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(224, 242, 254, 0.78) 42%, rgba(125, 211, 252, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(14, 165, 233, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(14, 165, 233, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(14, 165, 233, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(14, 165, 233, 0.12)",
     pillColor: "#0369a1",
     bannerBg: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
@@ -94,10 +94,10 @@ const THEMES: Record<
     name: "暮霞",
     accent: "#e11d48",
     rgb: "244, 63, 94",
-    border: "rgba(244, 63, 94, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 228, 230, 0.75) 45%, rgba(253, 164, 175, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(244, 63, 94, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(244, 63, 94, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(244, 63, 94, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(244, 63, 94, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(255, 228, 230, 0.78) 42%, rgba(253, 164, 175, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(244, 63, 94, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(244, 63, 94, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(244, 63, 94, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(244, 63, 94, 0.12)",
     pillColor: "#be123c",
     bannerBg: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)",
@@ -106,10 +106,10 @@ const THEMES: Record<
     name: "冰曦",
     accent: "#4f46e5",
     rgb: "79, 70, 229",
-    border: "rgba(99, 102, 241, 0.35)",
-    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(238, 242, 255, 0.75) 45%, rgba(199, 210, 254, 0.32) 90%)",
-    glow: "0 8px 24px -4px rgba(79, 70, 229, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(79, 70, 229, 0.12)",
-    hoverGlow: "0 14px 32px -4px rgba(79, 70, 229, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    border: "rgba(99, 102, 241, 0.38)",
+    bgGradient: "radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.96) 0%, rgba(238, 242, 255, 0.78) 42%, rgba(199, 210, 254, 0.35) 90%)",
+    glow: "0 12px 28px -4px rgba(79, 70, 229, 0.24), inset 0 2px 5px rgba(255, 255, 255, 0.95), inset 0 -3px 8px rgba(79, 70, 229, 0.14)",
+    hoverGlow: "0 18px 40px -4px rgba(79, 70, 229, 0.38), inset 0 2px 6px rgba(255, 255, 255, 0.98)",
     pillBg: "rgba(79, 70, 229, 0.12)",
     pillColor: "#4338ca",
     bannerBg: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
@@ -194,9 +194,9 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     return Array.from(set);
   }, [thoughts]);
 
-  // Clean, comfortable bubble sizes:
-  // Normal bubble: diameter 118px (radius 59px)
-  // Pinned bubble: diameter 136px (radius 68px)
+  // Bubbles Enlarged & Proportioned:
+  // Normal bubble: diameter 144px (radius 72px) - comfortably holds 15~25 Chinese characters
+  // Pinned bubble: diameter 172px (radius 86px) - prominent, majestic focal anchor
   useEffect(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -208,7 +208,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     const newPositions: { [id: string]: { x: number; y: number } } = {};
 
     filteredThoughts.forEach((t, i) => {
-      const baseRadius = t.is_pinned ? 68 : 59;
+      const baseRadius = t.is_pinned ? 86 : 72;
       const existing = currentMap.get(t.id);
 
       if (existing) {
@@ -217,7 +217,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         newMap.set(t.id, existing);
         newPositions[t.id] = { x: existing.x, y: existing.y };
       } else {
-        const cols = Math.max(1, Math.ceil(Math.sqrt(filteredThoughts.length * 1.6)));
+        const cols = Math.max(1, Math.ceil(Math.sqrt(filteredThoughts.length * 1.5)));
         const rows = Math.ceil(filteredThoughts.length / cols);
         const col = i % cols;
         const row = Math.floor(i / cols);
@@ -226,12 +226,12 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         const slotH = h / rows;
 
         const x = Math.max(
-          baseRadius + 24,
-          Math.min(w - baseRadius - 24, slotW * (col + 0.5) + (Math.random() - 0.5) * 20)
+          baseRadius + 28,
+          Math.min(w - baseRadius - 28, slotW * (col + 0.5) + (Math.random() - 0.5) * 24)
         );
         const y = Math.max(
-          baseRadius + 24,
-          Math.min(h - baseRadius - 24, slotH * (row + 0.5) + (Math.random() - 0.5) * 20)
+          baseRadius + 28,
+          Math.min(h - baseRadius - 28, slotH * (row + 0.5) + (Math.random() - 0.5) * 24)
         );
 
         const node: BubblePhysics = {
@@ -239,8 +239,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           x,
           y,
           // Ethereal, gentle natural drift
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: (Math.random() - 0.5) * 0.12,
+          vx: (Math.random() - 0.5) * 0.1,
+          vy: (Math.random() - 0.5) * 0.1,
           radius: baseRadius,
           baseRadius,
           isDragging: false,
@@ -281,19 +281,19 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           n.vy = 0;
         } else {
           // Extremely gentle sinusoidal breathing drift
-          const timeOffset = now * 0.00045 + i * 2.3;
-          n.vx += Math.sin(timeOffset) * 0.003;
-          n.vy += Math.cos(timeOffset * 0.85) * 0.003;
+          const timeOffset = now * 0.0004 + i * 2.3;
+          n.vx += Math.sin(timeOffset) * 0.0028;
+          n.vy += Math.cos(timeOffset * 0.85) * 0.0028;
 
           // Strong friction / air damping to maintain peaceful calm
           n.vx *= 0.97;
           n.vy *= 0.97;
 
-          // Strict speed cap at 0.4px/frame
+          // Strict speed cap at 0.38px/frame
           const spd = Math.hypot(n.vx, n.vy);
-          if (spd > 0.4) {
-            n.vx = (n.vx / spd) * 0.4;
-            n.vy = (n.vy / spd) * 0.4;
+          if (spd > 0.38) {
+            n.vx = (n.vx / spd) * 0.38;
+            n.vy = (n.vy / spd) * 0.38;
           }
 
           n.x += n.vx;
@@ -303,26 +303,26 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           const dxMouse = n.x - mouse.x;
           const dyMouse = n.y - mouse.y;
           const distMouse = Math.hypot(dxMouse, dyMouse);
-          if (distMouse < n.radius + 35 && distMouse > 1) {
-            const push = (1 - distMouse / (n.radius + 35)) * 0.15;
+          if (distMouse < n.radius + 40 && distMouse > 1) {
+            const push = (1 - distMouse / (n.radius + 40)) * 0.15;
             n.vx += (dxMouse / distMouse) * push;
             n.vy += (dyMouse / distMouse) * push;
           }
 
           // Soft boundary containment
-          if (n.x - n.radius < 18) {
-            n.x = n.radius + 18;
-            n.vx = Math.abs(n.vx) * 0.6;
-          } else if (n.x + n.radius > w - 18) {
-            n.x = w - n.radius - 18;
-            n.vx = -Math.abs(n.vx) * 0.6;
+          if (n.x - n.radius < 24) {
+            n.x = n.radius + 24;
+            n.vx = Math.abs(n.vx) * 0.55;
+          } else if (n.x + n.radius > w - 24) {
+            n.x = w - n.radius - 24;
+            n.vx = -Math.abs(n.vx) * 0.55;
           }
-          if (n.y - n.radius < 18) {
-            n.y = n.radius + 18;
-            n.vy = Math.abs(n.vy) * 0.6;
-          } else if (n.y + n.radius > h - 18) {
-            n.y = h - n.radius - 18;
-            n.vy = -Math.abs(n.vy) * 0.6;
+          if (n.y - n.radius < 24) {
+            n.y = n.radius + 24;
+            n.vy = Math.abs(n.vy) * 0.55;
+          } else if (n.y + n.radius > h - 24) {
+            n.y = h - n.radius - 24;
+            n.vy = -Math.abs(n.vy) * 0.55;
           }
         }
 
@@ -332,7 +332,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           const dx = m.x - n.x;
           const dy = m.y - n.y;
           const dist = Math.hypot(dx, dy);
-          const minDist = n.radius + m.radius + 14;
+          const minDist = n.radius + m.radius + 18;
           if (dist < minDist && dist > 0.1) {
             const overlap = (minDist - dist) * 0.035;
             const nx = dx / dist;
@@ -340,14 +340,14 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             if (!n.isDragging) {
               n.x -= nx * overlap;
               n.y -= ny * overlap;
-              n.vx -= nx * 0.025;
-              n.vy -= ny * 0.025;
+              n.vx -= nx * 0.022;
+              n.vy -= ny * 0.022;
             }
             if (!m.isDragging) {
               m.x += nx * overlap;
               m.y += ny * overlap;
-              m.vx += nx * 0.025;
-              m.vy += ny * 0.025;
+              m.vx += nx * 0.022;
+              m.vy += ny * 0.022;
             }
           }
         }
@@ -474,10 +474,9 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   }
 
   return (
-    <div className="page-stack" style={{ padding: "0 28px 32px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div className="page-stack" style={{ padding: "0 28px 32px", maxWidth: "1240px", margin: "0 auto" }}>
       {/* 
-        1. SIMPLIFIED & BEAUTIFIED HEADER 
-        Clean, quiet, Apple-grade aesthetic
+        1. REFINED MINIMAL HEADER 
       */}
       <div
         style={{
@@ -486,7 +485,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           alignItems: "center",
           paddingTop: "24px",
           paddingBottom: "16px",
-          borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+          borderBottom: "1px solid rgba(226, 232, 240, 0.75)",
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
@@ -506,11 +505,11 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             <span>思考</span>
           </h1>
           <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-            触碰气泡重温认知锚点 · 点击弹出感悟小卡片
+            触碰气泡重温认知锚点 · 点击展开感悟小卡片
           </span>
         </div>
 
-        {/* Single Prominent Action */}
+        {/* Single Primary Action */}
         <button
           onClick={() => {
             setEditForm({
@@ -524,7 +523,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           }}
           className="primary-button"
           style={{
-            padding: "6px 14px",
+            padding: "6px 15px",
             borderRadius: "999px",
             fontSize: "12.5px",
             fontWeight: "600",
@@ -532,7 +531,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             alignItems: "center",
             gap: "5px",
             cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.2)",
+            boxShadow: "0 2px 10px rgba(16, 185, 129, 0.22)",
           }}
         >
           <span>+</span>
@@ -541,7 +540,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
       </div>
 
       {/* 
-        2. CLEAN MINIMAL CATEGORY FILTER 
+        2. CLEAN CATEGORY FILTER PILLS 
       */}
       <div
         style={{
@@ -560,11 +559,11 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               onClick={() => setSelectedCategory(cat)}
               style={{
                 border: "none",
-                background: isSelected ? "#0f172a" : "rgba(241, 245, 249, 0.8)",
+                background: isSelected ? "#0f172a" : "rgba(241, 245, 249, 0.85)",
                 color: isSelected ? "#ffffff" : "#64748b",
                 fontWeight: isSelected ? "600" : "500",
                 fontSize: "12px",
-                padding: "4px 12px",
+                padding: "4px 13px",
                 borderRadius: "999px",
                 cursor: "pointer",
                 transition: "all 0.15s ease",
@@ -577,7 +576,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
       </div>
 
       {/* 
-        3. ETHEREAL FLOATING BUBBLE SANCTUARY 
+        3. BEAUTIFIED ETHEREAL PRISM-BORDERED BACKGROUND CANVAS
       */}
       {loading ? (
         <div
@@ -585,7 +584,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            height: "460px",
+            height: "480px",
             color: "#94a3b8",
             fontSize: "13.5px",
           }}
@@ -599,159 +598,247 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            height: "460px",
+            height: "480px",
             color: "#94a3b8",
           }}
         >
-          <span style={{ fontSize: "36px", marginBottom: "8px" }}>🫧</span>
+          <span style={{ fontSize: "38px", marginBottom: "8px" }}>🫧</span>
           <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的思考气泡</p>
           <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记下感悟”，随时捕捉生活与内耗中的定海神针</p>
         </div>
       ) : (
+        /* Outer 2px Frosted Prism Gradient Border Track */
         <div
-          ref={containerRef}
-          onPointerMove={handleContainerPointerMove}
           style={{
             position: "relative",
             width: "100%",
             height: "calc(100vh - 210px)",
-            minHeight: "520px",
-            // Gentle ambient gradient background
-            background: "radial-gradient(ellipse at 50% 30%, #fdfdfe 0%, #f8fafc 55%, #f1f5f9 100%)",
-            borderRadius: "24px",
-            border: "1px solid rgba(226, 232, 240, 0.8)",
-            boxShadow: "inset 0 1px 3px rgba(0,0,0,0.015), 0 4px 20px -2px rgba(0,0,0,0.03)",
-            overflow: "hidden",
-            userSelect: "none",
-            touchAction: "none",
+            minHeight: "540px",
+            borderRadius: "30px",
+            padding: "1.5px",
+            background:
+              "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(203, 213, 225, 0.6) 30%, rgba(167, 243, 208, 0.4) 65%, rgba(199, 210, 254, 0.45) 100%)",
+            boxShadow: "0 20px 50px -12px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.03)",
+            boxSizing: "border-box",
           }}
         >
-          {/* Ambient Lighting Orbs */}
+          {/* Inner Canvas Arena */}
           <div
+            ref={containerRef}
+            onPointerMove={handleContainerPointerMove}
             style={{
-              position: "absolute",
-              top: "12%",
-              left: "18%",
-              width: "320px",
-              height: "320px",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(167, 243, 208, 0.25) 0%, rgba(255,255,255,0) 70%)",
-              filter: "blur(48px)",
-              pointerEvents: "none",
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              borderRadius: "28.5px",
+              // Ultra-soft multi-radial gradient
+              background:
+                "radial-gradient(ellipse at 50% 18%, #ffffff 0%, #f9fafb 48%, #f1f5f9 100%)",
+              boxShadow:
+                "inset 0 2px 6px rgba(255, 255, 255, 0.95), inset 0 -4px 16px rgba(15, 23, 42, 0.02), inset 0 0 80px rgba(241, 245, 249, 0.6)",
+              overflow: "hidden",
+              userSelect: "none",
+              touchAction: "none",
             }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: "15%",
-              right: "20%",
-              width: "340px",
-              height: "340px",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(216, 180, 254, 0.22) 0%, rgba(255,255,255,0) 70%)",
-              filter: "blur(52px)",
-              pointerEvents: "none",
-            }}
-          />
+          >
+            {/* Top Ambient Ribbon Glow */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: "20%",
+                right: "20%",
+                height: "1px",
+                background:
+                  "linear-gradient(to right, transparent, rgba(16, 185, 129, 0.35), rgba(139, 92, 246, 0.35), transparent)",
+                pointerEvents: "none",
+              }}
+            />
 
-          {/* Clean, Luminous Soap Bubbles */}
-          {filteredThoughts.map((t) => {
-            const theme = THEMES[t.color_theme] || THEMES.emerald;
-            const pos = positions[t.id] || { x: 200, y: 200 };
-            const isHovered = hoveredId === t.id;
-            const size = t.is_pinned ? 136 : 118;
+            {/* Faint Planetary / Celestial Orbit Circles (Serene Mind Space) */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "600px",
+                height: "600px",
+                transform: "translate(-50%, -50%)",
+                borderRadius: "50%",
+                border: "1px dashed rgba(203, 213, 225, 0.38)",
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "900px",
+                height: "900px",
+                transform: "translate(-50%, -50%)",
+                borderRadius: "50%",
+                border: "1px dashed rgba(203, 213, 225, 0.22)",
+                pointerEvents: "none",
+              }}
+            />
 
-            return (
-              <div
-                key={t.id}
-                onPointerDown={(e) => handlePointerDown(t.id, e)}
-                onPointerUp={(e) => handlePointerUp(t.id, t, e)}
-                onMouseEnter={() => setHoveredId(t.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  width: `${size}px`,
-                  height: `${size}px`,
-                  borderRadius: "50%",
-                  transform: `translate3d(${pos.x - size / 2}px, ${pos.y - size / 2}px, 0) scale(${isHovered ? 1.06 : 1})`,
-                  background: theme.bgGradient,
-                  border: `1.5px solid ${theme.border}`,
-                  boxShadow: isHovered ? theme.hoverGlow : theme.glow,
-                  backdropFilter: "blur(10px) saturate(160%)",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "14px 16px",
-                  boxSizing: "border-box",
-                  cursor: "pointer",
-                  transition: "transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease",
-                  textAlign: "center",
-                  willChange: "transform",
-                  zIndex: isHovered ? 10 : 2,
-                }}
-              >
-                {/* 3D Natural Specular Reflection Highlight */}
+            {/* Ambient Lighting Halos */}
+            <div
+              style={{
+                position: "absolute",
+                top: "10%",
+                left: "14%",
+                width: "340px",
+                height: "340px",
+                borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(167, 243, 208, 0.26) 0%, rgba(255,255,255,0) 70%)",
+                filter: "blur(50px)",
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: "12%",
+                right: "16%",
+                width: "360px",
+                height: "360px",
+                borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(216, 180, 254, 0.22) 0%, rgba(255,255,255,0) 70%)",
+                filter: "blur(54px)",
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: "8%",
+                left: "30%",
+                width: "280px",
+                height: "280px",
+                borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(254, 215, 170, 0.16) 0%, rgba(255,255,255,0) 70%)",
+                filter: "blur(46px)",
+                pointerEvents: "none",
+              }}
+            />
+
+            {/* Enlarged, Luminous 3D Glass Soap Bubbles */}
+            {filteredThoughts.map((t) => {
+              const theme = THEMES[t.color_theme] || THEMES.emerald;
+              const pos = positions[t.id] || { x: 200, y: 200 };
+              const isHovered = hoveredId === t.id;
+              // Enlarged sizes: 144px normal, 172px pinned
+              const size = t.is_pinned ? 172 : 144;
+
+              return (
                 <div
+                  key={t.id}
+                  onPointerDown={(e) => handlePointerDown(t.id, e)}
+                  onPointerUp={(e) => handlePointerUp(t.id, t, e)}
+                  onMouseEnter={() => setHoveredId(t.id)}
+                  onMouseLeave={() => setHoveredId(null)}
                   style={{
                     position: "absolute",
-                    top: "12%",
-                    left: "18%",
-                    width: "36%",
-                    height: "22%",
+                    left: 0,
+                    top: 0,
+                    width: `${size}px`,
+                    height: `${size}px`,
                     borderRadius: "50%",
-                    transform: "rotate(-32deg)",
-                    background: "radial-gradient(ellipse, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 80%)",
-                    pointerEvents: "none",
+                    transform: `translate3d(${pos.x - size / 2}px, ${pos.y - size / 2}px, 0) scale(${isHovered ? 1.055 : 1})`,
+                    background: theme.bgGradient,
+                    border: `1.5px solid ${theme.border}`,
+                    boxShadow: isHovered ? theme.hoverGlow : theme.glow,
+                    backdropFilter: "blur(12px) saturate(160%)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: t.is_pinned ? "18px 20px" : "16px 18px",
+                    boxSizing: "border-box",
+                    cursor: "pointer",
+                    transition: "transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease",
+                    textAlign: "center",
+                    willChange: "transform",
+                    zIndex: isHovered ? 10 : 2,
                   }}
-                />
-
-                {/* Subtle Pin Indicator */}
-                {t.is_pinned === 1 && (
+                >
+                  {/* Primary 3D Specular Highlight (Top-Left Crescent) */}
                   <div
                     style={{
                       position: "absolute",
-                      top: "8px",
-                      fontSize: "11px",
-                      color: "#d97706",
-                      lineHeight: 1,
+                      top: "10%",
+                      left: "16%",
+                      width: "38%",
+                      height: "22%",
+                      borderRadius: "50%",
+                      transform: "rotate(-32deg)",
+                      background: "radial-gradient(ellipse, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0) 80%)",
                       pointerEvents: "none",
                     }}
-                  >
-                    ★
-                  </div>
-                )}
+                  />
 
-                {/* Pure, Elegant Summary Text (RADICALLY SIMPLIFIED) */}
-                <div
-                  style={{
-                    fontSize: t.is_pinned ? "12px" : "11.5px",
-                    fontWeight: "600",
-                    color: "#0f172a",
-                    lineHeight: "1.45",
-                    letterSpacing: "-0.01em",
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical",
-                    pointerEvents: "none",
-                    userSelect: "none",
-                    textShadow: "0 1px 2px rgba(255, 255, 255, 0.9)",
-                  }}
-                >
-                  {t.summary}
+                  {/* Secondary 3D Bounce Light (Bottom-Right Rim Glow) */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "10%",
+                      right: "15%",
+                      width: "30%",
+                      height: "14%",
+                      borderRadius: "50%",
+                      transform: "rotate(35deg)",
+                      background: "radial-gradient(ellipse, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 75%)",
+                      pointerEvents: "none",
+                    }}
+                  />
+
+                  {/* Golden Star for Pinned Thought */}
+                  {t.is_pinned === 1 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "12px",
+                        fontSize: "12.5px",
+                        color: "#d97706",
+                        lineHeight: 1,
+                        textShadow: "0 1px 3px rgba(245, 158, 11, 0.4)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      ★
+                    </div>
+                  )}
+
+                  {/* Summary Golden Rule Text (Comfortable, Generous Size) */}
+                  <div
+                    style={{
+                      fontSize: t.is_pinned ? "13px" : "12.5px",
+                      fontWeight: "600",
+                      color: "#0f172a",
+                      lineHeight: "1.48",
+                      letterSpacing: "-0.01em",
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      pointerEvents: "none",
+                      userSelect: "none",
+                      textShadow: "0 1px 2px rgba(255, 255, 255, 0.92)",
+                    }}
+                  >
+                    {t.summary}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* 
         4. ELEGANT REFLECTION CARD MODAL ("小卡片")
-        Minimal, distraction-free, Apple Notes / Linear style
       */}
       {activeThought && (
         <div
@@ -772,10 +859,10 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: "460px",
+              maxWidth: "480px",
               width: "100%",
               background: "#ffffff",
-              borderRadius: "22px",
+              borderRadius: "24px",
               border: "1px solid rgba(226, 232, 240, 0.8)",
               boxShadow: "0 24px 64px -12px rgba(15, 23, 42, 0.22), 0 4px 16px rgba(0, 0, 0, 0.04)",
               overflow: "hidden",
@@ -784,7 +871,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               animation: "modalDialogZoomIn 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Top Minimal Header */}
+            {/* Top Minimal Banner Header */}
             <div
               style={{
                 padding: "16px 20px 14px",
@@ -841,10 +928,10 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             </div>
 
             {/* Golden Rule Summary */}
-            <div style={{ padding: "18px 22px 12px", borderBottom: "1px solid rgba(241, 245, 249, 0.8)" }}>
+            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(241, 245, 249, 0.85)" }}>
               <div
                 style={{
-                  fontSize: "16px",
+                  fontSize: "16.5px",
                   fontWeight: "700",
                   color: "#0f172a",
                   lineHeight: "1.45",

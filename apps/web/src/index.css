@@ -51,7 +51,7 @@
   --radius-pill: 9999px;
   --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Cascadia Code", monospace;
-  --sidebar: 232px;
+  --sidebar: 196px;
   font-family: var(--font);
   color: var(--ink);
   background: var(--bg);
@@ -105,7 +105,7 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   bottom: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 14px 16px;
+  padding: 18px 10px 16px;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--line);
   z-index: 30;
@@ -220,8 +220,8 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 4px 8px 24px;
+  gap: 9px;
+  padding: 4px 4px 20px;
 }
 .brand-logo {
   width: 28px;
@@ -275,11 +275,11 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   border: 0;
   background: transparent;
   color: var(--ink-2);
-  padding: 9px 12px;
+  padding: 8px 10px;
   border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
@@ -5490,15 +5490,15 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .sidebar-cmd-trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: calc(100% - 24px);
-  margin: 12px 12px 16px;
-  padding: 8px 12px;
+  gap: 7px;
+  width: calc(100% - 12px);
+  margin: 8px 6px 14px;
+  padding: 7px 9px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md, 8px);
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.16s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
