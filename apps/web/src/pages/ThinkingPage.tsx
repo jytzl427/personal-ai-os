@@ -26,78 +26,93 @@ type BubblePhysics = {
   isDragging: boolean;
 };
 
+// Subtle, airy soap-bubble color themes with realistic translucent glass glow
 const THEMES: Record<
   Thought["color_theme"],
   {
     name: string;
     accent: string;
+    rgb: string;
     border: string;
     bgGradient: string;
     glow: string;
-    badgeBg: string;
-    badgeColor: string;
-    bannerGradient: string;
+    hoverGlow: string;
+    pillBg: string;
+    pillColor: string;
+    bannerBg: string;
   }
 > = {
   emerald: {
-    name: "翠玉流光",
+    name: "翠竹",
     accent: "#059669",
-    border: "rgba(16, 185, 129, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(236, 253, 245, 0.95), rgba(167, 243, 208, 0.65) 50%, rgba(52, 211, 153, 0.3) 95%)",
-    glow: "0 8px 24px rgba(16, 185, 129, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(16, 185, 129, 0.15)",
-    badgeColor: "#047857",
-    bannerGradient: "linear-gradient(135deg, rgba(236, 253, 245, 0.9), rgba(209, 250, 229, 0.5))",
+    rgb: "16, 185, 129",
+    border: "rgba(16, 185, 129, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(209, 250, 229, 0.75) 45%, rgba(110, 231, 183, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(16, 185, 129, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(16, 185, 129, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(16, 185, 129, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(16, 185, 129, 0.12)",
+    pillColor: "#047857",
+    bannerBg: "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)",
   },
   amber: {
-    name: "琥珀暖金",
+    name: "暖杏",
     accent: "#d97706",
-    border: "rgba(245, 158, 11, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(254, 252, 232, 0.95), rgba(253, 230, 138, 0.65) 50%, rgba(251, 191, 36, 0.3) 95%)",
-    glow: "0 8px 24px rgba(245, 158, 11, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(245, 158, 11, 0.15)",
-    badgeColor: "#b45309",
-    bannerGradient: "linear-gradient(135deg, rgba(254, 243, 199, 0.9), rgba(253, 230, 138, 0.5))",
+    rgb: "245, 158, 11",
+    border: "rgba(245, 158, 11, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.75) 45%, rgba(252, 211, 77, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(245, 158, 11, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(245, 158, 11, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(245, 158, 11, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(245, 158, 11, 0.12)",
+    pillColor: "#b45309",
+    bannerBg: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
   },
   purple: {
-    name: "星河幻紫",
-    accent: "#7c3aed",
-    border: "rgba(168, 85, 247, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(250, 245, 255, 0.95), rgba(233, 213, 255, 0.65) 50%, rgba(192, 132, 252, 0.3) 95%)",
-    glow: "0 8px 24px rgba(168, 85, 247, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(168, 85, 247, 0.15)",
-    badgeColor: "#6d28d9",
-    bannerGradient: "linear-gradient(135deg, rgba(243, 232, 255, 0.9), rgba(233, 213, 255, 0.5))",
+    name: "星河",
+    accent: "#8b5cf6",
+    rgb: "139, 92, 246",
+    border: "rgba(139, 92, 246, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(243, 232, 255, 0.75) 45%, rgba(216, 180, 254, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(139, 92, 246, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(139, 92, 246, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(139, 92, 246, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(139, 92, 246, 0.12)",
+    pillColor: "#6d28d9",
+    bannerBg: "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)",
   },
   ocean: {
-    name: "深海青蓝",
+    name: "青蓝",
     accent: "#0284c7",
-    border: "rgba(14, 165, 233, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(240, 249, 255, 0.95), rgba(186, 230, 253, 0.65) 50%, rgba(56, 189, 248, 0.3) 95%)",
-    glow: "0 8px 24px rgba(14, 165, 233, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(14, 165, 233, 0.15)",
-    badgeColor: "#0369a1",
-    bannerGradient: "linear-gradient(135deg, rgba(224, 242, 254, 0.9), rgba(186, 230, 253, 0.5))",
+    rgb: "14, 165, 233",
+    border: "rgba(14, 165, 233, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.75) 45%, rgba(125, 211, 252, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(14, 165, 233, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(14, 165, 233, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(14, 165, 233, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(14, 165, 233, 0.12)",
+    pillColor: "#0369a1",
+    bannerBg: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
   },
   sunset: {
-    name: "晚霞绯红",
+    name: "暮霞",
     accent: "#e11d48",
-    border: "rgba(244, 63, 94, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(255, 241, 242, 0.95), rgba(254, 205, 211, 0.65) 50%, rgba(251, 113, 133, 0.3) 95%)",
-    glow: "0 8px 24px rgba(244, 63, 94, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(244, 63, 94, 0.15)",
-    badgeColor: "#be123c",
-    bannerGradient: "linear-gradient(135deg, rgba(255, 228, 230, 0.9), rgba(254, 205, 211, 0.5))",
+    rgb: "244, 63, 94",
+    border: "rgba(244, 63, 94, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 228, 230, 0.75) 45%, rgba(253, 164, 175, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(244, 63, 94, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(244, 63, 94, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(244, 63, 94, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(244, 63, 94, 0.12)",
+    pillColor: "#be123c",
+    bannerBg: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)",
   },
   aurora: {
-    name: "极光绚彩",
+    name: "冰曦",
     accent: "#4f46e5",
-    border: "rgba(99, 102, 241, 0.45)",
-    bgGradient: "radial-gradient(circle at 32% 28%, rgba(245, 243, 255, 0.95), rgba(204, 251, 241, 0.65) 50%, rgba(244, 114, 182, 0.3) 95%)",
-    glow: "0 8px 24px rgba(99, 102, 241, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.95)",
-    badgeBg: "rgba(99, 102, 241, 0.15)",
-    badgeColor: "#4338ca",
-    bannerGradient: "linear-gradient(135deg, rgba(238, 242, 255, 0.9), rgba(204, 251, 241, 0.5))",
+    rgb: "79, 70, 229",
+    border: "rgba(99, 102, 241, 0.35)",
+    bgGradient: "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(238, 242, 255, 0.75) 45%, rgba(199, 210, 254, 0.32) 90%)",
+    glow: "0 8px 24px -4px rgba(79, 70, 229, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 6px rgba(79, 70, 229, 0.12)",
+    hoverGlow: "0 14px 32px -4px rgba(79, 70, 229, 0.35), inset 0 2px 5px rgba(255, 255, 255, 0.98)",
+    pillBg: "rgba(79, 70, 229, 0.12)",
+    pillColor: "#4338ca",
+    bannerBg: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
   },
 };
 
@@ -107,7 +122,6 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>("全部");
-  const [viewMode, setViewMode] = useState<"bubbles" | "cards">("bubbles");
   const [activeThought, setActiveThought] = useState<Thought | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -129,7 +143,14 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
   const containerRef = useRef<HTMLDivElement>(null);
   const physicsRef = useRef<Map<string, BubblePhysics>>(new Map());
-  const mouseRef = useRef<{ x: number; y: number; isDown: boolean; dragId: string | null; offset: { x: number; y: number }; startPos: { x: number; y: number } }>({
+  const mouseRef = useRef<{
+    x: number;
+    y: number;
+    isDown: boolean;
+    dragId: string | null;
+    offset: { x: number; y: number };
+    startPos: { x: number; y: number };
+  }>({
     x: -1000,
     y: -1000,
     isDown: false,
@@ -173,20 +194,21 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     return Array.from(set);
   }, [thoughts]);
 
-  // Bubble sizes tuned: compact, elegant and refined (radius 55~65px instead of 100px)
+  // Clean, comfortable bubble sizes:
+  // Normal bubble: diameter 118px (radius 59px)
+  // Pinned bubble: diameter 136px (radius 68px)
   useEffect(() => {
-    if (viewMode !== "bubbles" || !containerRef.current) return;
+    if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const w = rect.width || 800;
-    const h = rect.height || 550;
+    const h = rect.height || 540;
 
     const currentMap = physicsRef.current;
     const newMap = new Map<string, BubblePhysics>();
     const newPositions: { [id: string]: { x: number; y: number } } = {};
 
     filteredThoughts.forEach((t, i) => {
-      // Compact, elegant radii: pinned = 66px (132px diameter), normal = 56px (112px diameter)
-      const baseRadius = t.is_pinned ? 66 : 56;
+      const baseRadius = t.is_pinned ? 68 : 59;
       const existing = currentMap.get(t.id);
 
       if (existing) {
@@ -195,7 +217,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         newMap.set(t.id, existing);
         newPositions[t.id] = { x: existing.x, y: existing.y };
       } else {
-        const cols = Math.max(1, Math.ceil(Math.sqrt(filteredThoughts.length * 1.5)));
+        const cols = Math.max(1, Math.ceil(Math.sqrt(filteredThoughts.length * 1.6)));
         const rows = Math.ceil(filteredThoughts.length / cols);
         const col = i % cols;
         const row = Math.floor(i / cols);
@@ -203,16 +225,22 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         const slotW = w / cols;
         const slotH = h / rows;
 
-        const x = Math.max(baseRadius + 30, Math.min(w - baseRadius - 30, slotW * (col + 0.5) + (Math.random() - 0.5) * 30));
-        const y = Math.max(baseRadius + 30, Math.min(h - baseRadius - 30, slotH * (row + 0.5) + (Math.random() - 0.5) * 30));
+        const x = Math.max(
+          baseRadius + 24,
+          Math.min(w - baseRadius - 24, slotW * (col + 0.5) + (Math.random() - 0.5) * 20)
+        );
+        const y = Math.max(
+          baseRadius + 24,
+          Math.min(h - baseRadius - 24, slotH * (row + 0.5) + (Math.random() - 0.5) * 20)
+        );
 
         const node: BubblePhysics = {
           id: t.id,
           x,
           y,
-          // Ultra-gentle Zen initial drift
-          vx: (Math.random() - 0.5) * 0.15,
-          vy: (Math.random() - 0.5) * 0.15,
+          // Ethereal, gentle natural drift
+          vx: (Math.random() - 0.5) * 0.12,
+          vy: (Math.random() - 0.5) * 0.12,
           radius: baseRadius,
           baseRadius,
           isDragging: false,
@@ -224,12 +252,10 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
     physicsRef.current = newMap;
     setPositions(newPositions);
-  }, [filteredThoughts, viewMode]);
+  }, [filteredThoughts]);
 
-  // Ultra-gentle, peaceful Zen floating physics loop
+  // Serene Zen floating loop: ultra-calm, fluid, breathing oscillation
   useEffect(() => {
-    if (viewMode !== "bubbles") return;
-
     let animId: number;
 
     function loop(now: number) {
@@ -254,74 +280,74 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           n.vx = 0;
           n.vy = 0;
         } else {
-          // Extremely gentle, serene breathing oscillation
-          const timeOffset = now * 0.0006 + i * 2.1;
-          n.vx += Math.sin(timeOffset) * 0.004;
-          n.vy += Math.cos(timeOffset * 0.8) * 0.004;
+          // Extremely gentle sinusoidal breathing drift
+          const timeOffset = now * 0.00045 + i * 2.3;
+          n.vx += Math.sin(timeOffset) * 0.003;
+          n.vy += Math.cos(timeOffset * 0.85) * 0.003;
 
-          // Strong friction / air damping to keep motion calm and slow
-          n.vx *= 0.965;
-          n.vy *= 0.965;
+          // Strong friction / air damping to maintain peaceful calm
+          n.vx *= 0.97;
+          n.vy *= 0.97;
 
-          // Max speed capped at 0.55px/frame (peaceful and slow!)
+          // Strict speed cap at 0.4px/frame
           const spd = Math.hypot(n.vx, n.vy);
-          if (spd > 0.55) {
-            n.vx = (n.vx / spd) * 0.55;
-            n.vy = (n.vy / spd) * 0.55;
+          if (spd > 0.4) {
+            n.vx = (n.vx / spd) * 0.4;
+            n.vy = (n.vy / spd) * 0.4;
           }
 
           n.x += n.vx;
           n.y += n.vy;
 
-          // Subtle, delicate mouse proximity push
+          // Gentle mouse proximity cushion
           const dxMouse = n.x - mouse.x;
           const dyMouse = n.y - mouse.y;
           const distMouse = Math.hypot(dxMouse, dyMouse);
-          if (distMouse < n.radius + 40 && distMouse > 1) {
-            const push = (1 - distMouse / (n.radius + 40)) * 0.2;
+          if (distMouse < n.radius + 35 && distMouse > 1) {
+            const push = (1 - distMouse / (n.radius + 35)) * 0.15;
             n.vx += (dxMouse / distMouse) * push;
             n.vy += (dyMouse / distMouse) * push;
           }
 
-          // Soft boundary bounce
-          if (n.x - n.radius < 15) {
-            n.x = n.radius + 15;
-            n.vx = Math.abs(n.vx) * 0.7;
-          } else if (n.x + n.radius > w - 15) {
-            n.x = w - n.radius - 15;
-            n.vx = -Math.abs(n.vx) * 0.7;
+          // Soft boundary containment
+          if (n.x - n.radius < 18) {
+            n.x = n.radius + 18;
+            n.vx = Math.abs(n.vx) * 0.6;
+          } else if (n.x + n.radius > w - 18) {
+            n.x = w - n.radius - 18;
+            n.vx = -Math.abs(n.vx) * 0.6;
           }
-          if (n.y - n.radius < 15) {
-            n.y = n.radius + 15;
-            n.vy = Math.abs(n.vy) * 0.7;
-          } else if (n.y + n.radius > h - 15) {
-            n.y = h - n.radius - 15;
-            n.vy = -Math.abs(n.vy) * 0.7;
+          if (n.y - n.radius < 18) {
+            n.y = n.radius + 18;
+            n.vy = Math.abs(n.vy) * 0.6;
+          } else if (n.y + n.radius > h - 18) {
+            n.y = h - n.radius - 18;
+            n.vy = -Math.abs(n.vy) * 0.6;
           }
         }
 
-        // Inter-bubble soft repulsion
+        // Soft inter-bubble repulsive cushion (prevent harsh collisions)
         for (let j = i + 1; j < nodes.length; j++) {
           const m = nodes[j];
           const dx = m.x - n.x;
           const dy = m.y - n.y;
           const dist = Math.hypot(dx, dy);
-          const minDist = n.radius + m.radius + 16;
+          const minDist = n.radius + m.radius + 14;
           if (dist < minDist && dist > 0.1) {
-            const overlap = (minDist - dist) * 0.04;
+            const overlap = (minDist - dist) * 0.035;
             const nx = dx / dist;
             const ny = dy / dist;
             if (!n.isDragging) {
               n.x -= nx * overlap;
               n.y -= ny * overlap;
-              n.vx -= nx * 0.03;
-              n.vy -= ny * 0.03;
+              n.vx -= nx * 0.025;
+              n.vy -= ny * 0.025;
             }
             if (!m.isDragging) {
               m.x += nx * overlap;
               m.y += ny * overlap;
-              m.vx += nx * 0.03;
-              m.vy += ny * 0.03;
+              m.vx += nx * 0.025;
+              m.vy += ny * 0.025;
             }
           }
         }
@@ -335,9 +361,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [viewMode]);
+  }, []);
 
-  // Pointer drag events
   function handlePointerDown(id: string, e: React.PointerEvent) {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -379,7 +404,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const dragDist = Math.hypot(x - mouseRef.current.startPos.x, y - mouseRef.current.startPos.y);
-        // If movement was small, treat as a pure click -> open card!
+        // Pure click triggers card opening
         if (dragDist < 6) {
           setActiveThought(thought);
         }
@@ -449,92 +474,84 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   }
 
   return (
-    <div className="page-stack" style={{ padding: "0 28px 40px", maxWidth: "1200px", margin: "0 auto" }}>
-      {/* Header Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", paddingTop: "24px", paddingBottom: "16px", borderBottom: "1px solid var(--line)" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "22px" }}>🫧</span>
-            <h1 style={{ margin: 0, fontSize: "21px", fontWeight: "700", color: "var(--ink)", letterSpacing: "-0.02em" }}>
-              思考
-            </h1>
-          </div>
-          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--ink-3)" }}>
-            用真实经历与内耗淬炼出的认知晶体 · 触碰气泡重温定海神针
-          </p>
-        </div>
-
-        {/* View Switcher & Action */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ display: "inline-flex", background: "var(--surface-2)", padding: "3px", borderRadius: "10px", border: "1px solid var(--line)" }}>
-            <button
-              onClick={() => setViewMode("bubbles")}
-              style={{
-                border: "none",
-                background: viewMode === "bubbles" ? "var(--surface)" : "transparent",
-                color: viewMode === "bubbles" ? "var(--ink)" : "var(--ink-3)",
-                fontWeight: viewMode === "bubbles" ? "600" : "500",
-                fontSize: "12px",
-                padding: "5px 12px",
-                borderRadius: "7px",
-                cursor: "pointer",
-                boxShadow: viewMode === "bubbles" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease",
-              }}
-            >
-              🫧 灵动气泡
-            </button>
-            <button
-              onClick={() => setViewMode("cards")}
-              style={{
-                border: "none",
-                background: viewMode === "cards" ? "var(--surface)" : "transparent",
-                color: viewMode === "cards" ? "var(--ink)" : "var(--ink-3)",
-                fontWeight: viewMode === "cards" ? "600" : "500",
-                fontSize: "12px",
-                padding: "5px 12px",
-                borderRadius: "7px",
-                cursor: "pointer",
-                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease",
-              }}
-            >
-              🗂️ 沉淀卡片
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              setEditForm({
-                summary: "",
-                content: "",
-                category: selectedCategory === "全部" ? "认知模型" : selectedCategory,
-                color_theme: "emerald",
-                is_pinned: false,
-              });
-              setIsEditing(true);
-            }}
-            className="primary-button"
+    <div className="page-stack" style={{ padding: "0 28px 32px", maxWidth: "1200px", margin: "0 auto" }}>
+      {/* 
+        1. SIMPLIFIED & BEAUTIFIED HEADER 
+        Clean, quiet, Apple-grade aesthetic
+      */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingTop: "24px",
+          paddingBottom: "16px",
+          borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+          <h1
             style={{
-              padding: "7px 15px",
-              borderRadius: "10px",
-              fontSize: "12.5px",
-              fontWeight: "600",
+              margin: 0,
+              fontSize: "20px",
+              fontWeight: "700",
+              color: "#0f172a",
+              letterSpacing: "-0.02em",
               display: "flex",
               alignItems: "center",
-              gap: "5px",
-              cursor: "pointer",
+              gap: "8px",
             }}
           >
-            <span>+</span>
-            <span>记录新思考</span>
-          </button>
+            <span style={{ fontSize: "20px" }}>🫧</span>
+            <span>思考</span>
+          </h1>
+          <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+            触碰气泡重温认知锚点 · 点击弹出感悟小卡片
+          </span>
         </div>
+
+        {/* Single Prominent Action */}
+        <button
+          onClick={() => {
+            setEditForm({
+              summary: "",
+              content: "",
+              category: selectedCategory === "全部" ? "认知模型" : selectedCategory,
+              color_theme: "emerald",
+              is_pinned: false,
+            });
+            setIsEditing(true);
+          }}
+          className="primary-button"
+          style={{
+            padding: "6px 14px",
+            borderRadius: "999px",
+            fontSize: "12.5px",
+            fontWeight: "600",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.2)",
+          }}
+        >
+          <span>+</span>
+          <span>记下感悟</span>
+        </button>
       </div>
 
-      {/* Category Filter Pills */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "14px 0 16px", overflowX: "auto", paddingBottom: "2px" }}>
-        <span style={{ fontSize: "12px", color: "var(--ink-4)", marginRight: "2px" }}>分类:</span>
+      {/* 
+        2. CLEAN MINIMAL CATEGORY FILTER 
+      */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          margin: "12px 0 16px",
+          overflowX: "auto",
+        }}
+      >
         {allCategories.map((cat) => {
           const isSelected = selectedCategory === cat;
           return (
@@ -542,15 +559,15 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               style={{
-                border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line)",
-                background: isSelected ? "var(--accent-soft)" : "var(--surface)",
-                color: isSelected ? "var(--accent)" : "var(--ink-2)",
+                border: "none",
+                background: isSelected ? "#0f172a" : "rgba(241, 245, 249, 0.8)",
+                color: isSelected ? "#ffffff" : "#64748b",
                 fontWeight: isSelected ? "600" : "500",
                 fontSize: "12px",
-                padding: "4px 14px",
-                borderRadius: "9999px",
+                padding: "4px 12px",
+                borderRadius: "999px",
                 cursor: "pointer",
-                transition: "all 0.14s ease",
+                transition: "all 0.15s ease",
               }}
             >
               {cat}
@@ -559,72 +576,90 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         })}
       </div>
 
-      {/* Main Content Arena */}
+      {/* 
+        3. ETHEREAL FLOATING BUBBLE SANCTUARY 
+      */}
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "420px", color: "var(--ink-3)", fontSize: "14px" }}>
-          正在加载思考晶体...
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "460px",
+            color: "#94a3b8",
+            fontSize: "13.5px",
+          }}
+        >
+          正在唤醒思考晶体...
         </div>
       ) : filteredThoughts.length === 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "420px", color: "var(--ink-4)" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "460px",
+            color: "#94a3b8",
+          }}
+        >
           <span style={{ fontSize: "36px", marginBottom: "8px" }}>🫧</span>
-          <p style={{ margin: 0, fontSize: "14px", color: "var(--ink-3)" }}>暂无该分类的思考气泡</p>
-          <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记录新思考”，为你的心智武器库增添一颗晶体</p>
+          <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的思考气泡</p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记下感悟”，随时捕捉生活与内耗中的定海神针</p>
         </div>
-      ) : viewMode === "bubbles" ? (
-        /* Floating Organic Bubbles Pool */
+      ) : (
         <div
           ref={containerRef}
           onPointerMove={handleContainerPointerMove}
           style={{
             position: "relative",
             width: "100%",
-            height: "calc(100vh - 240px)",
+            height: "calc(100vh - 210px)",
             minHeight: "520px",
-            // Delicate ethereal background with very soft ambient lights
-            background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8faf9 100%)",
-            borderRadius: "20px",
-            border: "1px solid var(--line)",
-            boxShadow: "inset 0 1px 4px rgba(0,0,0,0.02)",
+            // Gentle ambient gradient background
+            background: "radial-gradient(ellipse at 50% 30%, #fdfdfe 0%, #f8fafc 55%, #f1f5f9 100%)",
+            borderRadius: "24px",
+            border: "1px solid rgba(226, 232, 240, 0.8)",
+            boxShadow: "inset 0 1px 3px rgba(0,0,0,0.015), 0 4px 20px -2px rgba(0,0,0,0.03)",
             overflow: "hidden",
             userSelect: "none",
             touchAction: "none",
           }}
         >
-          {/* Subtle Ambient Decorative Pastel Halos */}
+          {/* Ambient Lighting Orbs */}
           <div
             style={{
               position: "absolute",
-              top: "15%",
-              left: "20%",
-              width: "280px",
-              height: "280px",
+              top: "12%",
+              left: "18%",
+              width: "320px",
+              height: "320px",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(167, 243, 208, 0.22) 0%, rgba(255,255,255,0) 70%)",
-              filter: "blur(30px)",
+              background: "radial-gradient(circle, rgba(167, 243, 208, 0.25) 0%, rgba(255,255,255,0) 70%)",
+              filter: "blur(48px)",
               pointerEvents: "none",
             }}
           />
           <div
             style={{
               position: "absolute",
-              bottom: "20%",
-              right: "22%",
-              width: "320px",
-              height: "320px",
+              bottom: "15%",
+              right: "20%",
+              width: "340px",
+              height: "340px",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(216, 180, 254, 0.18) 0%, rgba(255,255,255,0) 70%)",
-              filter: "blur(36px)",
+              background: "radial-gradient(circle, rgba(216, 180, 254, 0.22) 0%, rgba(255,255,255,0) 70%)",
+              filter: "blur(52px)",
               pointerEvents: "none",
             }}
           />
 
-          {/* Bubbles */}
+          {/* Clean, Luminous Soap Bubbles */}
           {filteredThoughts.map((t) => {
             const theme = THEMES[t.color_theme] || THEMES.emerald;
             const pos = positions[t.id] || { x: 200, y: 200 };
             const isHovered = hoveredId === t.id;
-            // Compact, balanced size
-            const size = t.is_pinned ? 132 : 116;
+            const size = t.is_pinned ? 136 : 118;
 
             return (
               <div
@@ -640,150 +675,73 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                   width: `${size}px`,
                   height: `${size}px`,
                   borderRadius: "50%",
-                  transform: `translate3d(${pos.x - size / 2}px, ${pos.y - size / 2}px, 0) scale(${isHovered ? 1.07 : 1})`,
+                  transform: `translate3d(${pos.x - size / 2}px, ${pos.y - size / 2}px, 0) scale(${isHovered ? 1.06 : 1})`,
                   background: theme.bgGradient,
                   border: `1.5px solid ${theme.border}`,
-                  boxShadow: isHovered
-                    ? `0 14px 32px rgba(0,0,0,0.12), inset 0 2px 5px rgba(255,255,255,0.95)`
-                    : theme.glow,
-                  backdropFilter: "blur(8px)",
+                  boxShadow: isHovered ? theme.hoverGlow : theme.glow,
+                  backdropFilter: "blur(10px) saturate(160%)",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: "12px 14px",
+                  padding: "14px 16px",
                   boxSizing: "border-box",
                   cursor: "pointer",
-                  transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease",
+                  transition: "transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease",
                   textAlign: "center",
                   willChange: "transform",
                   zIndex: isHovered ? 10 : 2,
                 }}
-                className="thought-bubble-node"
               >
-                {/* 3D Glass Specular Highlight Crescent */}
+                {/* 3D Natural Specular Reflection Highlight */}
                 <div
                   style={{
                     position: "absolute",
-                    top: "8px",
-                    left: "14px",
-                    width: "36px",
-                    height: "18px",
+                    top: "12%",
+                    left: "18%",
+                    width: "36%",
+                    height: "22%",
                     borderRadius: "50%",
-                    transform: "rotate(-35deg)",
-                    background: "radial-gradient(ellipse, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 80%)",
+                    transform: "rotate(-32deg)",
+                    background: "radial-gradient(ellipse, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 80%)",
                     pointerEvents: "none",
                   }}
                 />
 
-                {/* Category Badge Pill */}
-                <span
-                  style={{
-                    fontSize: "10px",
-                    fontWeight: "600",
-                    padding: "1px 7px",
-                    borderRadius: "999px",
-                    background: theme.badgeBg,
-                    color: theme.badgeColor,
-                    marginBottom: "5px",
-                    pointerEvents: "none",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  {t.category}
-                </span>
+                {/* Subtle Pin Indicator */}
+                {t.is_pinned === 1 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "8px",
+                      fontSize: "11px",
+                      color: "#d97706",
+                      lineHeight: 1,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    ★
+                  </div>
+                )}
 
-                {/* Summary Quote Text */}
+                {/* Pure, Elegant Summary Text (RADICALLY SIMPLIFIED) */}
                 <div
                   style={{
-                    fontSize: t.is_pinned ? "11.5px" : "11px",
+                    fontSize: t.is_pinned ? "12px" : "11.5px",
                     fontWeight: "600",
-                    color: "var(--ink)",
-                    lineHeight: "1.35",
+                    color: "#0f172a",
+                    lineHeight: "1.45",
+                    letterSpacing: "-0.01em",
                     overflow: "hidden",
                     display: "-webkit-box",
                     WebkitLineClamp: 3,
                     WebkitBoxOrient: "vertical",
                     pointerEvents: "none",
-                    textShadow: "0 1px 1px rgba(255,255,255,0.7)",
+                    userSelect: "none",
+                    textShadow: "0 1px 2px rgba(255, 255, 255, 0.9)",
                   }}
                 >
-                  “{t.summary}”
-                </div>
-
-                {/* Micro Hover Hint */}
-                {isHovered && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      bottom: "7px",
-                      fontSize: "9.5px",
-                      color: theme.accent,
-                      fontWeight: "600",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    查看 ✦
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* Bento Cards Grid View */
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px", marginTop: "6px" }}>
-          {filteredThoughts.map((t) => {
-            const theme = THEMES[t.color_theme] || THEMES.emerald;
-            return (
-              <div
-                key={t.id}
-                onClick={() => setActiveThought(t)}
-                style={{
-                  background: "var(--surface)",
-                  borderRadius: "14px",
-                  border: `1.5px solid ${theme.border}`,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-                  padding: "18px 20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                  transition: "all 0.18s ease",
-                }}
-                className="thought-card-item"
-              >
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        padding: "2px 8px",
-                        borderRadius: "999px",
-                        background: theme.badgeBg,
-                        color: theme.badgeColor,
-                      }}
-                    >
-                      {t.category}
-                    </span>
-                    {t.is_pinned === 1 && (
-                      <span style={{ fontSize: "11px", color: "#d97706", fontWeight: "600" }}>
-                        ⭐️ 核心定海神针
-                      </span>
-                    )}
-                  </div>
-                  <h3 style={{ margin: "0 0 8px", fontSize: "14.5px", fontWeight: "600", color: "var(--ink)", lineHeight: "1.4" }}>
-                    “{t.summary}”
-                  </h3>
-                  <p style={{ margin: 0, fontSize: "12px", color: "var(--ink-3)", lineHeight: "1.5", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
-                    {t.content || "点击卡片补充详细思考与背景推导。"}
-                  </p>
-                </div>
-
-                <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid var(--line-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--ink-4)" }}>
-                  <span>{t.created_at ? t.created_at.slice(0, 10) : "思考晶体"}</span>
-                  <span style={{ color: theme.accent, fontWeight: "600" }}>展开感悟 →</span>
+                  {t.summary}
                 </div>
               </div>
             );
@@ -792,8 +750,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
       )}
 
       {/* 
-        Active Thought Detail Modal: COMPACT, ELEGANT "小卡片" 
-        (Fixed the white-screen bug by passing content prop correctly) 
+        4. ELEGANT REFLECTION CARD MODAL ("小卡片")
+        Minimal, distraction-free, Apple Notes / Linear style
       */}
       {activeThought && (
         <div
@@ -802,8 +760,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15, 23, 42, 0.45)",
-            backdropFilter: "blur(6px)",
+            background: "rgba(15, 23, 42, 0.4)",
+            backdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -814,24 +772,24 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: "480px",
+              maxWidth: "460px",
               width: "100%",
-              background: "var(--surface)",
-              borderRadius: "20px",
-              border: `1.5px solid ${(THEMES[activeThought.color_theme] || THEMES.emerald).border}`,
-              boxShadow: "0 20px 48px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06)",
+              background: "#ffffff",
+              borderRadius: "22px",
+              border: "1px solid rgba(226, 232, 240, 0.8)",
+              boxShadow: "0 24px 64px -12px rgba(15, 23, 42, 0.22), 0 4px 16px rgba(0, 0, 0, 0.04)",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
-              animation: "modalDialogZoomIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
+              animation: "modalDialogZoomIn 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Elegant Colored Banner Header */}
+            {/* Top Minimal Header */}
             <div
               style={{
                 padding: "16px 20px 14px",
-                background: (THEMES[activeThought.color_theme] || THEMES.emerald).bannerGradient,
-                borderBottom: `1px solid ${(THEMES[activeThought.color_theme] || THEMES.emerald).border}`,
+                background: (THEMES[activeThought.color_theme] || THEMES.emerald).bannerBg,
+                borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -844,18 +802,18 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                     fontWeight: "600",
                     padding: "2px 8px",
                     borderRadius: "999px",
-                    background: (THEMES[activeThought.color_theme] || THEMES.emerald).badgeBg,
-                    color: (THEMES[activeThought.color_theme] || THEMES.emerald).badgeColor,
+                    background: (THEMES[activeThought.color_theme] || THEMES.emerald).pillBg,
+                    color: (THEMES[activeThought.color_theme] || THEMES.emerald).pillColor,
                   }}
                 >
                   {activeThought.category}
                 </span>
                 {activeThought.is_pinned === 1 && (
                   <span style={{ fontSize: "11px", color: "#d97706", fontWeight: "600" }}>
-                    ⭐️ 核心定海神针
+                    ★ 核心定海神针
                   </span>
                 )}
-                <span style={{ fontSize: "11.5px", color: "var(--ink-3)" }}>
+                <span style={{ fontSize: "11.5px", color: "#64748b" }}>
                   {activeThought.created_at ? activeThought.created_at.slice(0, 10) : ""}
                 </span>
               </div>
@@ -865,16 +823,16 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 onClick={() => setActiveThought(null)}
                 style={{
                   border: "none",
-                  background: "rgba(0,0,0,0.06)",
-                  width: "26px",
-                  height: "26px",
+                  background: "rgba(0, 0, 0, 0.05)",
+                  width: "24px",
+                  height: "24px",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   cursor: "pointer",
-                  color: "var(--ink-2)",
+                  color: "#64748b",
                   transition: "background 0.14s ease",
                 }}
               >
@@ -882,13 +840,13 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               </button>
             </div>
 
-            {/* Quote Header */}
-            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid var(--line)" }}>
+            {/* Golden Rule Summary */}
+            <div style={{ padding: "18px 22px 12px", borderBottom: "1px solid rgba(241, 245, 249, 0.8)" }}>
               <div
                 style={{
                   fontSize: "16px",
                   fontWeight: "700",
-                  color: "var(--ink)",
+                  color: "#0f172a",
                   lineHeight: "1.45",
                   letterSpacing: "-0.01em",
                 }}
@@ -897,35 +855,41 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               </div>
             </div>
 
-            {/* Detailed Reflections Scroll Body */}
-            <div style={{ padding: "16px 22px 20px", maxHeight: "55vh", overflowY: "auto" }}>
-              <div style={{ fontSize: "13px", color: "var(--ink-2)", lineHeight: "1.65" }}>
+            {/* Thought Reflections & Markdown Body */}
+            <div style={{ padding: "16px 22px 20px", maxHeight: "50vh", overflowY: "auto" }}>
+              <div style={{ fontSize: "13px", color: "#334155", lineHeight: "1.7" }}>
                 {activeThought.content && activeThought.content.trim() ? (
-                  /* Correctly pass content prop to MarkdownView */
                   <MarkdownView content={activeThought.content} />
                 ) : (
-                  <p style={{ color: "var(--ink-4)", fontStyle: "italic", margin: 0 }}>
-                    暂无更详细的背景推导与感悟，可点击下方“编辑思考”进行补充。
+                  <p style={{ color: "#94a3b8", fontStyle: "italic", margin: 0 }}>
+                    暂无展开感悟，可点击下方“编辑”补充详细背景与推导。
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Compact Modal Footer */}
+            {/* Card Footer Actions */}
             <div
               style={{
                 padding: "12px 20px",
-                borderTop: "1px solid var(--line)",
+                borderTop: "1px solid rgba(241, 245, 249, 0.9)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "var(--surface-2)",
+                background: "#f8fafc",
               }}
             >
               <button
                 type="button"
                 onClick={() => handleDeleteThought(activeThought.id)}
-                style={{ border: "none", background: "transparent", color: "var(--danger)", fontSize: "11.5px", cursor: "pointer", padding: "4px" }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#ef4444",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                }}
               >
                 删除
               </button>
@@ -963,7 +927,9 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         </div>
       )}
 
-      {/* Edit / Create Modal */}
+      {/* 
+        5. MINIMAL EDIT / CREATE MODAL
+      */}
       {isEditing && (
         <div
           className="habit-modal-backdrop"
@@ -971,8 +937,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15, 23, 42, 0.45)",
-            backdropFilter: "blur(6px)",
+            background: "rgba(15, 23, 42, 0.4)",
+            backdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -982,20 +948,20 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         >
           <div
             className="habit-modal-dialog"
-            style={{ maxWidth: "480px" }}
+            style={{ maxWidth: "460px", borderRadius: "20px" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="habit-modal-header" style={{ padding: "16px 20px" }}>
               <div className="modal-title-group">
-                <h3 className="modal-title" style={{ fontSize: "16px" }}>
-                  {editForm.id ? "编辑思考沉淀" : "沉淀新的思考晶体"}
+                <h3 className="modal-title" style={{ fontSize: "15.5px" }}>
+                  {editForm.id ? "编辑思考" : "记下新感悟"}
                 </h3>
               </div>
               <button
                 type="button"
                 className="close-button"
                 onClick={() => setIsEditing(false)}
-                style={{ border: "none", background: "transparent", fontSize: "16px", cursor: "pointer", color: "var(--ink-3)" }}
+                style={{ border: "none", background: "transparent", fontSize: "15px", cursor: "pointer", color: "#64748b" }}
               >
                 ✕
               </button>
@@ -1003,8 +969,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "65vh", overflowY: "auto" }}>
               <div>
-                <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "var(--ink)", marginBottom: "5px" }}>
-                  核心总结金句 <span style={{ fontWeight: "normal", color: "var(--ink-3)" }}>（气泡外显，15～25字为佳）</span>
+                <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#0f172a", marginBottom: "5px" }}>
+                  总结金句 <span style={{ fontWeight: "normal", color: "#64748b" }}>（气泡核心外显）</span>
                 </label>
                 <input
                   type="text"
@@ -1018,8 +984,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "var(--ink)", marginBottom: "5px" }}>
-                    思考分类
+                  <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#0f172a", marginBottom: "5px" }}>
+                    分类
                   </label>
                   <select
                     value={editForm.category}
@@ -1036,8 +1002,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "var(--ink)", marginBottom: "5px" }}>
-                    流光色调
+                  <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#0f172a", marginBottom: "5px" }}>
+                    彩泡色调
                   </label>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", paddingTop: "5px" }}>
                     {(Object.keys(THEMES) as Array<Thought["color_theme"]>).map((thm) => (
@@ -1046,11 +1012,11 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                         type="button"
                         onClick={() => setEditForm((prev) => ({ ...prev, color_theme: thm }))}
                         style={{
-                          width: "22px",
-                          height: "22px",
+                          width: "20px",
+                          height: "20px",
                           borderRadius: "50%",
                           background: THEMES[thm].accent,
-                          border: editForm.color_theme === thm ? "2.5px solid var(--ink)" : "2px solid transparent",
+                          border: editForm.color_theme === thm ? "2.5px solid #0f172a" : "2px solid transparent",
                           transform: editForm.color_theme === thm ? "scale(1.2)" : "scale(1)",
                           cursor: "pointer",
                           transition: "all 0.14s ease",
@@ -1062,10 +1028,20 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 </div>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: "10px", background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  background: "#f8fafc",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                }}
+              >
                 <div>
-                  <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--ink)" }}>置顶为核心定海神针</span>
-                  <p style={{ margin: "1px 0 0", fontSize: "11px", color: "var(--ink-3)" }}>气泡略大，视觉优先呈现</p>
+                  <span style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a" }}>置顶为定海神针</span>
+                  <p style={{ margin: "1px 0 0", fontSize: "11px", color: "#64748b" }}>气泡略大并带有星标，核心呈现</p>
                 </div>
                 <input
                   type="checkbox"
@@ -1076,21 +1052,21 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "var(--ink)", marginBottom: "5px" }}>
-                  深度感悟与思考推导 <span style={{ fontWeight: "normal", color: "var(--ink-4)" }}>（支持 Markdown）</span>
+                <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#0f172a", marginBottom: "5px" }}>
+                  感悟与推导 <span style={{ fontWeight: "normal", color: "#94a3b8" }}>（支持 Markdown）</span>
                 </label>
                 <textarea
                   rows={5}
                   value={editForm.content}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, content: e.target.value }))}
-                  placeholder="记录当时发生的事实、深层心理觉察、逻辑推导以及给未来的终极准则..."
+                  placeholder="记录发生的事情、心智觉察、逻辑推导以及给未来的原则..."
                   className="rounded-input"
                   style={{ width: "100%", boxSizing: "border-box", resize: "vertical", lineHeight: "1.55", fontSize: "12.5px" }}
                 />
               </div>
             </div>
 
-            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: "8px", background: "var(--surface-2)" }}>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: "8px", background: "#f8fafc" }}>
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
@@ -1105,7 +1081,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 className="primary-button"
                 style={{ padding: "5px 16px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
               >
-                保存沉淀
+                保存感悟
               </button>
             </div>
           </div>
