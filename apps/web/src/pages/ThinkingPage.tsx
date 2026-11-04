@@ -502,7 +502,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             }}
           >
             <span style={{ fontSize: "20px" }}>🫧</span>
-            <span>思考</span>
+            <span>认知模型</span>
           </h1>
           <span style={{ fontSize: "12.5px", color: "#64748b" }}>
             触碰气泡重温认知锚点 · 点击展开感悟小卡片
@@ -589,7 +589,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             fontSize: "13.5px",
           }}
         >
-          正在唤醒思考晶体...
+          正在唤醒认知晶体...
         </div>
       ) : filteredThoughts.length === 0 ? (
         <div
@@ -603,7 +603,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           }}
         >
           <span style={{ fontSize: "38px", marginBottom: "8px" }}>🫧</span>
-          <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的思考气泡</p>
+          <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的认知气泡</p>
           <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记下感悟”，随时捕捉生活与内耗中的定海神针</p>
         </div>
       ) : (
@@ -1041,7 +1041,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             <div className="habit-modal-header" style={{ padding: "16px 20px" }}>
               <div className="modal-title-group">
                 <h3 className="modal-title" style={{ fontSize: "15.5px" }}>
-                  {editForm.id ? "编辑思考" : "记下新感悟"}
+                  {editForm.id ? "编辑模型" : "沉淀新认知模型"}
                 </h3>
               </div>
               <button
