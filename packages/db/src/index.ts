@@ -1216,6 +1216,81 @@ function applyMigrations(database) {
     });
     migrateHabits();
   }
+
+  const thoughtsApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("025_thoughts_and_reflections");
+  if (!thoughtsApplied) {
+    const migrateThoughts = database.transaction(() => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS thoughts (
+          id TEXT PRIMARY KEY,
+          summary TEXT NOT NULL,
+          content TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT '认知模型',
+          color_theme TEXT NOT NULL DEFAULT 'ocean',
+          bubble_size INTEGER NOT NULL DEFAULT 2,
+          is_pinned INTEGER NOT NULL DEFAULT 0,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_thoughts_created ON thoughts (created_at);
+        CREATE INDEX IF NOT EXISTS idx_thoughts_category ON thoughts (category);
+      `);
+      const existing = database.prepare("SELECT COUNT(*) as cnt FROM thoughts").get() as { cnt: number };
+      if (existing.cnt === 0) {
+        const defaults = [
+          {
+            id: randomUUID(),
+            summary: "人得知足，无实际问题驱动的投入皆是欲望",
+            content: "如果问题摆在面前，我们可以投入更多的钱和精力去解决它，因为这是真实的需求，回报率极高。\n\n但如果现实中并没有一个实际的问题，摆在面前的其实只是被促销与害怕错失（FOMO）激发的欲望。\n\n被欲望驱动去投入，不仅回报率极低，更会陷入永无止境的匮乏与痛苦中。知足常乐，按需投入才是真自由。",
+            category: "消费防御",
+            color_theme: "emerald",
+            bubble_size: 3,
+            is_pinned: 1,
+            sort_order: 1
+          },
+          {
+            id: randomUUID(),
+            summary: "专升本拿下公立，等于4个月净挣6万",
+            content: "民办本科学费每年两三万，两年累计支出五六万；公立本科两年仅需一万多。\n\n这4个月全力备考拿下公立，等同于为家庭净创6万元现金流，折合月薪1.5万元。\n\n任何一个月几百块的零碎折腾与内耗，在“4个月省6万”的核心硬仗面前，都不配抢占我的主带宽。",
+            category: "战略与学业",
+            color_theme: "amber",
+            bubble_size: 3,
+            is_pinned: 1,
+            sort_order: 2
+          },
+          {
+            id: randomUUID(),
+            summary: "电梯玻璃渣：是我善良敏感的大脑在演灾难片",
+            content: "看到电梯异常主动反馈排除了安全隐患，客观上我做了一件守护全楼安全的善事。\n\n但在应激状态下，敏感的大脑却习惯性往极端坏处推演，编造“工人被罚找我报复”的灾难剧本。\n\n事实是：隐患已排除，维保按规程处理，现实没有那么多戏剧性的仇恨。别把过度同理心和高敏感，当成了内耗的利刃。",
+            category: "情绪觉察",
+            color_theme: "purple",
+            bubble_size: 2,
+            is_pinned: 0,
+            sort_order: 3
+          },
+          {
+            id: randomUUID(),
+            summary: "中转业务5分钟原则：零心智挂机，不反客为主",
+            content: "中转业务彻底降级为低精力防守型运营：不上闲鱼、不拉新客、不纠结留存，想退随时原路秒退。\n\n任何偶发故障若处理超过5分钟或引起焦虑，立即退款关停。\n\n绝不让一个月几百块的零花钱，反客为主绑架我真正重要的人生主航道。",
+            category: "心智模型",
+            color_theme: "ocean",
+            bubble_size: 2,
+            is_pinned: 0,
+            sort_order: 4
+          }
+        ];
+        const stmt = database.prepare("INSERT INTO thoughts (id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        const now = nowIso();
+        for (const t of defaults) {
+          stmt.run(t.id, t.summary, t.content, t.category, t.color_theme, t.bubble_size, t.is_pinned, t.sort_order, now, now);
+        }
+      }
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(25, "025_thoughts_and_reflections", nowIso());
+    });
+    migrateThoughts();
+  }
 }
 
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();

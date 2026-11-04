@@ -8,6 +8,7 @@ export type Route =
   | { name: "finance"; tab: "quick" | "expenses" | "incomes" | "accounts" | "stats" }
   | { name: "health" }
   | { name: "plans"; tab: "daily-plan" | "stage-plan" | "daily-review" | "period-review" }
+  | { name: "thinking" }
   | { name: "reviews"; tab: "daily" | "period" }
   | { name: "review"; tab: "daily" | "period"; id: string }
   | { name: "butler"; conversationId: string | null }
@@ -46,6 +47,7 @@ export function parseHash(hash: string): Route {
     return { name: "finance", tab };
   }
   if (first === "health") return { name: "health" };
+  if (first === "thinking") return { name: "thinking" };
   if (first === "plans") {
     const tab = second && planTabs.has(second) ? second as "daily-plan" | "stage-plan" | "daily-review" | "period-review" : "daily-plan";
     return { name: "plans", tab };
@@ -75,6 +77,7 @@ export function toHash(route: Route): string {
     case "finance": return route.tab === "quick" ? "#/finance" : "#/finance/" + route.tab;
     case "health": return "#/health";
     case "plans": return route.tab === "daily-plan" ? "#/plans" : "#/plans/" + route.tab;
+    case "thinking": return "#/thinking";
     case "reviews": return route.tab === "daily" ? "#/reviews" : "#/reviews/period";
     case "review": return `#/reviews/${route.tab}/${encodeURIComponent(route.id)}`;
     case "butler": return route.conversationId ? "#/butler/" + encodeURIComponent(route.conversationId) : "#/butler";
@@ -94,6 +97,7 @@ export const navigation: NavItem[] = [
   { label: "财务", route: { name: "finance", tab: "expenses" } },
   { label: "健康与习惯", route: { name: "health" } },
   { label: "计划与复盘", route: { name: "plans", tab: "daily-plan" } },
+  { label: "思考", route: { name: "thinking" } },
   { label: "归档", route: { name: "archive", tab: "tasks" } },
   { label: "设置", route: { name: "settings" } }
 ];
@@ -105,6 +109,7 @@ export function activeNavName(route: Route): string {
   if (route.name === "recurring-task") return "任务";
   if (route.name === "finance") return "财务";
   if (route.name === "plans") return "计划与复盘";
+  if (route.name === "thinking") return "思考";
   if (route.name === "archive") return "归档";
   if (route.name === "reviews") return "计划与复盘";
   if (route.name === "review") return "计划与复盘";
@@ -118,6 +123,7 @@ export function pageTitle(route: Route): string {
   if (route.name === "project") return "项目详情";
   if (route.name === "finance") return "财务";
   if (route.name === "plans") return "计划与复盘";
+  if (route.name === "thinking") return "思考";
   if (route.name === "reviews") return route.tab === "daily" ? "每日复盘" : "阶段复盘";
   if (route.name === "review") return route.tab === "daily" ? "每日复盘详情" : "阶段复盘详情";
   if (route.name === "archive") return "归档";

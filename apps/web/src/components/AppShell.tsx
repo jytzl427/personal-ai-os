@@ -13,6 +13,7 @@ import {
   ProjectsIcon,
   SettingsIcon,
   TasksIcon,
+  ThinkingIcon,
   TodayIcon
 } from "./Icons.js";
 
@@ -38,6 +39,8 @@ function getNavIcon(label: string) {
       return <HealthIcon />;
     case "计划与复盘":
       return <PlansIcon />;
+    case "思考":
+      return <ThinkingIcon />;
     case "归档":
       return <ArchiveIcon />;
     case "设置":

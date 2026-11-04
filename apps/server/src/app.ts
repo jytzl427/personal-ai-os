@@ -2728,6 +2728,66 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     return c.json({ ok: true, log });
   });
 
+  // Thoughts API
+  app.get("/api/v1/thoughts", (c) => {
+    const thoughts = context.database.prepare(
+      "SELECT id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at FROM thoughts WHERE archived_at IS NULL ORDER BY is_pinned DESC, updated_at DESC"
+    ).all();
+    return c.json({ ok: true, thoughts });
+  });
+
+  app.post("/api/v1/thoughts", async (c) => {
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+    const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+    if (!summary) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "summary is required" } }, 400);
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    const category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : "认知模型";
+    const colorTheme = typeof body.color_theme === "string" && body.color_theme.trim() ? body.color_theme.trim() : "ocean";
+    const bubbleSize = typeof body.bubble_size === "number" ? Math.max(1, Math.min(3, body.bubble_size)) : 2;
+    const isPinned = body.is_pinned ? 1 : 0;
+    const id = randomUUID();
+    const timestamp = now();
+
+    context.database.prepare(`
+      INSERT INTO thoughts (id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+    `).run(id, summary, content, category, colorTheme, bubbleSize, isPinned, timestamp, timestamp);
+
+    const thought = context.database.prepare("SELECT * FROM thoughts WHERE id = ?").get(id);
+    return c.json({ ok: true, thought }, 201);
+  });
+
+  app.patch("/api/v1/thoughts/:id", async (c) => {
+    const id = c.req.param("id");
+    const current = context.database.prepare("SELECT * FROM thoughts WHERE id = ? AND archived_at IS NULL").get(id) as Record<string, unknown> | undefined;
+    if (!current) return notFound(c, "thought");
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+
+    const summary = typeof body.summary === "string" && body.summary.trim() ? body.summary.trim() : current.summary;
+    const content = typeof body.content === "string" ? body.content : current.content;
+    const category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : current.category;
+    const colorTheme = typeof body.color_theme === "string" && body.color_theme.trim() ? body.color_theme.trim() : current.color_theme;
+    const bubbleSize = typeof body.bubble_size === "number" ? Math.max(1, Math.min(3, body.bubble_size)) : current.bubble_size;
+    const isPinned = body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : current.is_pinned;
+    const timestamp = now();
+
+    context.database.prepare(`
+      UPDATE thoughts SET summary = ?, content = ?, category = ?, color_theme = ?, bubble_size = ?, is_pinned = ?, updated_at = ?
+      WHERE id = ?
+    `).run(summary, content, category, colorTheme, bubbleSize, isPinned, timestamp, id);
+
+    const thought = context.database.prepare("SELECT * FROM thoughts WHERE id = ?").get(id);
+    return c.json({ ok: true, thought });
+  });
+
+  app.delete("/api/v1/thoughts/:id", (c) => {
+    const id = c.req.param("id");
+    const timestamp = now();
+    const result = context.database.prepare("UPDATE thoughts SET archived_at = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL").run(timestamp, timestamp, id);
+    if (result.changes !== 1) return notFound(c, "thought");
+    return c.json({ ok: true });
+  });
+
   app.get("/api/v1/tasks", (c) => {
     try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
     const archived = parseArchivedFilter(c);

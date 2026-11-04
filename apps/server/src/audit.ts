@@ -37,6 +37,7 @@ const TARGETS: Array<{ pattern: RegExp; entityType: string; table: string; where
   { pattern: /^\/api\/v1\/finance\/account-entries\/([^/]+)(?:\/|$)/, entityType: "finance_account_entry", table: "finance_account_entries" },
   { pattern: /^\/api\/v1\/finance\/(expenses|incomes)\/([^/]+)(?:\/|$)/, entityType: "finance_entry", table: "__kind__" },
   { pattern: /^\/api\/v1\/health\/([^/]+)(?:\/|$)/, entityType: "health", table: "health_logs", whereColumn: "log_date" },
+  { pattern: /^\/api\/v1\/thoughts\/([^/]+)(?:\/|$)/, entityType: "thought", table: "thoughts" },
   { pattern: /^\/api\/v1\/reviews\/([^/]+)(?:\/|$)/, entityType: "review", table: "reviews" }
 ];
 
@@ -45,6 +46,7 @@ const COLLECTION_TARGETS: Record<string, Omit<AuditTarget, "entityId">> = {
   "/api/v1/task-recurrences": { entityType: "task_recurrence", table: "task_recurrences", whereColumn: "id" },
   "/api/v1/projects": { entityType: "project", table: "projects", whereColumn: "id" },
   "/api/v1/ideas": { entityType: "idea", table: "ideas", whereColumn: "id" },
+  "/api/v1/thoughts": { entityType: "thought", table: "thoughts", whereColumn: "id" },
   "/api/v1/finance/accounts": { entityType: "finance_account", table: "finance_accounts", whereColumn: "id" },
   "/api/v1/finance/account-entries": { entityType: "finance_account_entry", table: "finance_account_entries", whereColumn: "id" },
   "/api/v1/finance/expenses": { entityType: "finance_entry", table: "finance_expenses", whereColumn: "id" },
@@ -132,7 +134,7 @@ export function responseEntityId(value: unknown): string | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
   if (typeof record.id === "string") return record.id;
-  for (const key of ["task", "project", "idea", "recurrence", "account", "entry", "expense", "income", "health", "review"]) {
+  for (const key of ["task", "project", "idea", "recurrence", "account", "entry", "expense", "income", "health", "review", "thought"]) {
     const item = record[key];
     if (item && typeof item === "object" && !Array.isArray(item) && typeof (item as Record<string, unknown>).id === "string") return (item as Record<string, unknown>).id as string;
     if (item && typeof item === "object" && !Array.isArray(item) && typeof (item as Record<string, unknown>).log_date === "string") return (item as Record<string, unknown>).log_date as string;

@@ -9529,6 +9529,80 @@ function applyMigrations(database) {
     });
     migrateHabits();
   }
+  const thoughtsApplied = database.prepare("SELECT 1 FROM schema_migrations WHERE name = ?").get("025_thoughts_and_reflections");
+  if (!thoughtsApplied) {
+    const migrateThoughts = database.transaction(() => {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS thoughts (
+          id TEXT PRIMARY KEY,
+          summary TEXT NOT NULL,
+          content TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT '\u8BA4\u77E5\u6A21\u578B',
+          color_theme TEXT NOT NULL DEFAULT 'ocean',
+          bubble_size INTEGER NOT NULL DEFAULT 2,
+          is_pinned INTEGER NOT NULL DEFAULT 0,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_thoughts_created ON thoughts (created_at);
+        CREATE INDEX IF NOT EXISTS idx_thoughts_category ON thoughts (category);
+      `);
+      const existing = database.prepare("SELECT COUNT(*) as cnt FROM thoughts").get();
+      if (existing.cnt === 0) {
+        const defaults = [
+          {
+            id: randomUUID(),
+            summary: "\u4EBA\u5F97\u77E5\u8DB3\uFF0C\u65E0\u5B9E\u9645\u95EE\u9898\u9A71\u52A8\u7684\u6295\u5165\u7686\u662F\u6B32\u671B",
+            content: "\u5982\u679C\u95EE\u9898\u6446\u5728\u9762\u524D\uFF0C\u6211\u4EEC\u53EF\u4EE5\u6295\u5165\u66F4\u591A\u7684\u94B1\u548C\u7CBE\u529B\u53BB\u89E3\u51B3\u5B83\uFF0C\u56E0\u4E3A\u8FD9\u662F\u771F\u5B9E\u7684\u9700\u6C42\uFF0C\u56DE\u62A5\u7387\u6781\u9AD8\u3002\n\n\u4F46\u5982\u679C\u73B0\u5B9E\u4E2D\u5E76\u6CA1\u6709\u4E00\u4E2A\u5B9E\u9645\u7684\u95EE\u9898\uFF0C\u6446\u5728\u9762\u524D\u7684\u5176\u5B9E\u53EA\u662F\u88AB\u4FC3\u9500\u4E0E\u5BB3\u6015\u9519\u5931\uFF08FOMO\uFF09\u6FC0\u53D1\u7684\u6B32\u671B\u3002\n\n\u88AB\u6B32\u671B\u9A71\u52A8\u53BB\u6295\u5165\uFF0C\u4E0D\u4EC5\u56DE\u62A5\u7387\u6781\u4F4E\uFF0C\u66F4\u4F1A\u9677\u5165\u6C38\u65E0\u6B62\u5883\u7684\u532E\u4E4F\u4E0E\u75DB\u82E6\u4E2D\u3002\u77E5\u8DB3\u5E38\u4E50\uFF0C\u6309\u9700\u6295\u5165\u624D\u662F\u771F\u81EA\u7531\u3002",
+            category: "\u6D88\u8D39\u9632\u5FA1",
+            color_theme: "emerald",
+            bubble_size: 3,
+            is_pinned: 1,
+            sort_order: 1
+          },
+          {
+            id: randomUUID(),
+            summary: "\u4E13\u5347\u672C\u62FF\u4E0B\u516C\u7ACB\uFF0C\u7B49\u4E8E4\u4E2A\u6708\u51C0\u63236\u4E07",
+            content: "\u6C11\u529E\u672C\u79D1\u5B66\u8D39\u6BCF\u5E74\u4E24\u4E09\u4E07\uFF0C\u4E24\u5E74\u7D2F\u8BA1\u652F\u51FA\u4E94\u516D\u4E07\uFF1B\u516C\u7ACB\u672C\u79D1\u4E24\u5E74\u4EC5\u9700\u4E00\u4E07\u591A\u3002\n\n\u8FD94\u4E2A\u6708\u5168\u529B\u5907\u8003\u62FF\u4E0B\u516C\u7ACB\uFF0C\u7B49\u540C\u4E8E\u4E3A\u5BB6\u5EAD\u51C0\u521B6\u4E07\u5143\u73B0\u91D1\u6D41\uFF0C\u6298\u5408\u6708\u85AA1.5\u4E07\u5143\u3002\n\n\u4EFB\u4F55\u4E00\u4E2A\u6708\u51E0\u767E\u5757\u7684\u96F6\u788E\u6298\u817E\u4E0E\u5185\u8017\uFF0C\u5728\u201C4\u4E2A\u6708\u77016\u4E07\u201D\u7684\u6838\u5FC3\u786C\u4ED7\u9762\u524D\uFF0C\u90FD\u4E0D\u914D\u62A2\u5360\u6211\u7684\u4E3B\u5E26\u5BBD\u3002",
+            category: "\u6218\u7565\u4E0E\u5B66\u4E1A",
+            color_theme: "amber",
+            bubble_size: 3,
+            is_pinned: 1,
+            sort_order: 2
+          },
+          {
+            id: randomUUID(),
+            summary: "\u7535\u68AF\u73BB\u7483\u6E23\uFF1A\u662F\u6211\u5584\u826F\u654F\u611F\u7684\u5927\u8111\u5728\u6F14\u707E\u96BE\u7247",
+            content: "\u770B\u5230\u7535\u68AF\u5F02\u5E38\u4E3B\u52A8\u53CD\u9988\u6392\u9664\u4E86\u5B89\u5168\u9690\u60A3\uFF0C\u5BA2\u89C2\u4E0A\u6211\u505A\u4E86\u4E00\u4EF6\u5B88\u62A4\u5168\u697C\u5B89\u5168\u7684\u5584\u4E8B\u3002\n\n\u4F46\u5728\u5E94\u6FC0\u72B6\u6001\u4E0B\uFF0C\u654F\u611F\u7684\u5927\u8111\u5374\u4E60\u60EF\u6027\u5F80\u6781\u7AEF\u574F\u5904\u63A8\u6F14\uFF0C\u7F16\u9020\u201C\u5DE5\u4EBA\u88AB\u7F5A\u627E\u6211\u62A5\u590D\u201D\u7684\u707E\u96BE\u5267\u672C\u3002\n\n\u4E8B\u5B9E\u662F\uFF1A\u9690\u60A3\u5DF2\u6392\u9664\uFF0C\u7EF4\u4FDD\u6309\u89C4\u7A0B\u5904\u7406\uFF0C\u73B0\u5B9E\u6CA1\u6709\u90A3\u4E48\u591A\u620F\u5267\u6027\u7684\u4EC7\u6068\u3002\u522B\u628A\u8FC7\u5EA6\u540C\u7406\u5FC3\u548C\u9AD8\u654F\u611F\uFF0C\u5F53\u6210\u4E86\u5185\u8017\u7684\u5229\u5203\u3002",
+            category: "\u60C5\u7EEA\u89C9\u5BDF",
+            color_theme: "purple",
+            bubble_size: 2,
+            is_pinned: 0,
+            sort_order: 3
+          },
+          {
+            id: randomUUID(),
+            summary: "\u4E2D\u8F6C\u4E1A\u52A15\u5206\u949F\u539F\u5219\uFF1A\u96F6\u5FC3\u667A\u6302\u673A\uFF0C\u4E0D\u53CD\u5BA2\u4E3A\u4E3B",
+            content: "\u4E2D\u8F6C\u4E1A\u52A1\u5F7B\u5E95\u964D\u7EA7\u4E3A\u4F4E\u7CBE\u529B\u9632\u5B88\u578B\u8FD0\u8425\uFF1A\u4E0D\u4E0A\u95F2\u9C7C\u3001\u4E0D\u62C9\u65B0\u5BA2\u3001\u4E0D\u7EA0\u7ED3\u7559\u5B58\uFF0C\u60F3\u9000\u968F\u65F6\u539F\u8DEF\u79D2\u9000\u3002\n\n\u4EFB\u4F55\u5076\u53D1\u6545\u969C\u82E5\u5904\u7406\u8D85\u8FC75\u5206\u949F\u6216\u5F15\u8D77\u7126\u8651\uFF0C\u7ACB\u5373\u9000\u6B3E\u5173\u505C\u3002\n\n\u7EDD\u4E0D\u8BA9\u4E00\u4E2A\u6708\u51E0\u767E\u5757\u7684\u96F6\u82B1\u94B1\uFF0C\u53CD\u5BA2\u4E3A\u4E3B\u7ED1\u67B6\u6211\u771F\u6B63\u91CD\u8981\u7684\u4EBA\u751F\u4E3B\u822A\u9053\u3002",
+            category: "\u5FC3\u667A\u6A21\u578B",
+            color_theme: "ocean",
+            bubble_size: 2,
+            is_pinned: 0,
+            sort_order: 4
+          }
+        ];
+        const stmt = database.prepare("INSERT INTO thoughts (id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        const now5 = nowIso();
+        for (const t of defaults) {
+          stmt.run(t.id, t.summary, t.content, t.category, t.color_theme, t.bubble_size, t.is_pinned, t.sort_order, now5, now5);
+        }
+      }
+      database.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(25, "025_thoughts_and_reflections", nowIso());
+    });
+    migrateThoughts();
+  }
 }
 var nowIso2 = () => (/* @__PURE__ */ new Date()).toISOString();
 var WEEKLY_BACKUP_RETAIN = 3;
@@ -17211,6 +17285,7 @@ var TARGETS = [
   { pattern: /^\/api\/v1\/finance\/account-entries\/([^/]+)(?:\/|$)/, entityType: "finance_account_entry", table: "finance_account_entries" },
   { pattern: /^\/api\/v1\/finance\/(expenses|incomes)\/([^/]+)(?:\/|$)/, entityType: "finance_entry", table: "__kind__" },
   { pattern: /^\/api\/v1\/health\/([^/]+)(?:\/|$)/, entityType: "health", table: "health_logs", whereColumn: "log_date" },
+  { pattern: /^\/api\/v1\/thoughts\/([^/]+)(?:\/|$)/, entityType: "thought", table: "thoughts" },
   { pattern: /^\/api\/v1\/reviews\/([^/]+)(?:\/|$)/, entityType: "review", table: "reviews" }
 ];
 var COLLECTION_TARGETS = {
@@ -17218,6 +17293,7 @@ var COLLECTION_TARGETS = {
   "/api/v1/task-recurrences": { entityType: "task_recurrence", table: "task_recurrences", whereColumn: "id" },
   "/api/v1/projects": { entityType: "project", table: "projects", whereColumn: "id" },
   "/api/v1/ideas": { entityType: "idea", table: "ideas", whereColumn: "id" },
+  "/api/v1/thoughts": { entityType: "thought", table: "thoughts", whereColumn: "id" },
   "/api/v1/finance/accounts": { entityType: "finance_account", table: "finance_accounts", whereColumn: "id" },
   "/api/v1/finance/account-entries": { entityType: "finance_account_entry", table: "finance_account_entries", whereColumn: "id" },
   "/api/v1/finance/expenses": { entityType: "finance_entry", table: "finance_expenses", whereColumn: "id" },
@@ -17323,7 +17399,7 @@ function responseEntityId(value) {
   const record2 = value;
   if (typeof record2.id === "string")
     return record2.id;
-  for (const key of ["task", "project", "idea", "recurrence", "account", "entry", "expense", "income", "health", "review"]) {
+  for (const key of ["task", "project", "idea", "recurrence", "account", "entry", "expense", "income", "health", "review", "thought"]) {
     const item = record2[key];
     if (item && typeof item === "object" && !Array.isArray(item) && typeof item.id === "string")
       return item.id;
@@ -22337,6 +22413,57 @@ function createApp(context) {
     }
     const log = context.database.prepare("SELECT * FROM habit_logs WHERE habit_id = ? AND log_date = ?").get(habitId, date3);
     return c.json({ ok: true, log });
+  });
+  app.get("/api/v1/thoughts", (c) => {
+    const thoughts = context.database.prepare("SELECT id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at FROM thoughts WHERE archived_at IS NULL ORDER BY is_pinned DESC, updated_at DESC").all();
+    return c.json({ ok: true, thoughts });
+  });
+  app.post("/api/v1/thoughts", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+    if (!summary)
+      return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "summary is required" } }, 400);
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    const category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : "\u8BA4\u77E5\u6A21\u578B";
+    const colorTheme = typeof body.color_theme === "string" && body.color_theme.trim() ? body.color_theme.trim() : "ocean";
+    const bubbleSize = typeof body.bubble_size === "number" ? Math.max(1, Math.min(3, body.bubble_size)) : 2;
+    const isPinned = body.is_pinned ? 1 : 0;
+    const id = randomUUID10();
+    const timestamp = now4();
+    context.database.prepare(`
+      INSERT INTO thoughts (id, summary, content, category, color_theme, bubble_size, is_pinned, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+    `).run(id, summary, content, category, colorTheme, bubbleSize, isPinned, timestamp, timestamp);
+    const thought = context.database.prepare("SELECT * FROM thoughts WHERE id = ?").get(id);
+    return c.json({ ok: true, thought }, 201);
+  });
+  app.patch("/api/v1/thoughts/:id", async (c) => {
+    const id = c.req.param("id");
+    const current = context.database.prepare("SELECT * FROM thoughts WHERE id = ? AND archived_at IS NULL").get(id);
+    if (!current)
+      return notFound(c, "thought");
+    const body = await c.req.json().catch(() => ({}));
+    const summary = typeof body.summary === "string" && body.summary.trim() ? body.summary.trim() : current.summary;
+    const content = typeof body.content === "string" ? body.content : current.content;
+    const category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : current.category;
+    const colorTheme = typeof body.color_theme === "string" && body.color_theme.trim() ? body.color_theme.trim() : current.color_theme;
+    const bubbleSize = typeof body.bubble_size === "number" ? Math.max(1, Math.min(3, body.bubble_size)) : current.bubble_size;
+    const isPinned = body.is_pinned !== void 0 ? body.is_pinned ? 1 : 0 : current.is_pinned;
+    const timestamp = now4();
+    context.database.prepare(`
+      UPDATE thoughts SET summary = ?, content = ?, category = ?, color_theme = ?, bubble_size = ?, is_pinned = ?, updated_at = ?
+      WHERE id = ?
+    `).run(summary, content, category, colorTheme, bubbleSize, isPinned, timestamp, id);
+    const thought = context.database.prepare("SELECT * FROM thoughts WHERE id = ?").get(id);
+    return c.json({ ok: true, thought });
+  });
+  app.delete("/api/v1/thoughts/:id", (c) => {
+    const id = c.req.param("id");
+    const timestamp = now4();
+    const result3 = context.database.prepare("UPDATE thoughts SET archived_at = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL").run(timestamp, timestamp, id);
+    if (result3.changes !== 1)
+      return notFound(c, "thought");
+    return c.json({ ok: true });
   });
   app.get("/api/v1/tasks", (c) => {
     try {

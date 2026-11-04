@@ -8,6 +8,7 @@ import { ProjectDetailPage, ProjectsPage } from "./pages/ProjectsPage.js";
 import { ReviewDetailPage, ReviewsPage } from "./pages/ReviewsPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { PlansReviewsPage } from "./pages/PlansReviewsPage.js";
+import { ThinkingPage } from "./pages/ThinkingPage.js";
 import { TasksPage } from "./pages/TasksPage.js";
 import { TaskDetailPage } from "./pages/TaskDetailPage.js";
 import { RecurringTaskTemplatePage } from "./pages/RecurringTaskTemplatePage.js";
@@ -44,6 +45,8 @@ function Page({ route, onNavigate }: { route: Route; onNavigate: (route: Route) 
       return <HealthPage />;
     case "plans":
       return <PlansReviewsPage tab={route.tab} onNavigate={onNavigate} />;
+    case "thinking":
+      return <ThinkingPage onNavigate={onNavigate} />;
     case "reviews":
       return <ReviewsPage tab={route.tab} onNavigate={onNavigate} />;
     case "review":
