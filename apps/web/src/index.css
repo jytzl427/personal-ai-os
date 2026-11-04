@@ -8620,3 +8620,24 @@ input.time-input.bedtime-late {
   background: var(--hover);
   border-color: var(--accent);
 }
+
+/* ==========================================================================
+   Thinking Bubbles & Cards
+   ========================================================================== */
+.thought-bubble-node {
+  user-select: none;
+  cursor: grab;
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
+}
+.thought-bubble-node:active {
+  cursor: grabbing !important;
+}
+.thought-bubble-node:hover {
+  filter: brightness(1.05) saturate(1.1);
+  z-index: 10;
+}
+.thought-card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08) !important;
+  border-color: var(--accent) !important;
+}

@@ -7,7 +7,7 @@ export type Thought = {
   summary: string;
   content: string;
   category: string;
-  color_theme: "ocean" | "emerald" | "amber" | "purple" | "sunset" | "aurora";
+  color_theme: "emerald" | "amber" | "purple" | "ocean" | "sunset" | "aurora";
   bubble_size: number;
   is_pinned: number;
   sort_order: number;
@@ -15,16 +15,13 @@ export type Thought = {
   updated_at: string;
 };
 
-type BubbleNode = {
+type BubblePhysics = {
   id: string;
-  thought: Thought;
   x: number;
   y: number;
   vx: number;
   vy: number;
   radius: number;
-  baseRadius: number;
-  isHovered: boolean;
   isDragging: boolean;
 };
 
@@ -32,67 +29,67 @@ const THEMES: Record<
   Thought["color_theme"],
   {
     name: string;
-    border: string;
-    glow: string;
-    fillGradient: [string, string, string];
-    badgeBg: string;
-    badgeText: string;
     accent: string;
+    border: string;
+    bgGradient: string;
+    glow: string;
+    badgeBg: string;
+    badgeColor: string;
   }
 > = {
   emerald: {
     name: "翠玉流光",
-    border: "rgba(52, 211, 153, 0.45)",
-    glow: "rgba(16, 185, 129, 0.28)",
-    fillGradient: ["rgba(16, 185, 129, 0.22)", "rgba(20, 184, 166, 0.18)", "rgba(6, 182, 212, 0.12)"],
-    badgeBg: "rgba(16, 185, 129, 0.18)",
-    badgeText: "#34d399",
-    accent: "#10b981",
+    accent: "#059669",
+    border: "rgba(16, 185, 129, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(209, 250, 229, 0.85), rgba(167, 243, 208, 0.6) 50%, rgba(110, 231, 183, 0.35) 100%)",
+    glow: "0 12px 36px rgba(16, 185, 129, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(16, 185, 129, 0.16)",
+    badgeColor: "#065f46",
   },
   amber: {
     name: "琥珀暖金",
-    border: "rgba(251, 191, 36, 0.45)",
-    glow: "rgba(245, 158, 11, 0.28)",
-    fillGradient: ["rgba(245, 158, 11, 0.24)", "rgba(251, 146, 60, 0.18)", "rgba(234, 179, 8, 0.12)"],
-    badgeBg: "rgba(245, 158, 11, 0.18)",
-    badgeText: "#fbbf24",
-    accent: "#f59e0b",
+    accent: "#d97706",
+    border: "rgba(245, 158, 11, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(254, 243, 199, 0.85), rgba(253, 230, 138, 0.6) 50%, rgba(252, 211, 77, 0.35) 100%)",
+    glow: "0 12px 36px rgba(245, 158, 11, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(245, 158, 11, 0.16)",
+    badgeColor: "#92400e",
   },
   purple: {
     name: "星河幻紫",
-    border: "rgba(192, 132, 252, 0.45)",
-    glow: "rgba(168, 85, 247, 0.28)",
-    fillGradient: ["rgba(168, 85, 247, 0.24)", "rgba(217, 70, 239, 0.18)", "rgba(99, 102, 241, 0.12)"],
-    badgeBg: "rgba(168, 85, 247, 0.18)",
-    badgeText: "#c084fc",
-    accent: "#a855f7",
+    accent: "#7c3aed",
+    border: "rgba(168, 85, 247, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(243, 232, 255, 0.85), rgba(233, 213, 255, 0.6) 50%, rgba(216, 180, 254, 0.35) 100%)",
+    glow: "0 12px 36px rgba(168, 85, 247, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(168, 85, 247, 0.16)",
+    badgeColor: "#5b21b6",
   },
   ocean: {
     name: "深海青蓝",
-    border: "rgba(56, 189, 248, 0.45)",
-    glow: "rgba(14, 165, 233, 0.28)",
-    fillGradient: ["rgba(14, 165, 233, 0.24)", "rgba(6, 182, 212, 0.18)", "rgba(59, 130, 246, 0.12)"],
-    badgeBg: "rgba(14, 165, 233, 0.18)",
-    badgeText: "#38bdf8",
-    accent: "#0ea5e9",
+    accent: "#0284c7",
+    border: "rgba(14, 165, 233, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(224, 242, 254, 0.85), rgba(186, 230, 253, 0.6) 50%, rgba(125, 211, 252, 0.35) 100%)",
+    glow: "0 12px 36px rgba(14, 165, 233, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(14, 165, 233, 0.16)",
+    badgeColor: "#075985",
   },
   sunset: {
     name: "晚霞绯红",
-    border: "rgba(251, 113, 133, 0.45)",
-    glow: "rgba(244, 63, 94, 0.28)",
-    fillGradient: ["rgba(244, 63, 94, 0.24)", "rgba(236, 72, 153, 0.18)", "rgba(249, 115, 22, 0.12)"],
-    badgeBg: "rgba(244, 63, 94, 0.18)",
-    badgeText: "#fb7185",
-    accent: "#f43f5e",
+    accent: "#e11d48",
+    border: "rgba(244, 63, 94, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(255, 228, 230, 0.85), rgba(254, 205, 211, 0.6) 50%, rgba(253, 164, 175, 0.35) 100%)",
+    glow: "0 12px 36px rgba(244, 63, 94, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(244, 63, 94, 0.16)",
+    badgeColor: "#9f1239",
   },
   aurora: {
     name: "极光绚彩",
-    border: "rgba(129, 140, 248, 0.45)",
-    glow: "rgba(99, 102, 241, 0.28)",
-    fillGradient: ["rgba(99, 102, 241, 0.24)", "rgba(45, 212, 191, 0.18)", "rgba(244, 114, 182, 0.12)"],
-    badgeBg: "rgba(99, 102, 241, 0.18)",
-    badgeText: "#818cf8",
-    accent: "#6366f1",
+    accent: "#4f46e5",
+    border: "rgba(99, 102, 241, 0.45)",
+    bgGradient: "radial-gradient(circle at 35% 30%, rgba(238, 242, 255, 0.85), rgba(204, 251, 241, 0.6) 50%, rgba(252, 231, 243, 0.35) 100%)",
+    glow: "0 12px 36px rgba(99, 102, 241, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.9)",
+    badgeBg: "rgba(99, 102, 241, 0.16)",
+    badgeColor: "#3730a3",
   },
 };
 
@@ -116,22 +113,23 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     summary: "",
     content: "",
     category: "认知模型",
-    color_theme: "ocean",
+    color_theme: "emerald",
     is_pinned: false,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nodesRef = useRef<BubbleNode[]>([]);
-  const mouseRef = useRef<{ x: number; y: number; isDown: boolean; dragNode: BubbleNode | null; dragOffset: { x: number; y: number } }>({
+  const physicsRef = useRef<Map<string, BubblePhysics>>(new Map());
+  const mouseRef = useRef<{ x: number; y: number; isDown: boolean; dragId: string | null; offset: { x: number; y: number } }>({
     x: -1000,
     y: -1000,
     isDown: false,
-    dragNode: null,
-    dragOffset: { x: 0, y: 0 },
+    dragId: null,
+    offset: { x: 0, y: 0 },
   });
 
-  // Load thoughts from API
+  // Track positions in state to trigger DOM renders smoothly
+  const [positions, setPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
+
   function loadThoughts() {
     setLoading(true);
     apiJson<{ ok: boolean; thoughts: Thought[] }>("/thoughts")
@@ -165,336 +163,192 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     return Array.from(set);
   }, [thoughts]);
 
-  // Sync physics nodes whenever filteredThoughts or container dimension changes
+  // Initialize bubble physics positions whenever filteredThoughts or container changes
   useEffect(() => {
     if (viewMode !== "bubbles" || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const width = rect.width || 800;
-    const height = rect.height || 600;
+    const w = rect.width || 900;
+    const h = rect.height || 600;
 
-    const existingMap = new Map<string, BubbleNode>();
-    for (const n of nodesRef.current) {
-      existingMap.set(n.id, n);
-    }
+    const currentMap = physicsRef.current;
+    const newMap = new Map<string, BubblePhysics>();
+    const newPositions: { [id: string]: { x: number; y: number } } = {};
 
-    const newNodes: BubbleNode[] = filteredThoughts.map((t, idx) => {
-      const existing = existingMap.get(t.id);
-      // Pinned thoughts get bigger radius
-      const baseRadius = t.is_pinned ? 100 : t.bubble_size === 3 ? 92 : t.bubble_size === 1 ? 72 : 82;
+    filteredThoughts.forEach((t, i) => {
+      const radius = t.is_pinned ? 105 : 90;
+      const existing = currentMap.get(t.id);
+
       if (existing) {
-        existing.thought = t;
-        existing.baseRadius = baseRadius;
-        return existing;
+        existing.radius = radius;
+        newMap.set(t.id, existing);
+        newPositions[t.id] = { x: existing.x, y: existing.y };
+      } else {
+        // Grid-based initial distribution with random offsets
+        const cols = Math.max(1, Math.ceil(Math.sqrt(filteredThoughts.length)));
+        const rows = Math.ceil(filteredThoughts.length / cols);
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+
+        const slotW = w / cols;
+        const slotH = h / rows;
+
+        const x = Math.max(radius + 20, Math.min(w - radius - 20, slotW * (col + 0.5) + (Math.random() - 0.5) * 40));
+        const y = Math.max(radius + 20, Math.min(h - radius - 20, slotH * (row + 0.5) + (Math.random() - 0.5) * 40));
+
+        const node: BubblePhysics = {
+          id: t.id,
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 0.6,
+          vy: (Math.random() - 0.5) * 0.6,
+          radius,
+          isDragging: false,
+        };
+        newMap.set(t.id, node);
+        newPositions[t.id] = { x, y };
       }
-
-      // Distribute nicely across the screen
-      const cols = Math.ceil(Math.sqrt(filteredThoughts.length)) || 1;
-      const row = Math.floor(idx / cols);
-      const col = idx % cols;
-      const cellW = width / cols;
-      const cellH = height / (Math.ceil(filteredThoughts.length / cols) || 1);
-
-      const spawnX = Math.max(baseRadius + 20, Math.min(width - baseRadius - 20, cellW * (col + 0.5) + (Math.random() - 0.5) * 40));
-      const spawnY = Math.max(baseRadius + 20, Math.min(height - baseRadius - 20, cellH * (row + 0.5) + (Math.random() - 0.5) * 40));
-
-      return {
-        id: t.id,
-        thought: t,
-        x: spawnX,
-        y: spawnY,
-        vx: (Math.random() - 0.5) * 0.7,
-        vy: (Math.random() - 0.5) * 0.7,
-        radius: baseRadius,
-        baseRadius,
-        isHovered: false,
-        isDragging: false,
-      };
     });
 
-    nodesRef.current = newNodes;
+    physicsRef.current = newMap;
+    setPositions(newPositions);
   }, [filteredThoughts, viewMode]);
 
-  // Interactive Physics Animation Loop
+  // Smooth Physics Simulation Loop
   useEffect(() => {
     if (viewMode !== "bubbles") return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
     let animId: number;
     let lastTime = performance.now();
-
-    function resizeCanvas() {
-      if (!canvas || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-      ctx?.scale(dpr, dpr);
-    }
-
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
 
     function loop(now: number) {
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
 
-      if (!containerRef.current || !canvas) {
+      if (!containerRef.current) {
         animId = requestAnimationFrame(loop);
         return;
       }
 
       const rect = containerRef.current.getBoundingClientRect();
-      const width = rect.width;
-      const height = rect.height;
-      const dpr = window.devicePixelRatio || 1;
-
-      ctx.clearRect(0, 0, width, height);
-
-      const nodes = nodesRef.current;
+      const w = rect.width;
+      const h = rect.height;
+      const nodes = Array.from(physicsRef.current.values());
       const mouse = mouseRef.current;
+      const updatedPositions: { [id: string]: { x: number; y: number } } = {};
 
-      // Physics update
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
 
         if (n.isDragging) {
-          n.x = mouse.x - mouse.dragOffset.x;
-          n.y = mouse.y - mouse.dragOffset.y;
+          n.x = mouse.x - mouse.offset.x;
+          n.y = mouse.y - mouse.offset.y;
           n.vx = 0;
           n.vy = 0;
         } else {
-          // Gentle floating oscillation
-          const floatTime = now * 0.0015 + i;
-          n.vx += Math.sin(floatTime) * 0.015;
-          n.vy += Math.cos(floatTime * 0.8) * 0.015;
+          // Subtle buoyant orbital motion
+          const timeOffset = now * 0.0012 + i * 1.5;
+          n.vx += Math.sin(timeOffset) * 0.012;
+          n.vy += Math.cos(timeOffset * 0.85) * 0.012;
 
           // Drag / friction
           n.vx *= 0.985;
           n.vy *= 0.985;
 
-          // Clamp speed
-          const speed = Math.hypot(n.vx, n.vy);
-          if (speed > 2.2) {
-            n.vx = (n.vx / speed) * 2.2;
-            n.vy = (n.vy / speed) * 2.2;
+          // Velocity clamp
+          const spd = Math.hypot(n.vx, n.vy);
+          if (spd > 2.0) {
+            n.vx = (n.vx / spd) * 2.0;
+            n.vy = (n.vy / spd) * 2.0;
           }
 
           n.x += n.vx;
           n.y += n.vy;
 
-          // Mouse proximity gentle push
+          // Gentle mouse push
           const dxMouse = n.x - mouse.x;
           const dyMouse = n.y - mouse.y;
           const distMouse = Math.hypot(dxMouse, dyMouse);
-          if (distMouse < n.radius + 60 && distMouse > 1) {
-            const force = (1 - distMouse / (n.radius + 60)) * 0.6;
-            n.vx += (dxMouse / distMouse) * force;
-            n.vy += (dyMouse / distMouse) * force;
+          if (distMouse < n.radius + 50 && distMouse > 1) {
+            const push = (1 - distMouse / (n.radius + 50)) * 0.5;
+            n.vx += (dxMouse / distMouse) * push;
+            n.vy += (dyMouse / distMouse) * push;
           }
 
-          // Wall bouncing
+          // Wall boundary bounce
           if (n.x - n.radius < 10) {
             n.x = n.radius + 10;
-            n.vx = Math.abs(n.vx) * 0.8;
-          } else if (n.x + n.radius > width - 10) {
-            n.x = width - n.radius - 10;
-            n.vx = -Math.abs(n.vx) * 0.8;
+            n.vx = Math.abs(n.vx) * 0.85;
+          } else if (n.x + n.radius > w - 10) {
+            n.x = w - n.radius - 10;
+            n.vx = -Math.abs(n.vx) * 0.85;
           }
           if (n.y - n.radius < 10) {
             n.y = n.radius + 10;
-            n.vy = Math.abs(n.vy) * 0.8;
-          } else if (n.y + n.radius > height - 10) {
-            n.y = height - n.radius - 10;
-            n.vy = -Math.abs(n.vy) * 0.8;
+            n.vy = Math.abs(n.vy) * 0.85;
+          } else if (n.y + n.radius > h - 10) {
+            n.y = h - n.radius - 10;
+            n.vy = -Math.abs(n.vy) * 0.85;
           }
         }
 
-        // Soft repulsion between bubbles
+        // Inter-bubble soft repulsion
         for (let j = i + 1; j < nodes.length; j++) {
           const m = nodes[j];
           const dx = m.x - n.x;
           const dy = m.y - n.y;
           const dist = Math.hypot(dx, dy);
-          const minDist = n.radius + m.radius + 16;
+          const minDist = n.radius + m.radius + 14;
           if (dist < minDist && dist > 0.1) {
-            const overlap = (minDist - dist) * 0.04;
+            const overlap = (minDist - dist) * 0.05;
             const nx = dx / dist;
             const ny = dy / dist;
             if (!n.isDragging) {
               n.x -= nx * overlap;
               n.y -= ny * overlap;
-              n.vx -= nx * 0.05;
-              n.vy -= ny * 0.05;
+              n.vx -= nx * 0.06;
+              n.vy -= ny * 0.06;
             }
             if (!m.isDragging) {
               m.x += nx * overlap;
               m.y += ny * overlap;
-              m.vx += nx * 0.05;
-              m.vy += ny * 0.05;
+              m.vx += nx * 0.06;
+              m.vy += ny * 0.06;
             }
           }
         }
 
-        // Smooth radius transition for hover
-        const targetR = n.isHovered ? n.baseRadius * 1.08 : n.baseRadius;
-        n.radius += (targetR - n.radius) * 0.15;
+        updatedPositions[n.id] = { x: n.x, y: n.y };
       }
 
-      // Render bubbles
-      for (const n of nodes) {
-        const theme = THEMES[n.thought.color_theme] || THEMES.ocean;
-
-        ctx.save();
-        ctx.translate(n.x, n.y);
-
-        // 1. Outer ambient glow
-        ctx.beginPath();
-        ctx.arc(0, 0, n.radius + (n.isHovered ? 14 : 6), 0, Math.PI * 2);
-        ctx.fillStyle = theme.glow;
-        ctx.filter = `blur(${n.isHovered ? 18 : 10}px)`;
-        ctx.fill();
-        ctx.filter = "none";
-
-        // 2. Main fluid translucent bubble body
-        ctx.beginPath();
-        ctx.arc(0, 0, n.radius, 0, Math.PI * 2);
-
-        const grad = ctx.createRadialGradient(-n.radius * 0.35, -n.radius * 0.35, n.radius * 0.1, 0, 0, n.radius);
-        grad.addColorStop(0, theme.fillGradient[0]);
-        grad.addColorStop(0.55, theme.fillGradient[1]);
-        grad.addColorStop(1, theme.fillGradient[2]);
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // 3. Shimmering border
-        ctx.lineWidth = n.thought.is_pinned ? 2.5 : n.isHovered ? 2.2 : 1.4;
-        ctx.strokeStyle = n.isHovered ? "rgba(255, 255, 255, 0.85)" : theme.border;
-        ctx.stroke();
-
-        // 4. Specular highlight (top-left glass reflection curve)
-        ctx.beginPath();
-        ctx.ellipse(-n.radius * 0.35, -n.radius * 0.42, n.radius * 0.45, n.radius * 0.22, -Math.PI / 4.5, 0, Math.PI * 2);
-        const specGrad = ctx.createLinearGradient(-n.radius * 0.6, -n.radius * 0.6, 0, 0);
-        specGrad.addColorStop(0, "rgba(255, 255, 255, 0.45)");
-        specGrad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
-        ctx.fillStyle = specGrad;
-        ctx.fill();
-
-        // 5. Category pill badge
-        const badgeText = n.thought.category;
-        ctx.font = "600 11px system-ui, -apple-system, sans-serif";
-        const badgeW = ctx.measureText(badgeText).width + 14;
-        const badgeH = 18;
-        const badgeY = -n.radius * 0.52;
-
-        ctx.beginPath();
-        ctx.roundRect(-badgeW / 2, badgeY, badgeW, badgeH, 9);
-        ctx.fillStyle = theme.badgeBg;
-        ctx.fill();
-        ctx.strokeStyle = theme.border;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = theme.badgeText;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(badgeText, 0, badgeY + badgeH / 2);
-
-        // 6. Summary quote text in center (auto-wrapped)
-        const summaryText = n.thought.summary;
-        ctx.font = n.thought.is_pinned ? "600 13px system-ui, -apple-system, sans-serif" : "500 12.5px system-ui, -apple-system, sans-serif";
-        ctx.fillStyle = "#ffffff";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        const maxLineW = n.radius * 1.5;
-        const words = summaryText.split("");
-        const lines: string[] = [];
-        let curLine = "";
-
-        for (const char of words) {
-          const testLine = curLine + char;
-          if (ctx.measureText(testLine).width > maxLineW && curLine.length > 0) {
-            lines.push(curLine);
-            curLine = char;
-          } else {
-            curLine = testLine;
-          }
-        }
-        if (curLine) lines.push(curLine);
-
-        const displayedLines = lines.slice(0, 3);
-        const lineHeight = 17;
-        const textStartY = 8 - ((displayedLines.length - 1) * lineHeight) / 2;
-
-        for (let li = 0; li < displayedLines.length; li++) {
-          let lineStr = displayedLines[li];
-          if (li === 2 && lines.length > 3) {
-            lineStr = lineStr.slice(0, -1) + "…";
-          }
-          // Subtle text shadow
-          ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-          ctx.shadowBlur = 4;
-          ctx.fillText(lineStr, 0, textStartY + li * lineHeight);
-          ctx.shadowBlur = 0;
-        }
-
-        // 7. Hover click hint
-        if (n.isHovered) {
-          ctx.font = "500 10.5px system-ui, -apple-system, sans-serif";
-          ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-          ctx.fillText("✦ 展开感悟", 0, n.radius * 0.62);
-        }
-
-        ctx.restore();
-      }
-
+      setPositions(updatedPositions);
       animId = requestAnimationFrame(loop);
     }
 
     animId = requestAnimationFrame(loop);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resizeCanvas);
-    };
+    return () => cancelAnimationFrame(animId);
   }, [viewMode]);
 
-  // Pointer & Drag Handlers for Canvas
-  function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+  // Pointer drag events on bubbles
+  function startDrag(id: string, e: React.PointerEvent) {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    mouseRef.current.x = x;
-    mouseRef.current.y = y;
+    const node = physicsRef.current.get(id);
+    if (!node) return;
+
+    node.isDragging = true;
     mouseRef.current.isDown = true;
+    mouseRef.current.dragId = id;
+    mouseRef.current.offset = { x: x - node.x, y: y - node.y };
+    mouseRef.current.x = x;
+    mouseRef.current.y = y;
 
-    // Hit test top-most bubble
-    let hit: BubbleNode | null = null;
-    for (let i = nodesRef.current.length - 1; i >= 0; i--) {
-      const n = nodesRef.current[i];
-      if (Math.hypot(n.x - x, n.y - y) <= n.radius) {
-        hit = n;
-        break;
-      }
-    }
-
-    if (hit) {
-      hit.isDragging = true;
-      mouseRef.current.dragNode = hit;
-      mouseRef.current.dragOffset = { x: x - hit.x, y: y - hit.y };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    }
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
-  function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+  function handleContainerPointerMove(e: React.PointerEvent) {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -502,47 +356,29 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
 
     mouseRef.current.x = x;
     mouseRef.current.y = y;
-
-    if (!mouseRef.current.isDown) {
-      // Update hover state
-      let anyHovered = false;
-      for (let i = nodesRef.current.length - 1; i >= 0; i--) {
-        const n = nodesRef.current[i];
-        const isHit = Math.hypot(n.x - x, n.y - y) <= n.radius;
-        if (isHit && !anyHovered) {
-          n.isHovered = true;
-          anyHovered = true;
-        } else {
-          n.isHovered = false;
-        }
-      }
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = anyHovered ? "pointer" : "default";
-      }
-    }
   }
 
-  function handlePointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mouseRef.current.dragNode) {
-      const dragged = mouseRef.current.dragNode;
-      dragged.isDragging = false;
-
-      // Click detected if mouse didn't drag far
+  function stopDrag(id: string, thought: Thought, e: React.PointerEvent) {
+    const node = physicsRef.current.get(id);
+    if (node) {
+      node.isDragging = false;
+    }
+    if (mouseRef.current.dragId === id) {
+      // Check if this was a click rather than a large drag
       const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
+      if (rect && node) {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const dist = Math.hypot(x - (dragged.x + mouseRef.current.dragOffset.x), y - (dragged.y + mouseRef.current.dragOffset.y));
-        if (dist < 8) {
-          setActiveThought(dragged.thought);
+        const dist = Math.hypot(x - (node.x + mouseRef.current.offset.x), y - (node.y + mouseRef.current.offset.y));
+        if (dist < 6) {
+          setActiveThought(thought);
         }
       }
-      mouseRef.current.dragNode = null;
+      mouseRef.current.dragId = null;
     }
     mouseRef.current.isDown = false;
   }
 
-  // Save new / edited thought
   async function handleSaveThought() {
     if (!editForm.summary.trim()) {
       alert("请输入总结金句");
@@ -550,7 +386,6 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     }
     try {
       if (editForm.id) {
-        // Update
         const res = await apiJson<{ ok: boolean; thought: Thought }>(`/thoughts/${editForm.id}`, {
           method: "PATCH",
           body: JSON.stringify({
@@ -568,7 +403,6 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           }
         }
       } else {
-        // Create
         const res = await apiJson<{ ok: boolean; thought: Thought }>("/thoughts", {
           method: "POST",
           body: JSON.stringify({
@@ -591,7 +425,6 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
     }
   }
 
-  // Delete thought
   async function handleDeleteThought(id: string) {
     if (!confirm("确定要删除这条思考沉淀吗？")) return;
     try {
@@ -606,62 +439,82 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0b0f17] text-slate-100 overflow-hidden select-none">
-      {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0f172a]/70 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <span className="text-lg">🫧</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+    <div className="page-stack" style={{ padding: "0 28px 40px", maxWidth: "1280px", margin: "0 auto" }}>
+      {/* Page Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", paddingTop: "24px", paddingBottom: "18px", borderBottom: "1px solid var(--line)" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "24px" }}>🫧</span>
+            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "700", color: "var(--ink)", letterSpacing: "-0.02em" }}>
               思考
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              用真实经历与内耗淬炼出的认知晶体 · 触碰气泡重温定海神针
-            </p>
           </div>
+          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--ink-3)" }}>
+            用真实经历与内耗淬炼出的认知晶体 · 触碰气泡重温定海神针
+          </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center space-x-3">
-          {/* View Mode Toggle */}
-          <div className="flex items-center p-1 bg-slate-900/80 rounded-xl border border-white/10 text-xs">
+        {/* Toolbar controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "inline-flex", background: "var(--surface-2)", padding: "3px", borderRadius: "10px", border: "1px solid var(--line)" }}>
             <button
               onClick={() => setViewMode("bubbles")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                viewMode === "bubbles"
-                  ? "bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-md shadow-indigo-500/25"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              style={{
+                border: "none",
+                background: viewMode === "bubbles" ? "var(--surface)" : "transparent",
+                color: viewMode === "bubbles" ? "var(--ink)" : "var(--ink-3)",
+                fontWeight: viewMode === "bubbles" ? "600" : "500",
+                fontSize: "12px",
+                padding: "5px 12px",
+                borderRadius: "7px",
+                cursor: "pointer",
+                boxShadow: viewMode === "bubbles" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease",
+              }}
             >
               🫧 灵动气泡
             </button>
             <button
               onClick={() => setViewMode("cards")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                viewMode === "cards"
-                  ? "bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow-md shadow-indigo-500/25"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              style={{
+                border: "none",
+                background: viewMode === "cards" ? "var(--surface)" : "transparent",
+                color: viewMode === "cards" ? "var(--ink)" : "var(--ink-3)",
+                fontWeight: viewMode === "cards" ? "600" : "500",
+                fontSize: "12px",
+                padding: "5px 12px",
+                borderRadius: "7px",
+                cursor: "pointer",
+                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease",
+              }}
             >
               🗂️ 沉淀卡片
             </button>
           </div>
 
-          {/* New Thought Button */}
           <button
             onClick={() => {
               setEditForm({
                 summary: "",
                 content: "",
                 category: selectedCategory === "全部" ? "认知模型" : selectedCategory,
-                color_theme: "ocean",
+                color_theme: "emerald",
                 is_pinned: false,
               });
               setIsEditing(true);
             }}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 hover:opacity-90 shadow-lg shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+            className="primary-button"
+            style={{
+              padding: "7px 16px",
+              borderRadius: "10px",
+              fontSize: "13px",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              cursor: "pointer",
+            }}
           >
             <span>+</span>
             <span>记录新思考</span>
@@ -669,20 +522,26 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         </div>
       </div>
 
-      {/* Category Filter Pills */}
-      <div className="flex items-center space-x-2 px-6 py-2.5 bg-slate-950/40 border-b border-white/5 overflow-x-auto shrink-0 scrollbar-none z-10">
-        <span className="text-xs text-slate-500 mr-2 shrink-0">分类筛选:</span>
+      {/* Category Filter Tabs */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "14px 0 16px", overflowX: "auto", paddingBottom: "4px" }}>
+        <span style={{ fontSize: "12px", color: "var(--ink-4)", marginRight: "4px" }}>分类:</span>
         {allCategories.map((cat) => {
           const isSelected = selectedCategory === cat;
           return (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs transition-all shrink-0 font-medium ${
-                isSelected
-                  ? "bg-white/20 text-white border border-white/30 shadow-sm backdrop-blur-md"
-                  : "bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent hover:bg-white/10"
-              }`}
+              style={{
+                border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line)",
+                background: isSelected ? "var(--accent-soft)" : "var(--surface)",
+                color: isSelected ? "var(--accent)" : "var(--ink-2)",
+                fontWeight: isSelected ? "600" : "500",
+                fontSize: "12px",
+                padding: "4px 14px",
+                borderRadius: "9999px",
+                cursor: "pointer",
+                transition: "all 0.14s ease",
+              }}
             >
               {cat}
             </button>
@@ -690,158 +549,283 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         })}
       </div>
 
-      {/* Main Canvas / Content Container */}
-      <div ref={containerRef} className="relative flex-1 w-full h-full overflow-hidden bg-radial from-[#131b2e] via-[#0b0f17] to-[#06090e]">
-        {/* Subtle cosmic background dots */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] pointer-events-none" />
+      {/* Main View Area */}
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "450px", color: "var(--ink-3)", fontSize: "14px" }}>
+          正在加载思考晶体...
+        </div>
+      ) : filteredThoughts.length === 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "450px", color: "var(--ink-4)" }}>
+          <span style={{ fontSize: "40px", marginBottom: "8px" }}>🫧</span>
+          <p style={{ margin: 0, fontSize: "14px", color: "var(--ink-3)" }}>暂无该分类的思考气泡</p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记录新思考”，为你的心智武器库增添一颗晶体</p>
+        </div>
+      ) : viewMode === "bubbles" ? (
+        /* Floating Organic Bubbles Pool */
+        <div
+          ref={containerRef}
+          onPointerMove={handleContainerPointerMove}
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "calc(100vh - 230px)",
+            minHeight: "560px",
+            background: "radial-gradient(ellipse at 50% 20%, rgba(240, 24DF, 245, 0.7), var(--surface-2) 80%)",
+            borderRadius: "24px",
+            border: "1px solid var(--line)",
+            boxShadow: "inset 0 2px 10px rgba(0,0,0,0.02)",
+            overflow: "hidden",
+            userSelect: "none",
+            touchAction: "none",
+          }}
+        >
+          {filteredThoughts.map((t) => {
+            const theme = THEMES[t.color_theme] || THEMES.emerald;
+            const pos = positions[t.id] || { x: 200, y: 200 };
+            const size = t.is_pinned ? 200 : 176;
 
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-            <span className="animate-pulse">正在唤醒思维意识流...</span>
-          </div>
-        ) : filteredThoughts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500">
-            <span className="text-4xl mb-3">🫧</span>
-            <p className="text-sm">暂无该分类的思考气泡</p>
-            <p className="text-xs text-slate-600 mt-1">点击右上角“记录新思考”，为你的心智武器库增添一颗晶体</p>
-          </div>
-        ) : viewMode === "bubbles" ? (
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full block touch-none"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          />
-        ) : (
-          /* Cards Grid View */
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full max-w-7xl mx-auto">
-            {filteredThoughts.map((t) => {
-              const theme = THEMES[t.color_theme] || THEMES.ocean;
-              return (
+            return (
+              <div
+                key={t.id}
+                onPointerDown={(e) => startDrag(t.id, e)}
+                onPointerUp={(e) => stopDrag(t.id, t, e)}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  borderRadius: "50%",
+                  transform: `translate3d(${pos.x - size / 2}px, ${pos.y - size / 2}px, 0)`,
+                  background: theme.bgGradient,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: theme.glow,
+                  backdropFilter: "blur(12px)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "18px",
+                  boxSizing: "border-box",
+                  cursor: "grab",
+                  transition: "transform 0.04s linear, box-shadow 0.2s ease",
+                  textAlign: "center",
+                  willChange: "transform",
+                }}
+                className="thought-bubble-node"
+              >
+                {/* 3D Glass Highlight Crescent */}
                 <div
-                  key={t.id}
-                  onClick={() => setActiveThought(t)}
-                  className="group relative flex flex-col justify-between p-6 rounded-2xl border bg-slate-900/60 backdrop-blur-xl hover:scale-[1.02] transition-all cursor-pointer shadow-lg hover:shadow-2xl"
                   style={{
-                    borderColor: theme.border,
-                    boxShadow: `0 8px 30px ${theme.glow}`,
+                    position: "absolute",
+                    top: "12px",
+                    left: "20px",
+                    width: "48px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    transform: "rotate(-35deg)",
+                    background: "radial-gradient(ellipse, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 80%)",
+                    pointerEvents: "none",
+                  }}
+                />
+
+                {/* Category Badge */}
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    padding: "2px 8px",
+                    borderRadius: "9999px",
+                    background: theme.badgeBg,
+                    color: theme.badgeColor,
+                    marginBottom: "6px",
+                    pointerEvents: "none",
                   }}
                 >
-                  {/* Card Header */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span
-                        className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full border"
-                        style={{
-                          backgroundColor: theme.badgeBg,
-                          color: theme.badgeText,
-                          borderColor: theme.border,
-                        }}
-                      >
-                        {t.category}
-                      </span>
-                      {t.is_pinned === 1 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                          ⭐️ 核心晶体
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-white mb-3 group-hover:text-cyan-300 transition-colors leading-snug">
-                      “{t.summary}”
-                    </h3>
-                    <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">
-                      {t.content || "暂无详细感悟描述，点击卡片补充思考。"}
-                    </p>
-                  </div>
+                  {t.category}
+                </span>
 
-                  {/* Card Footer */}
-                  <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>{t.created_at ? t.created_at.slice(0, 10) : "近期"}</span>
-                    <span className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      查看感悟 →
-                    </span>
-                  </div>
+                {/* Summary Quote */}
+                <div
+                  style={{
+                    fontSize: t.is_pinned ? "13px" : "12.5px",
+                    fontWeight: "600",
+                    color: "var(--ink)",
+                    lineHeight: "1.45",
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    pointerEvents: "none",
+                    textShadow: "0 1px 2px rgba(255,255,255,0.8)",
+                  }}
+                >
+                  “{t.summary}”
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
+                {/* Hover Click Hint */}
+                <span
+                  style={{
+                    fontSize: "10.5px",
+                    color: theme.accent,
+                    marginTop: "6px",
+                    fontWeight: "500",
+                    opacity: 0.85,
+                    pointerEvents: "none",
+                  }}
+                >
+                  点击查看 ✦
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Bento Cards Grid View */
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px", marginTop: "8px" }}>
+          {filteredThoughts.map((t) => {
+            const theme = THEMES[t.color_theme] || THEMES.emerald;
+            return (
+              <div
+                key={t.id}
+                onClick={() => setActiveThought(t)}
+                style={{
+                  background: "var(--surface)",
+                  borderRadius: "16px",
+                  border: `1.5px solid ${theme.border}`,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                  padding: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                  transition: "all 0.18s ease",
+                }}
+                className="thought-card-item"
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        padding: "3px 10px",
+                        borderRadius: "9999px",
+                        background: theme.badgeBg,
+                        color: theme.badgeColor,
+                      }}
+                    >
+                      {t.category}
+                    </span>
+                    {t.is_pinned === 1 && (
+                      <span style={{ fontSize: "11px", color: "#d97706", fontWeight: "600" }}>
+                        ⭐️ 核心定海神针
+                      </span>
+                    )}
+                  </div>
+                  <h3 style={{ margin: "0 0 8px", fontSize: "15px", fontWeight: "600", color: "var(--ink)", lineHeight: "1.4" }}>
+                    “{t.summary}”
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "12.5px", color: "var(--ink-3)", lineHeight: "1.5", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
+                    {t.content || "点击卡片补充详细思考与背景推导。"}
+                  </p>
+                </div>
+
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11.5px", color: "var(--ink-4)" }}>
+                  <span>{t.created_at ? t.created_at.slice(0, 10) : "思考晶体"}</span>
+                  <span style={{ color: theme.accent, fontWeight: "500" }}>展开感悟 →</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Active Thought Detail Modal */}
       {activeThought && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn"
-          onClick={() => setActiveThought(null)}
-        >
+        <div className="habit-modal-backdrop" onClick={() => setActiveThought(null)}>
           <div
-            className="relative w-full max-w-2xl max-h-[85vh] rounded-3xl p-8 overflow-y-auto bg-slate-900/90 border shadow-2xl backdrop-blur-2xl"
-            style={{
-              borderColor: (THEMES[activeThought.color_theme] || THEMES.ocean).border,
-              boxShadow: `0 20px 60px ${(THEMES[activeThought.color_theme] || THEMES.ocean).glow}`,
-            }}
+            className="habit-modal-dialog"
+            style={{ maxWidth: "600px", padding: "0" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header / Badges */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
+            {/* Modal Header */}
+            <div className="habit-modal-header" style={{ padding: "18px 24px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span
-                  className="text-xs font-semibold px-3 py-1 rounded-full border"
                   style={{
-                    backgroundColor: (THEMES[activeThought.color_theme] || THEMES.ocean).badgeBg,
-                    color: (THEMES[activeThought.color_theme] || THEMES.ocean).badgeText,
-                    borderColor: (THEMES[activeThought.color_theme] || THEMES.ocean).border,
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    padding: "3px 10px",
+                    borderRadius: "9999px",
+                    background: (THEMES[activeThought.color_theme] || THEMES.emerald).badgeBg,
+                    color: (THEMES[activeThought.color_theme] || THEMES.emerald).badgeColor,
                   }}
                 >
                   {activeThought.category}
                 </span>
                 {activeThought.is_pinned === 1 && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  <span style={{ fontSize: "11.5px", color: "#d97706", fontWeight: "600" }}>
                     ⭐️ 核心定海神针
                   </span>
                 )}
-                <span className="text-xs text-slate-500">
-                  {activeThought.created_at ? activeThought.created_at.slice(0, 10) : "思考晶体"}
+                <span style={{ fontSize: "12px", color: "var(--ink-4)" }}>
+                  {activeThought.created_at ? activeThought.created_at.slice(0, 10) : ""}
                 </span>
               </div>
-
-              {/* Close Button */}
               <button
+                type="button"
+                className="close-button"
                 onClick={() => setActiveThought(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                style={{ border: "none", background: "transparent", fontSize: "18px", cursor: "pointer", color: "var(--ink-3)" }}
               >
                 ✕
               </button>
             </div>
 
-            {/* Core Golden Rule Quote */}
-            <div className="mb-6 pb-6 border-b border-white/10">
-              <div className="text-2xl font-bold text-white tracking-tight leading-snug">
+            {/* Modal Scroll Body */}
+            <div style={{ padding: "20px 24px 28px", maxHeight: "65vh", overflowY: "auto" }}>
+              <div
+                style={{
+                  padding: "16px 20px",
+                  borderRadius: "14px",
+                  background: (THEMES[activeThought.color_theme] || THEMES.emerald).bgGradient,
+                  border: `1.5px solid ${(THEMES[activeThought.color_theme] || THEMES.emerald).border}`,
+                  fontSize: "17px",
+                  fontWeight: "700",
+                  color: "var(--ink)",
+                  lineHeight: "1.45",
+                  marginBottom: "20px",
+                  letterSpacing: "-0.01em",
+                }}
+              >
                 “{activeThought.summary}”
+              </div>
+
+              <div style={{ fontSize: "13.5px", color: "var(--ink-2)", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
+                {activeThought.content ? (
+                  <MarkdownView source={activeThought.content} />
+                ) : (
+                  <p style={{ color: "var(--ink-4)", fontStyle: "italic", margin: 0 }}>
+                    暂无更详细的背景推导与感悟，可点击下方“编辑思考”进行补充。
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Detailed Reflections Body */}
-            <div className="mb-8 prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-              {activeThought.content ? (
-                <MarkdownView source={activeThought.content} />
-              ) : (
-                <p className="text-slate-500 italic">暂无更详细的背景推导与感悟，可点击下方“编辑思考”进行补充。</p>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-white/10">
+            {/* Modal Footer */}
+            <div style={{ padding: "14px 24px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface-2)" }}>
               <button
+                type="button"
                 onClick={() => handleDeleteThought(activeThought.id)}
-                className="px-3.5 py-1.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition-colors"
+                style={{ border: "none", background: "transparent", color: "var(--danger)", fontSize: "12px", cursor: "pointer" }}
               >
-                删除思考
+                删除此思考
               </button>
 
-              <div className="flex items-center space-x-3">
+              <div style={{ display: "flex", gap: "10px" }}>
                 <button
+                  type="button"
                   onClick={() => {
                     setEditForm({
                       id: activeThought.id,
@@ -853,13 +837,16 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                     });
                     setIsEditing(true);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-colors"
+                  className="secondary-button"
+                  style={{ padding: "6px 14px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
                 >
                   编辑此思考
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveThought(null)}
-                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-indigo-500 hover:opacity-90 shadow-lg shadow-indigo-500/25 transition-all"
+                  className="primary-button"
+                  style={{ padding: "6px 16px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
                 >
                   关闭
                 </button>
@@ -869,121 +856,131 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         </div>
       )}
 
-      {/* Edit / Create Thought Modal */}
+      {/* Edit / Create Modal */}
       {isEditing && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn"
-          onClick={() => setIsEditing(false)}
-        >
+        <div className="habit-modal-backdrop" onClick={() => setIsEditing(false)}>
           <div
-            className="relative w-full max-w-lg rounded-3xl p-6 bg-slate-900/95 border border-white/15 shadow-2xl backdrop-blur-2xl"
+            className="habit-modal-dialog"
+            style={{ maxWidth: "520px" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">
-                {editForm.id ? "编辑思考沉淀" : "沉淀新的思考晶体"}
-              </h2>
+            <div className="habit-modal-header">
+              <div className="modal-title-group">
+                <h3 className="modal-title">{editForm.id ? "编辑思考沉淀" : "沉淀新的思考晶体"}</h3>
+              </div>
               <button
+                type="button"
+                className="close-button"
                 onClick={() => setIsEditing(false)}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                style={{ border: "none", background: "transparent", fontSize: "18px", cursor: "pointer", color: "var(--ink-3)" }}
               >
                 ✕
               </button>
             </div>
 
-            {/* Summary Input */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                核心总结金句 <span className="text-cyan-400 font-normal">（气泡外显，15～25字为宜）</span>
-              </label>
-              <input
-                type="text"
-                value={editForm.summary}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, summary: e.target.value }))}
-                placeholder="例如：人得知足，无实际问题驱动的投入皆是欲望"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-colors"
-              />
-            </div>
-
-            {/* Category & Color Selector */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: "14px", maxHeight: "70vh", overflowY: "auto" }}>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  思考分类
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" }}>
+                  核心总结金句 <span style={{ fontWeight: "normal", color: "var(--ink-3)" }}>（气泡外显，15～25字为佳）</span>
                 </label>
-                <select
-                  value={editForm.category}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-white/15 text-xs text-white focus:outline-none focus:border-cyan-400"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={editForm.summary}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, summary: e.target.value }))}
+                  placeholder="例如：人得知足，无实际问题驱动的投入皆是欲望"
+                  className="rounded-input"
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  流光色调
-                </label>
-                <div className="flex items-center space-x-1.5 pt-1">
-                  {(Object.keys(THEMES) as Array<Thought["color_theme"]>).map((thm) => (
-                    <button
-                      key={thm}
-                      type="button"
-                      onClick={() => setEditForm((prev) => ({ ...prev, color_theme: thm }))}
-                      className={`w-6 h-6 rounded-full border transition-all ${
-                        editForm.color_theme === thm ? "scale-125 border-white ring-2 ring-white/40 shadow-lg" : "border-transparent opacity-70 hover:opacity-100"
-                      }`}
-                      style={{ backgroundColor: THEMES[thm].accent }}
-                      title={THEMES[thm].name}
-                    />
-                  ))}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" }}>
+                    思考分类
+                  </label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, category: e.target.value }))}
+                    className="rounded-input"
+                    style={{ width: "100%", boxSizing: "border-box" }}
+                  >
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" }}>
+                    流光色调
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", paddingTop: "4px" }}>
+                    {(Object.keys(THEMES) as Array<Thought["color_theme"]>).map((thm) => (
+                      <button
+                        key={thm}
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({ ...prev, color_theme: thm }))}
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          background: THEMES[thm].accent,
+                          border: editForm.color_theme === thm ? "2.5px solid var(--ink)" : "2px solid transparent",
+                          transform: editForm.color_theme === thm ? "scale(1.2)" : "scale(1)",
+                          cursor: "pointer",
+                          transition: "all 0.14s ease",
+                        }}
+                        title={THEMES[thm].name}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Pinned Toggle */}
-            <div className="mb-4 flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
-              <div>
-                <span className="text-xs font-semibold text-white">置顶高亮为核心晶体</span>
-                <p className="text-[11px] text-slate-400">气泡体积更大，在视野中优先呈现</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: "10px", background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+                <div>
+                  <span style={{ fontSize: "12.5px", fontWeight: "600", color: "var(--ink)" }}>置顶为核心定海神针</span>
+                  <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--ink-3)" }}>气泡体积更大，视觉优先呈现</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_pinned}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, is_pinned: e.target.checked }))}
+                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                />
               </div>
-              <input
-                type="checkbox"
-                checked={editForm.is_pinned}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, is_pinned: e.target.checked }))}
-                className="w-4 h-4 accent-cyan-500 rounded cursor-pointer"
-              />
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" }}>
+                  深度感悟与思考推导 <span style={{ fontWeight: "normal", color: "var(--ink-4)" }}>（支持 Markdown）</span>
+                </label>
+                <textarea
+                  rows={6}
+                  value={editForm.content}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, content: e.target.value }))}
+                  placeholder="记录当时发生的事实、深层心理觉察、逻辑推导以及给未来的终极准则..."
+                  className="rounded-input"
+                  style={{ width: "100%", boxSizing: "border-box", resize: "vertical", lineHeight: "1.6" }}
+                />
+              </div>
             </div>
 
-            {/* Detailed Content Textarea */}
-            <div className="mb-6">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                深度感悟与思考推导 <span className="text-slate-500 font-normal">（支持 Markdown）</span>
-              </label>
-              <textarea
-                rows={5}
-                value={editForm.content}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, content: e.target.value }))}
-                placeholder="记录当时发生的事情、深层心理觉察、逻辑推导以及给未来的终极准则..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-colors leading-relaxed"
-              />
-            </div>
-
-            {/* Save Button */}
-            <div className="flex items-center justify-end space-x-3">
+            <div style={{ padding: "14px 24px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: "10px", background: "var(--surface-2)" }}>
               <button
+                type="button"
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white"
+                className="secondary-button"
+                style={{ padding: "6px 14px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
               >
                 取消
               </button>
               <button
+                type="button"
                 onClick={handleSaveThought}
-                className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 hover:opacity-90 shadow-lg shadow-indigo-500/25 transition-all"
+                className="primary-button"
+                style={{ padding: "6px 18px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
               >
                 保存沉淀
               </button>
