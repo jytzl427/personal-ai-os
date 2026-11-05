@@ -116,12 +116,13 @@ const THEMES: Record<
   },
 };
 
-const CATEGORIES = ["认知模型", "消费防御", "情绪觉察", "战略与学业", "生活哲学"];
+const CATEGORIES = ["认知模型", "开发模型"] as const;
+type Category = (typeof CATEGORIES)[number];
 
 export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void }) {
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string>("全部");
+  const [selectedCategory, setSelectedCategory] = useState<Category>("认知模型");
   const [activeThought, setActiveThought] = useState<Thought | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -182,17 +183,10 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   }, []);
 
   const filteredThoughts = useMemo(() => {
-    if (selectedCategory === "全部") return thoughts;
-    return thoughts.filter((t) => t.category === selectedCategory);
+    return thoughts.filter(
+      (t) => (t.category === "开发模型" ? "开发模型" : "认知模型") === selectedCategory
+    );
   }, [thoughts, selectedCategory]);
-
-  const allCategories = useMemo(() => {
-    const set = new Set<string>(["全部", ...CATEGORIES]);
-    for (const t of thoughts) {
-      if (t.category) set.add(t.category);
-    }
-    return Array.from(set);
-  }, [thoughts]);
 
   // Bubbles Enlarged & Proportioned:
   // Normal bubble: diameter 144px (radius 72px) - comfortably holds 15~25 Chinese characters
@@ -488,25 +482,47 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           borderBottom: "1px solid rgba(226, 232, 240, 0.75)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
-          <h1
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "20px",
+                fontWeight: "700",
+                color: "#0f172a",
+                letterSpacing: "-0.02em",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span style={{ fontSize: "20px" }}>🫧</span>
+              <span>模型晶体</span>
+            </h1>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: "500",
+                color: "#059669",
+                background: "rgba(16, 185, 129, 0.08)",
+                border: "1px solid rgba(16, 185, 129, 0.2)",
+                padding: "1px 7px",
+                borderRadius: "999px",
+              }}
+            >
+              解题 SOP
+            </span>
+          </div>
+          <p
             style={{
-              margin: 0,
-              fontSize: "20px",
-              fontWeight: "700",
-              color: "#0f172a",
-              letterSpacing: "-0.02em",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
+              margin: "5px 0 0",
+              fontSize: "12px",
+              color: "#64748b",
+              lineHeight: "1.4",
             }}
           >
-            <span style={{ fontSize: "20px" }}>🫧</span>
-            <span>认知模型</span>
-          </h1>
-          <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-            触碰气泡重温认知锚点 · 点击展开感悟小卡片
-          </span>
+            一套处理问题的 SOP：把长期困扰我的问题提炼出固定的解题步骤
+          </p>
         </div>
 
         {/* Single Primary Action */}
@@ -515,7 +531,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             setEditForm({
               summary: "",
               content: "",
-              category: selectedCategory === "全部" ? "认知模型" : selectedCategory,
+              category: selectedCategory,
               color_theme: "emerald",
               is_pinned: false,
             });
@@ -535,7 +551,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           }}
         >
           <span>+</span>
-          <span>记下感悟</span>
+          <span>沉淀新晶体</span>
         </button>
       </div>
 
@@ -546,12 +562,11 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "6px",
+          gap: "8px",
           margin: "12px 0 16px",
-          overflowX: "auto",
         }}
       >
-        {allCategories.map((cat) => {
+        {CATEGORIES.map((cat) => {
           const isSelected = selectedCategory === cat;
           return (
             <button
@@ -562,11 +577,12 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 background: isSelected ? "#0f172a" : "rgba(241, 245, 249, 0.85)",
                 color: isSelected ? "#ffffff" : "#64748b",
                 fontWeight: isSelected ? "600" : "500",
-                fontSize: "12px",
-                padding: "4px 13px",
+                fontSize: "12.5px",
+                padding: "5px 18px",
                 borderRadius: "999px",
                 cursor: "pointer",
                 transition: "all 0.15s ease",
+                boxShadow: isSelected ? "0 2px 8px rgba(15, 23, 42, 0.18)" : "none",
               }}
             >
               {cat}
@@ -589,7 +605,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             fontSize: "13.5px",
           }}
         >
-          正在唤醒认知晶体...
+          正在唤醒模型晶体...
         </div>
       ) : filteredThoughts.length === 0 ? (
         <div
@@ -603,8 +619,8 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
           }}
         >
           <span style={{ fontSize: "38px", marginBottom: "8px" }}>🫧</span>
-          <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的认知气泡</p>
-          <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“记下感悟”，随时捕捉生活与内耗中的定海神针</p>
+          <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>暂无该分类的模型晶体</p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px" }}>点击右上角“沉淀新晶体”，沉淀当前分类下的固定解题步骤</p>
         </div>
       ) : (
         /* Outer 2px Frosted Prism Gradient Border Track */
@@ -1041,7 +1057,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
             <div className="habit-modal-header" style={{ padding: "16px 20px" }}>
               <div className="modal-title-group">
                 <h3 className="modal-title" style={{ fontSize: "15.5px" }}>
-                  {editForm.id ? "编辑模型" : "沉淀新认知模型"}
+                  {editForm.id ? "编辑晶体模型" : "沉淀新晶体模型"}
                 </h3>
               </div>
               <button
@@ -1168,7 +1184,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
                 className="primary-button"
                 style={{ padding: "5px 16px", fontSize: "12px", borderRadius: "8px", cursor: "pointer" }}
               >
-                保存感悟
+                保存晶体
               </button>
             </div>
           </div>

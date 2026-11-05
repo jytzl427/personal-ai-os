@@ -39,6 +39,7 @@ function getNavIcon(label: string) {
       return <HealthIcon />;
     case "计划与复盘":
       return <PlansIcon />;
+    case "模型晶体":
     case "认知模型":
     case "思考":
       return <ThinkingIcon />;

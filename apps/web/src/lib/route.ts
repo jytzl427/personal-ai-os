@@ -97,7 +97,7 @@ export const navigation: NavItem[] = [
   { label: "财务", route: { name: "finance", tab: "expenses" } },
   { label: "健康与习惯", route: { name: "health" } },
   { label: "计划与复盘", route: { name: "plans", tab: "daily-plan" } },
-  { label: "认知模型", route: { name: "thinking" } },
+  { label: "模型晶体", route: { name: "thinking" } },
   { label: "归档", route: { name: "archive", tab: "tasks" } },
   { label: "设置", route: { name: "settings" } }
 ];
@@ -109,7 +109,7 @@ export function activeNavName(route: Route): string {
   if (route.name === "recurring-task") return "任务";
   if (route.name === "finance") return "财务";
   if (route.name === "plans") return "计划与复盘";
-  if (route.name === "thinking") return "认知模型";
+  if (route.name === "thinking") return "模型晶体";
   if (route.name === "archive") return "归档";
   if (route.name === "reviews") return "计划与复盘";
   if (route.name === "review") return "计划与复盘";
@@ -123,7 +123,7 @@ export function pageTitle(route: Route): string {
   if (route.name === "project") return "项目详情";
   if (route.name === "finance") return "财务";
   if (route.name === "plans") return "计划与复盘";
-  if (route.name === "thinking") return "认知模型";
+  if (route.name === "thinking") return "模型晶体";
   if (route.name === "reviews") return route.tab === "daily" ? "每日复盘" : "阶段复盘";
   if (route.name === "review") return route.tab === "daily" ? "每日复盘详情" : "阶段复盘详情";
   if (route.name === "archive") return "归档";
