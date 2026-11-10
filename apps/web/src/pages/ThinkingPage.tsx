@@ -116,7 +116,7 @@ const THEMES: Record<
   },
 };
 
-const CATEGORIES = ["认知模型", "开发模型"] as const;
+const CATEGORIES = ["认知模型", "开发模型", "投资晶体"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void }) {
@@ -183,9 +183,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
   }, []);
 
   const filteredThoughts = useMemo(() => {
-    return thoughts.filter(
-      (t) => (t.category === "开发模型" ? "开发模型" : "认知模型") === selectedCategory
-    );
+    return thoughts.filter((t) => t.category === selectedCategory);
   }, [thoughts, selectedCategory]);
 
   // Bubbles Enlarged & Proportioned:
