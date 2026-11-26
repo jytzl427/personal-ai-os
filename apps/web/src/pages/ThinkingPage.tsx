@@ -263,9 +263,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
       const mouse = mouseRef.current;
       const updatedPositions: { [id: string]: { x: number; y: number } } = {};
 
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-
+      for (const [i, n] of nodes.entries()) {
         if (n.isDragging) {
           n.x = mouse.x - mouse.offset.x;
           n.y = mouse.y - mouse.offset.y;
@@ -321,6 +319,7 @@ export function ThinkingPage({ onNavigate }: { onNavigate?: (route: any) => void
         // Soft inter-bubble repulsive cushion (prevent harsh collisions)
         for (let j = i + 1; j < nodes.length; j++) {
           const m = nodes[j];
+          if (!m) continue;
           const dx = m.x - n.x;
           const dy = m.y - n.y;
           const dist = Math.hypot(dx, dy);

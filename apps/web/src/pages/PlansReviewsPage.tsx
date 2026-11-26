@@ -87,8 +87,9 @@ export function PlansReviewsPage({ tab, onNavigate }: { tab: PlanReviewTab; onNa
       if (tab === "daily-plan") {
         const result = await apiJson<{ plans: DailyPlan[] }>("/plans");
         setDailyPlans(result.plans);
-        if (result.plans.length > 0 && !selectedPlan) {
-          void openPlan(result.plans[0].plan_date);
+        const firstPlan = result.plans[0];
+        if (firstPlan && !selectedPlan) {
+          void openPlan(firstPlan.plan_date);
         }
       } else if (tab === "stage-plan") {
         const result = await apiJson<{ stages: StagePlan[] }>("/stage-plans");

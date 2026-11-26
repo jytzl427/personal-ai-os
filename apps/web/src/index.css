@@ -2667,7 +2667,7 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .review-detail-field .review-editor { min-height: 260px; width: 100%; }
 .health-table-panel .database-table { min-width: 950px; width: 100%; }
 .health-table-panel .col-delete { width: 34px; }
-.health-table-panel .col-date { width: 105px; }
+.health-table-panel .col-date { width: 124px; min-width: 118px; }
 .health-table-panel .col-time { width: 125px; min-width: 120px; }
 .health-table-panel .col-time-sleep { width: 95px; min-width: 90px; text-align: center; }
 .health-table-panel .col-number { width: 105px; min-width: 95px; text-align: center; }
@@ -2689,18 +2689,22 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 }
 
 .health-add-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   padding: 10px 16px;
   background: var(--surface);
   border-top: 1px dashed var(--line);
 }
 
 .health-add-today-btn {
-  width: 100%;
+  flex: 1 1 220px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 18px;
+  padding: 10px 16px;
   border-radius: var(--radius-sm, 6px);
   border: 1px dashed var(--line-strong);
   background: var(--surface-2);
@@ -2709,6 +2713,29 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
+}
+
+.health-add-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+}
+
+.health-add-custom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.health-add-custom .date-field {
+  width: auto;
+  min-width: 112px;
+  height: 30px;
 }
 
 .health-add-today-btn:hover {
@@ -7723,6 +7750,58 @@ input.time-input.bedtime-late {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.habits-date-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+
+.habits-date-bar-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.habits-date-pill {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.habits-date-pill:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.habits-date-pill.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.habits-date-picker-wrap .date-field {
+  width: auto;
+  min-width: 112px;
+  height: 30px;
+}
+
+.habits-backfill-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .habits-pill-btn {

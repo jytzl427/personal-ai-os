@@ -1,8 +1,6 @@
 # Architecture decisions
 
-Source of truth for product/architecture: [PLAN.md](./PLAN.md) v2.
-
-D1–D12 are locked as of plan v2. Overturn only with a new ADR in this file.
+D1–D12 record the v2 architecture decisions. See the [handoff guide](./交付手册.md) for the current implementation.
 
 | ID | Decision | Locked value |
 |---|---|---|

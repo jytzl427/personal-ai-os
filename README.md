@@ -5,15 +5,13 @@
 当前状态：本地单用户 Windows 应用已进入可用阶段。数据库、页面、MCP、页内管家计划/复盘/项目推进闭环和单文件 EXE 均已落地。收尾项（统一业务网关抽取、外部 Agent 长流程、前端 E2E、安装包）见 [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md)。
 
 - 接手请先读：[交付手册](docs/交付手册.md)
-- `docs/PLAN.md` 和 `docs/plans/` 是历史设计，不是当前待办
+- 版本演进见 [更新记录](docs/CHANGELOG.html)
 
 ## 📥 快速下载（免安装绿色版）
 
 无需安装 Node.js 或 Rust 环境，直接下载解压即可开箱即用：
 
-👉 **[前往最新发行版页面 (GitHub Releases v1.1)](https://github.com/jytzl427/personal-ai-os/releases/tag/v1.1)**
-- **推荐下载**：[`Personal-AI-OS-v1.1-windows-x64.zip`](https://github.com/jytzl427/personal-ai-os/releases/download/v1.1/Personal-AI-OS-v1.1-windows-x64.zip)（仅 36.5 MB，解压直接双击运行）
-- **单文件可执行程序**：[`Personal-AI-OS.exe`](https://github.com/jytzl427/personal-ai-os/releases/download/v1.1/Personal-AI-OS.exe)
+[查看 GitHub 已发行的 Windows 下载包](https://github.com/jytzl427/personal-ai-os/releases)。从当前源码打包的步骤见 [交付手册](docs/交付手册.md#11-开发构建和测试)。
 
 ---
 
@@ -36,6 +34,4 @@ pnpm dev
 
 桌面壳位于 `apps/desktop/`。给自己使用时直接双击 `release/Personal-AI-OS.exe` 即可，不需要安装 pnpm、Node，也不需要旁边的 `resources` 文件夹；程序首次启动会自动准备内部运行时，数据默认位于 `%USERPROFILE%\\.paios\\`。外部 Agent 使用时配置同一个 EXE 加 `--mcp` 参数，Agent 会自动启动无界面的直接 MCP 模式，不需要你先打开界面。开发或重新构建使用 `pnpm --filter @paios/desktop tauri:build`；若只生成 EXE 而跳过安装包，必须使用 `cargo build --release --features custom-protocol`，否则窗口会连接开发地址。
 
-P8 的后续扩展路线见 [`docs/ROADMAP.md`](docs/ROADMAP.md)，当前不预建投资、习惯或附件表。
-
-- 交付手册：[docs/交付手册.md](docs/交付手册.md)
+后续扩展路线见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。

@@ -46,6 +46,21 @@ test("settings, conversations, archive and stats endpoints work together", async
     assert.equal(restored.status, 403);
     const restoredWithSession = await app.fetch(new Request("http://paios.local/api/v1/archive/restore", { method: "POST", headers: { "Content-Type": "application/json", "X-PAIOS-UI-Session": uiSession }, body: JSON.stringify({ entity_type: "conversation", id: conversationId }) }));
     assert.equal(restoredWithSession.status, 200);
+
+    const createdHealth = await app.fetch(new Request("http://paios.local/api/v1/health/2026-11-27", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weight_kg: 71.5, bedtime_local: "00:25", wake_local: "08:00" }) }));
+    assert.equal(createdHealth.status, 200);
+    const conflictTarget = await app.fetch(new Request("http://paios.local/api/v1/health/2026-11-26", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weight_kg: 72.0 }) }));
+    assert.equal(conflictTarget.status, 200);
+    const moveConflict = await app.fetch(new Request("http://paios.local/api/v1/health/2026-11-27", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next_date: "2026-11-26" }) }));
+    assert.equal(moveConflict.status, 409);
+    const moveOverwrite = await app.fetch(new Request("http://paios.local/api/v1/health/2026-11-27", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next_date: "2026-11-26", overwrite: true }) }));
+    assert.equal(moveOverwrite.status, 200);
+    const movedData = await moveOverwrite.json() as { health: { log_date: string; weight_kg: number; bedtime_local: string } };
+    assert.equal(movedData.health.log_date, "2026-11-26");
+    assert.equal(movedData.health.weight_kg, 71.5);
+    assert.equal(movedData.health.bedtime_local, "00:25");
+    const oldGone = await app.fetch(new Request("http://paios.local/api/v1/health/2026-11-27"));
+    assert.equal((await oldGone.json() as { health: unknown }).health, null);
   } finally {
     database.close();
     rmSync(dataDir, { recursive: true, force: true });

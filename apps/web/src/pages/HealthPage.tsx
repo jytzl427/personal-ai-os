@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { CellText } from "../components/CellText.js";
 import { Checkbox } from "../components/Checkbox.js";
 import { DatabaseTable } from "../components/DatabaseTable.js";
-import { formatDate } from "../components/DateField.js";
+import { DateField, formatDate } from "../components/DateField.js";
 import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
@@ -102,6 +102,8 @@ export function HealthPage() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
 
   const today = todayYmd();
+  const yesterday = shiftYmd(today, -1);
+  const [customAddDate, setCustomAddDate] = useState(yesterday);
 
   useEffect(() => {
     logsRef.current = logs;
@@ -109,7 +111,7 @@ export function HealthPage() {
 
   async function loadHealth() {
     try {
-      const result = await apiJson<{ health: Health[] }>(`/health?from=${shiftYmd(today, -90)}&to=${today}`);
+      const result = await apiJson<{ health: Health[] }>(`/health?from=${shiftYmd(today, -180)}&to=${shiftYmd(today, 7)}`);
       const sorted = [...result.health].sort((left, right) => right.log_date.localeCompare(left.log_date));
       logsRef.current = sorted;
       setLogs(sorted);
@@ -122,7 +124,7 @@ export function HealthPage() {
     try {
       const [habitsRes, logsRes] = await Promise.all([
         apiJson<{ habits: Habit[] }>("/habits"),
-        apiJson<{ logs: HabitLog[] }>(`/habits/logs?from=${shiftYmd(today, -14)}&to=${today}`)
+        apiJson<{ logs: HabitLog[] }>(`/habits/logs?from=${shiftYmd(today, -30)}&to=${shiftYmd(today, 7)}`)
       ]);
       setHabits(habitsRes.habits || []);
       setHabitLogs(logsRes.logs || []);
@@ -186,27 +188,54 @@ export function HealthPage() {
     }
   }
 
-  async function addToday() {
-    if (!logsRef.current.some((row) => row.log_date === today)) await saveHealth(today, { log_date: today });
-  }
-
-  function focusToday() {
-    const todayRow = document.querySelector<HTMLTableRowElement>(".health-table-panel tbody tr:first-child");
-    if (todayRow) {
-      todayRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      const input = todayRow.querySelector<HTMLInputElement>("input.weight-input, input.time-input");
-      input?.focus();
-      todayRow.classList.add("row-highlight");
-      setTimeout(() => todayRow.classList.remove("row-highlight"), 1200);
+  function focusHealthRow(date: string) {
+    const idx = logsRef.current.findIndex((row) => row.log_date === date);
+    if (idx < 0) return;
+    if (idx + 1 > visibleCount) {
+      setVisibleCount(idx + 1);
     }
+    setTimeout(() => {
+      const targetRow = document.querySelector<HTMLTableRowElement>(`.health-table-panel tbody tr:nth-child(${idx + 1})`);
+      if (!targetRow) return;
+      targetRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const input = targetRow.querySelector<HTMLInputElement>("input.weight-input, input.time-input");
+      input?.focus();
+      targetRow.classList.add("row-highlight");
+      setTimeout(() => targetRow.classList.remove("row-highlight"), 1200);
+    }, 60);
   }
 
-  async function handleAddOrFocusToday() {
-    if (!logsRef.current.some((row) => row.log_date === today)) {
-      await saveHealth(today, { log_date: today });
-      setTimeout(focusToday, 60);
-    } else {
-      focusToday();
+  async function handleAddOrFocusDate(date: string) {
+    if (!logsRef.current.some((row) => row.log_date === date)) {
+      await saveHealth(date, { log_date: date });
+      setMessage(`已添加 ${formatDate(date)} 的健康记录`);
+    }
+    focusHealthRow(date);
+  }
+
+  async function moveHealthDate(fromDate: string, toDate: string) {
+    if (!toDate || fromDate === toDate) return;
+    const targetExists = logsRef.current.some((row) => row.log_date === toDate);
+    if (targetExists && !window.confirm(`${formatDate(toDate)} 已有健康记录，确定要覆盖为这条数据吗？`)) {
+      return;
+    }
+    try {
+      const result = await apiJson<{ health: Health }>(
+        `/health/${fromDate}`,
+        jsonRequest("PATCH", { next_date: toDate, overwrite: targetExists })
+      );
+      const moved = { ...result.health, log_date: toDate };
+      const nextRows = logsRef.current
+        .filter((row) => row.log_date !== fromDate && row.log_date !== toDate)
+        .concat(moved)
+        .sort((left, right) => right.log_date.localeCompare(left.log_date));
+      logsRef.current = nextRows;
+      setLogs(nextRows);
+      setError(null);
+      setMessage(`已将记录日期从 ${formatDate(fromDate)} 修改为 ${formatDate(toDate)}`);
+      focusHealthRow(toDate);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "修改健康记录日期失败");
     }
   }
 
@@ -280,6 +309,7 @@ export function HealthPage() {
   const latestSleep = logs[0] ? sleepLabel(logs[0]) : "—";
   const disciplinedStreak = computeDisciplinedStreak(logs, today);
   const hasToday = logs.some((row) => row.log_date === today);
+  const hasYesterday = logs.some((row) => row.log_date === yesterday);
   const visibleLogs = logs.slice(0, visibleCount);
   const hasMore = visibleCount < logs.length;
 
@@ -340,7 +370,21 @@ export function HealthPage() {
           rows={visibleLogs.map((row) => ({ ...row, id: row.log_date }))}
           columns={[
             { key: "delete", label: "", className: "col-delete", render: (row) => <DeleteButton label={`删除 ${formatDate(row.log_date)} 的健康记录`} onClick={() => void deleteHealthRecord(row.log_date)} /> },
-            { key: "date", label: "日期", className: "col-date", render: (row) => <span>{formatDate(row.log_date)}</span> },
+            {
+              key: "date",
+              label: "日期",
+              className: "col-date",
+              render: (row) => (
+                <DateField
+                  allowClear={false}
+                  ariaLabel={`${formatDate(row.log_date)} 记录日期`}
+                  value={row.log_date}
+                  onChange={(nextDate) => {
+                    if (nextDate && nextDate !== row.log_date) void moveHealthDate(row.log_date, nextDate);
+                  }}
+                />
+              )
+            },
             { key: "bed", label: "上床", className: "col-time col-time-bed", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 上床时间`} isBedtime value={row.bedtime_local ?? ""} onCommit={(value) => void saveHealth(row.log_date, { bedtime_local: value || null })} /> },
             { key: "sleep", label: "睡眠时长", className: "col-time col-time-sleep", render: (row) => <span className="sleep-duration">{sleepLabel(row)}</span> },
             { key: "wake", label: "起床", className: "col-time col-time-wake", render: (row) => <TimeCell ariaLabel={`${formatDate(row.log_date)} 起床时间`} value={row.wake_local ?? ""} onCommit={(value) => void saveHealth(row.log_date, { wake_local: value || null })} /> },
@@ -354,13 +398,36 @@ export function HealthPage() {
                 <button
                   type="button"
                   className={`health-add-today-btn ${hasToday ? "is-existing" : ""}`}
-                  onClick={() => void handleAddOrFocusToday()}
+                  onClick={() => void handleAddOrFocusDate(today)}
                 >
                   <span className="btn-icon" aria-hidden="true">{hasToday ? "✓" : "+"}</span>
                   <span className="btn-text">
-                    {hasToday ? `今日记录已在第一行（${formatDate(today)} · 点击快速定位编辑）` : `添加今天的记录（${formatDate(today)}）`}
+                    {hasToday ? `今日记录已存在（${formatDate(today)} · 点击定位）` : `添加今天的记录（${formatDate(today)}）`}
                   </span>
                 </button>
+                <button
+                  type="button"
+                  className={`health-add-today-btn is-yesterday ${hasYesterday ? "is-existing" : ""}`}
+                  onClick={() => void handleAddOrFocusDate(yesterday)}
+                >
+                  <span className="btn-icon" aria-hidden="true">{hasYesterday ? "✓" : "+"}</span>
+                  <span className="btn-text">
+                    {hasYesterday ? `昨日记录已存在（${formatDate(yesterday)} · 点击定位）` : `添加昨天的记录（${formatDate(yesterday)}）`}
+                  </span>
+                </button>
+                <div className="health-add-custom">
+                  <span className="health-add-custom-label">补录指定日期</span>
+                  <DateField
+                    allowClear={false}
+                    ariaLabel="选择补录健康记录日期"
+                    value={customAddDate}
+                    onChange={(date) => {
+                      if (!date) return;
+                      setCustomAddDate(date);
+                      void handleAddOrFocusDate(date);
+                    }}
+                  />
+                </div>
               </div>
               {(hasMore || visibleCount > 7) && (
                 <div className="health-expand-bar">
@@ -457,6 +524,9 @@ function HabitsSection({
   onDelete: (id: string, name: string) => void;
 }) {
   const [showManage, setShowManage] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const yesterday = shiftYmd(today, -1);
+  const isSelectedToday = selectedDate === today;
 
   // Recent 14 dates array (from 13 days ago to today)
   const dateList = useMemo(() => {
@@ -498,10 +568,41 @@ function HabitsSection({
         </div>
       </div>
 
+      <div className="habits-date-bar">
+        <span className="habits-date-bar-label">打卡日期：</span>
+        <button
+          type="button"
+          className={`habits-date-pill ${selectedDate === today ? "is-active" : ""}`}
+          onClick={() => setSelectedDate(today)}
+        >
+          今天（{formatDate(today)}）
+        </button>
+        <button
+          type="button"
+          className={`habits-date-pill ${selectedDate === yesterday ? "is-active" : ""}`}
+          onClick={() => setSelectedDate(yesterday)}
+        >
+          昨天（{formatDate(yesterday)}）
+        </button>
+        <div className="habits-date-picker-wrap">
+          <DateField
+            allowClear={false}
+            ariaLabel="选择习惯打卡日期"
+            value={selectedDate}
+            onChange={(date) => {
+              if (date) setSelectedDate(date);
+            }}
+          />
+        </div>
+        {!isSelectedToday && (
+          <span className="habits-backfill-badge">补录模式 · {formatDate(selectedDate)}</span>
+        )}
+      </div>
+
       {/* A. Quick Checkin Deck: Single-check, Multi-step Stepper, or Duration Slider */}
       <div className="habits-quick-deck">
         {habits.map((h) => {
-          const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === today);
+          const log = habitLogs.find((l) => l.habit_id === h.id && l.log_date === selectedDate);
           const currentVal = log ? log.value : 0;
           const isDone = currentVal >= h.target_value;
 
@@ -553,7 +654,7 @@ function HabitsSection({
                       max={maxSliderMinutes}
                       step={5}
                       value={currentVal}
-                      onChange={(e) => onSaveLog(h.id, today, Number(e.target.value))}
+                      onChange={(e) => onSaveLog(h.id, selectedDate, Number(e.target.value))}
                       style={{ accentColor: h.color || "#10b981" }}
                       aria-label={`${h.name} 时长调节`}
                     />
@@ -563,13 +664,13 @@ function HabitsSection({
                     <span className="slider-target-hint muted">目标 {h.target_value} 分钟</span>
                   </div>
                   <div className="habit-quick-time-steppers">
-                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, Math.max(0, currentVal - 5))} title="减少 5 分钟">−5m</button>
-                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, currentVal + 5)} title="增加 5 分钟">+5m</button>
-                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, today, currentVal + 15)} title="增加 15 分钟">+15m</button>
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, selectedDate, Math.max(0, currentVal - 5))} title="减少 5 分钟">−5m</button>
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, selectedDate, currentVal + 5)} title="增加 5 分钟">+5m</button>
+                    <button type="button" className="habit-quick-btn" onClick={() => onSaveLog(h.id, selectedDate, currentVal + 15)} title="增加 15 分钟">+15m</button>
                     <button
                       type="button"
                       className={`habit-quick-btn finish-btn ${isDone ? "is-active" : ""}`}
-                      onClick={() => onSaveLog(h.id, today, isDone ? 0 : h.target_value)}
+                      onClick={() => onSaveLog(h.id, selectedDate, isDone ? 0 : h.target_value)}
                       title={isDone ? "点击重置为 0" : "直接达到目标"}
                     >
                       {isDone ? "重置" : "直接满额"}
@@ -596,9 +697,9 @@ function HabitsSection({
                           }}
                           onClick={() => {
                             if (currentVal === stepIndex) {
-                              onSaveLog(h.id, today, stepIndex - 1);
+                              onSaveLog(h.id, selectedDate, stepIndex - 1);
                             } else {
-                              onSaveLog(h.id, today, stepIndex);
+                              onSaveLog(h.id, selectedDate, stepIndex);
                             }
                           }}
                           title={`打卡至第 ${stepIndex} ${h.unit}`}
@@ -637,20 +738,20 @@ function HabitsSection({
                   style={isDone ? { backgroundColor: h.color, borderColor: h.color } : {}}
                   onClick={() => {
                     if (isDuration) {
-                      onSaveLog(h.id, today, isDone ? 0 : h.target_value);
+                      onSaveLog(h.id, selectedDate, isDone ? 0 : h.target_value);
                     } else if (isMulti) {
                       if (currentVal >= h.target_value) {
-                        onSaveLog(h.id, today, 0); // Reset
+                        onSaveLog(h.id, selectedDate, 0); // Reset
                       } else {
-                        onSaveLog(h.id, today, currentVal + 1); // +1 step
+                        onSaveLog(h.id, selectedDate, currentVal + 1); // +1 step
                       }
                     } else {
-                      onSaveLog(h.id, today, isDone ? 0 : 1);
+                      onSaveLog(h.id, selectedDate, isDone ? 0 : 1);
                     }
                   }}
                 >
                   {isDone
-                    ? `✓ 今日已达成 (${isNap ? "已午睡" : isDuration ? `${currentVal}/${h.target_value}分钟` : `${currentVal}/${h.target_value} ${h.unit}`} · 点击撤销)`
+                    ? `✓ ${isSelectedToday ? "今日" : formatDate(selectedDate)}已达成 (${isNap ? "已午睡" : isDuration ? `${currentVal}/${h.target_value}分钟` : `${currentVal}/${h.target_value} ${h.unit}`} · 点击撤销)`
                     : isDuration
                     ? `+ 满额打卡 (${h.target_value}分钟)`
                     : isMulti
@@ -664,7 +765,7 @@ function HabitsSection({
                   <button
                     type="button"
                     className="habit-minus-btn"
-                    onClick={() => onSaveLog(h.id, today, currentVal - 1)}
+                    onClick={() => onSaveLog(h.id, selectedDate, currentVal - 1)}
                     title="回退 1 次"
                   >
                     −
@@ -1222,9 +1323,8 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
   }, [chartLogs]);
 
   const weightDiff = useMemo(() => {
-    const validWeights = logs.map((r) => r.weight_kg).filter((w): w is number => w != null && w > 0);
-    if (validWeights.length < 2) return null;
-    return validWeights[0] - validWeights[1];
+    const [latest, previous] = logs.map((r) => r.weight_kg).filter((w): w is number => w != null && w > 0);
+    return latest !== undefined && previous !== undefined ? latest - previous : null;
   }, [logs]);
 
   // SVG Calculations for Weight Area Chart
@@ -1232,8 +1332,10 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
     if (weightPoints.length === 0) return null;
     const weights = weightPoints.map((p) => p.weight);
     const avgWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 0;
-    const minW = Math.min(...weights) - 0.4;
-    const maxW = Math.max(...weights) + 0.4;
+    const minWeight = Math.min(...weights);
+    const maxWeight = Math.max(...weights);
+    const minW = minWeight - 0.4;
+    const maxW = maxWeight + 0.4;
     const rangeW = maxW - minW || 1;
 
     const width = 420;
@@ -1251,19 +1353,16 @@ function HealthChartsGrid({ logs }: { logs: Health[] }) {
       return { ...p, x, y };
     });
 
+    const first = coords[0];
+    const last = coords.at(-1);
+    if (!first || !last) return null;
+
     const avgY = padT + (1 - (avgWeight - minW) / rangeW) * plotH;
-
     const lineD = coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, "");
-    const areaD = coords.length > 0
-      ? `${lineD} L ${coords[coords.length - 1].x.toFixed(1)} ${(padT + plotH).toFixed(1)} L ${coords[0].x.toFixed(1)} ${(padT + plotH).toFixed(1)} Z`
-      : "";
-
-    let minIdx = 0;
-    let maxIdx = 0;
-    coords.forEach((c, idx) => {
-      if (c.weight < coords[minIdx].weight) minIdx = idx;
-      if (c.weight > coords[maxIdx].weight) maxIdx = idx;
-    });
+    const floorY = (padT + plotH).toFixed(1);
+    const areaD = `${lineD} L ${last.x.toFixed(1)} ${floorY} L ${first.x.toFixed(1)} ${floorY} Z`;
+    const minIdx = weights.indexOf(minWeight);
+    const maxIdx = weights.indexOf(maxWeight);
 
     return { coords, lineD, areaD, avgY, avgWeight, padL, padR, padT, padB, plotW, plotH, minIdx, maxIdx };
   }, [weightPoints]);
