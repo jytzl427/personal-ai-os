@@ -27,12 +27,9 @@ export class SingleWriterLock {
         } catch {}
         const ownerPid = Number.parseInt(lockContent, 10);
         const ageMs = Date.now() - (statSync(path, { throwIfNoEntry: false })?.mtimeMs ?? 0);
-        if (processIsAlive(ownerPid)) {
-          if (ageMs > 10_000) {
-            try { unlinkSync(path); } catch {}
-          } else {
-            throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
-          }
+        if (processIsAlive(ownerPid) || (!Number.isSafeInteger(ownerPid) && ageMs < 2_000)) {
+          // A just-created lock can be observed before its owner PID is written.
+          throw new Error(`SINGLE_WRITER_LOCKED: ${path}`);
         } else {
           try { unlinkSync(path); } catch {}
         }

@@ -1,6 +1,6 @@
 # Registering Personal AI OS
 
-For normal use, the Agent should launch the single EXE in direct MCP mode. The graphical workbench does not need to be open and no HTTP service or development server is required. Create or rotate an Agent token once in the app's Settings page; do not read a token from `.data/mcp-token.txt`.
+In the app's settings, create an MCP grant for the current account and select the required scopes. Copy the configuration displayed when the grant is issued.
 
 ```json
 {
@@ -16,6 +16,4 @@ For normal use, the Agent should launch the single EXE in direct MCP mode. The g
 }
 ```
 
-Replace the EXE path if it was moved. In direct mode the bundled MCP process opens the user's personal database itself and exits with the Agent session. After connecting, call `system_status` and verify that `dataDir` is the user's personal `.paios` directory. If it points to the repository `.data` directory, stop: that is the development database. Do not start `pnpm dev`, `node ... serve`, or a replacement HTTP service from the Agent. The browser is the only place where confirmation tickets may be approved.
-
-The old `pnpm --filter @paios/server mcp` configuration is retained only for development debugging when an HTTP service is intentionally running; it is not the production Agent configuration.
+After connecting, list the tools for the current grant. With the read scope, `today_get` reports the current account's date and today's tasks. Long-running connections recheck authorization on each call.

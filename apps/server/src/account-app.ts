@@ -6,8 +6,8 @@ import { cors } from "hono/cors";
 import { mkdirSync } from "node:fs";
 import { z } from "zod";
 import { AccountStore, LOCAL_OWNER_ID, SESSION_SECONDS, type Account, type HumanSession } from "./accounts.js";
+import { mountAccountMcpApi } from "./account-mcp-api.js";
 import { createApp } from "./app.js";
-import { bearerToken } from "./auth.js";
 import type { ServerConfig } from "./config.js";
 import { runRecurrenceSyncWithRetry } from "./recurrence-service.js";
 import type { RecurrenceSyncResult } from "./recurrence.js";
@@ -23,7 +23,7 @@ const credentialsSchema = z.object({
 });
 const setupSchema = credentialsSchema.extend({ setup_code: z.string().trim().regex(/^[0-9a-f]{48}$/) });
 
-type AccountContext = { Variables: { human: HumanSession | undefined } };
+export type AccountContext = { Variables: { human: HumanSession | undefined } };
 type AccountRuntime = {
   database: PaiosDatabase;
   config: ServerConfig;
@@ -47,9 +47,9 @@ function establishSession(c: Context, store: AccountStore, account: Account) {
   return c.json({ ok: true, account });
 }
 
-async function openRuntime(config: ServerConfig, id: string): Promise<AccountRuntime> {
+async function openRuntime(config: ServerConfig): Promise<AccountRuntime> {
   mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
-  const database: PaiosDatabase = openDatabase(config.dataDir, { seedAgentToken: id === LOCAL_OWNER_ID });
+  const database: PaiosDatabase = openDatabase(config.dataDir, { seedAgentToken: false });
   try {
     const timezone = getSetting(database, "timezone", "Asia/Shanghai");
     let weeklyBackup: WeeklyBackupResult;
@@ -69,7 +69,7 @@ async function openRuntime(config: ServerConfig, id: string): Promise<AccountRun
         }
       });
     });
-    const app = createApp({ database, config, recurrenceSync, weeklyBackup });
+    const app = createApp({ database, config, recurrenceSync, weeklyBackup, managedAccounts: true });
     return { database, config, app, recurrenceSync };
   } catch (error) {
     database.close();
@@ -84,7 +84,7 @@ export async function createAccountApp(config: ServerConfig) {
   function runtimeFor(id: string): Promise<AccountRuntime> {
     const existing = runtimes.get(id);
     if (existing) return existing;
-    const runtime = openRuntime({ ...config, dataDir: store.dataDir(id) }, id).catch((error) => {
+    const runtime = openRuntime({ ...config, dataDir: store.dataDir(id) }).catch((error) => {
       runtimes.delete(id);
       throw error;
     });
@@ -182,14 +182,12 @@ export async function createAccountApp(config: ServerConfig) {
     return c.json({ ok: true });
   });
 
+  mountAccountMcpApi(app, config, store, runtimeFor);
+
   app.all("/api/v1/*", async (c) => {
     const human = c.get("human");
     if (c.req.header("Authorization") || c.req.header("X-PAIOS-Agent-Transport")) {
-      // Legacy tokens live solely in the original owner's database.
-      if (!bearerToken(c) || !store.active(LOCAL_OWNER_ID) || (human && human.account.id !== LOCAL_OWNER_ID)) {
-        return failure(c, 401, "UNAUTHORIZED", "此 Agent 凭证不可用");
-      }
-      return (await runtimeFor(LOCAL_OWNER_ID)).app.fetch(c.req.raw);
+      return failure(c, 401, "UNAUTHORIZED", "请通过账号 MCP 授权调用工具");
     }
     if (!human) return failure(c, 401, "UNAUTHORIZED", "请先登录");
     const runtime = await runtimeFor(human.account.id);

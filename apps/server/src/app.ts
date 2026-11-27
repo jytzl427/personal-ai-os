@@ -21,6 +21,7 @@ import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
 import { serveWeb } from "./web.js";
+import { insertTask } from "./task-storage.js";
 import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, normalizeProjectMilestoneSortOrders, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
@@ -29,6 +30,7 @@ type AppContext = {
   recurrenceSync?: Promise<RecurrenceSyncResult>;
   weeklyBackup?: WeeklyBackupResult;
   directMcp?: boolean;
+  managedAccounts?: boolean;
 };
 
 const now = () => new Date().toISOString();
@@ -296,6 +298,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   try { syncUpcomingCheckpointsToTodos(context.database); } catch {}
   app.use("/api/*", cors({ origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"], allowHeaders: ["Content-Type", "Authorization", "X-PAIOS-Agent-Transport", "X-Agent-Name", "X-Tool-Name", "X-PAIOS-UI-Session", "X-PAIOS-Idempotency-Key"], credentials: true }));
   app.use("/api/v1/*", async (c, next) => {
+    if (context.managedAccounts && /^\/api\/v1\/settings\/agent-tokens(?:\/|$)/.test(c.req.path)) {
+      return c.json({ ok: false, error: { code: "FORBIDDEN", message: "请使用账号 MCP 授权" } }, 403);
+    }
     const auth = requestAgentAuth(context.database, c);
     if (auth.error === "missing") return c.json({ ok: false, error: { code: "UNAUTHORIZED", message: "Agent token is required" } }, 401);
     if (auth.error === "invalid") return c.json({ ok: false, error: { code: "UNAUTHORIZED", message: "Agent token is invalid or revoked" } }, 401);
@@ -1160,24 +1165,20 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
       const rejected = rejectAgentProjectWrite(c, context.database, linkedProjectId);
       if (rejected) return rejected;
     }
-    const id = randomUUID();
     const timestamp = now();
     const status = normalizeTaskStatus(data.status ?? "todo");
     const archiveRequested = toFlag(data.archive_requested, 0);
     const parentId = data.parent_id ?? null;
-    const insert = context.database.transaction(() => {
-      context.database.prepare(
-        `INSERT INTO tasks (id, title, description, content, status, priority, due_date, scheduled_date, estimate_minutes, archive_requested, parent_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, data.title, data.description ?? "", data.content ?? "", status, data.priority ?? "P2", data.due_date ?? null, data.scheduled_date ?? null, data.estimate_minutes ?? null, archiveRequested, parentId, timestamp, timestamp);
+    const id = context.database.transaction(() => {
+      const id = insertTask(context.database, { ...data, status, archive_requested: archiveRequested }, timestamp);
       if (data.project_id) context.database.prepare("INSERT INTO task_project_links (task_id, project_id) VALUES (?, ?)").run(id, data.project_id);
       if (data.milestone_id) context.database.prepare("INSERT INTO task_milestone_links (task_id, milestone_id) VALUES (?, ?)").run(id, data.milestone_id);
       if (parentId) refreshParentTaskDueDate(context.database, parentId, timestamp);
       if (shouldArchiveTask({ archive_requested: archiveRequested, status, archived_at: null })) {
         context.database.prepare("UPDATE tasks SET archived_at = ?, archive_reason = 'auto', archived_by = 'user' WHERE id = ? AND archived_at IS NULL").run(timestamp, id);
       }
-    });
-    insert();
+      return id;
+    })();
     const task = context.database.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
     return c.json({ ok: true, task }, 201);
   });

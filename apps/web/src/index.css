@@ -2023,6 +2023,7 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .account-form .primary-button { justify-self: start; }
 .account-members { padding: 0; list-style: none; }
 .account-members li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+.mcp-scope { display: inline-flex; align-items: center; gap: 6px; margin: 6px 14px 2px 0; }
 .settings-panel .panel-heading { padding: 0 0 12px; }
 .settings-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .key-status {

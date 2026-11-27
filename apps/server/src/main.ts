@@ -1,7 +1,5 @@
 import { serve } from "@hono/node-server";
 import { recoverFromLatestBackup } from "@paios/db";
-import { existsSync } from "node:fs";
-import { accountRegistryPath } from "./accounts.js";
 import { createAccountApp } from "./account-app.js";
 import { loadConfig } from "./config.js";
 import { SingleWriterLock } from "./lock.js";
@@ -18,8 +16,7 @@ if (command === "mcp") {
   }
 } else if (command === "mcp-direct") {
   try {
-    if (existsSync(accountRegistryPath(loadConfig().dataDir))) await runMcp();
-    else await runDirectMcp();
+    await runDirectMcp();
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
