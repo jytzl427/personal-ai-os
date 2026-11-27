@@ -1,6 +1,6 @@
 import { ensureWeeklyBackup, getSetting, WEEKLY_BACKUP_RETAIN, type PaiosDatabase } from "@paios/db";
 import { localDateInTimezone } from "@paios/core";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, lstatSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { recordAudit } from "./audit.js";
 
@@ -49,11 +49,14 @@ function setSetting(database: PaiosDatabase, key: string, value: unknown, timest
 }
 
 function safeDataFile(dataDir: string, relativePath: string): string | null {
-  const root = resolve(dataDir);
-  const candidate = resolve(root, relativePath);
-  const prefix = root.endsWith("\\") ? root : root + "\\";
-  if (candidate !== root && !candidate.startsWith(prefix)) return null;
-  return candidate;
+  // Older Windows databases store backslashes. Uploads always use a single
+  // filename in this directory, so cleanup never needs to follow directories.
+  const segments = relativePath.replaceAll("\\", "/").split("/");
+  const filename = segments[1];
+  if (segments.length !== 2 || segments[0] !== "attachments" || !filename || filename === "." || filename === ".." || /[:\0]/.test(filename)) return null;
+  const directory = resolve(dataDir, "attachments");
+  if (!lstatSync(directory, { throwIfNoEntry: false })?.isDirectory()) return null;
+  return resolve(directory, filename);
 }
 
 function placeholders(count: number): string {

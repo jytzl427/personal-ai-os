@@ -57,7 +57,7 @@ export function parseHash(hash: string): Route {
     if (second && second !== "daily" && second !== "period") return { name: "review", tab: "daily", id: second };
     return { name: "reviews", tab: second === "period" ? "period" : "daily" };
   }
-  if (first === "butler") return { name: "tasks" };
+  if (first === "butler") return { name: "butler", conversationId: second ?? null };
   if (first === "archive") {
     const tab = second && archiveTabs.has(second as ArchiveTab) ? second as ArchiveTab : "tasks";
     return { name: "archive", tab };
@@ -99,6 +99,7 @@ export const navigation: NavItem[] = [
   { label: "计划与复盘", route: { name: "plans", tab: "daily-plan" } },
   { label: "模型晶体", route: { name: "thinking" } },
   { label: "归档", route: { name: "archive", tab: "tasks" } },
+  { label: "内置 AI", route: { name: "butler", conversationId: null } },
   { label: "设置", route: { name: "settings" } }
 ];
 
