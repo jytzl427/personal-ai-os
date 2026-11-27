@@ -21,7 +21,7 @@ import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
 import { serveWeb } from "./web.js";
-import { insertTask } from "./task-storage.js";
+import { deleteStoredTask, insertTask, updateLinkedCheckpoint } from "./task-storage.js";
 import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, normalizeProjectMilestoneSortOrders, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
@@ -300,6 +300,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   app.use("/api/v1/*", async (c, next) => {
     if (context.managedAccounts && /^\/api\/v1\/settings\/agent-tokens(?:\/|$)/.test(c.req.path)) {
       return c.json({ ok: false, error: { code: "FORBIDDEN", message: "请使用账号 MCP 授权" } }, 403);
+    }
+    if (context.managedAccounts && /^\/api\/v1\/(?:butler\/chat|workbench\/config|settings\/api-key)(?:\/|$)/.test(c.req.path)) {
+      return c.json({ ok: false, error: { code: "FORBIDDEN", message: "请使用内置 AI 页面" } }, 403);
     }
     const auth = requestAgentAuth(context.database, c);
     if (auth.error === "missing") return c.json({ ok: false, error: { code: "UNAUTHORIZED", message: "Agent token is required" } }, 401);
@@ -652,6 +655,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     context.database.prepare("INSERT INTO conversation_messages (id, conversation_id, role, content_text, attachments_json, created_at) VALUES (?, ?, 'user', ?, ?, ?)").run(userMessageId, conversationId, body.content.trim(), JSON.stringify(savedAttachments), timestamp);
     if (savedAttachments.length) context.database.prepare(`UPDATE attachments SET message_id = ? WHERE conversation_id = ? AND id IN (${savedAttachments.map(() => "?").join(",")})`).run(userMessageId, conversationId, ...savedAttachments.map((item) => item.id));
     context.database.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(timestamp, conversationId);
+    if (context.managedAccounts) {
+      return c.json({ ok: true, user_message_id: userMessageId }, 201);
+    }
     if (isCapabilitiesQuestion(body.content)) {
       const capabilities = buildCapabilities(null);
       const saved = saveButlerAssistant(context.database, conversationId, capabilities.answer, [{ name: "capabilities_get", arguments: {}, source: "固定能力说明", ok: true }]);
@@ -1357,24 +1363,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
       refreshParentTaskDueDate(context.database, current.parent_id as string, timestamp);
     }
     if (data.title !== undefined || data.due_date !== undefined) {
-      const checkpoint = context.database.prepare(
-        "SELECT id, project_id, title, due_date FROM project_task_plans WHERE todo_task_id = ? AND archived_at IS NULL"
-      ).get(id) as { id: string; project_id: string; title: string; due_date: string | null } | undefined;
-      if (checkpoint) {
-        const newTitle = data.title ?? checkpoint.title;
-        const newDueDate = data.due_date === undefined ? checkpoint.due_date : data.due_date;
-        context.database.prepare(
-          "UPDATE project_task_plans SET title = ?, due_date = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ?"
-        ).run(newTitle, newDueDate, timestamp, checkpoint.id);
-        addProjectActivity(
-          context.database,
-          checkpoint.project_id,
-          "checkpoint_synced",
-          `待办同步：更新验收节点「${newTitle}」${newDueDate ? `（截止 ${newDueDate}）` : ""}`,
-          false,
-          timestamp
-        );
-      }
+      updateLinkedCheckpoint(context.database, id, data, timestamp);
     }
     if (nextStatus === "todo" && current.status !== "todo") {
       context.database.prepare(
@@ -1394,27 +1383,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   });
 
   app.delete("/api/v1/tasks/:id", (c) => {
-    const id = c.req.param("id");
-    const task = context.database.prepare("SELECT id, recurrence_id, recurrence_date, parent_id FROM tasks WHERE id = ?").get(id) as { id: string; recurrence_id?: string | null; recurrence_date?: string | null; parent_id?: string | null } | undefined;
-    if (!task) return notFound(c, "task");
-    const timestamp = now();
-    syncProjectPlansForTodo(context.database, id, "removed", timestamp);
-    const remove = context.database.transaction(() => {
-      context.database.prepare("DELETE FROM daily_plan_items WHERE task_id = ?").run(id);
-      context.database.prepare("DELETE FROM task_project_links WHERE task_id = ?").run(id);
-      context.database.prepare("DELETE FROM task_milestone_links WHERE task_id = ?").run(id);
-      context.database.prepare("DELETE FROM task_dependencies WHERE blocked_task_id = ? OR blocking_task_id = ?").run(id, id);
-      context.database.prepare("UPDATE tasks SET parent_id = NULL WHERE parent_id = ?").run(id);
-      if (task.recurrence_id && task.recurrence_date) {
-        const timestamp = now();
-        context.database.prepare("INSERT INTO task_recurrence_occurrences (id, recurrence_id, occurrence_date, task_id, outcome, created_at, updated_at) VALUES (?, ?, ?, NULL, 'deleted', ?, ?) ON CONFLICT(recurrence_id, occurrence_date) DO UPDATE SET task_id = NULL, outcome = 'deleted', updated_at = excluded.updated_at").run(randomUUID(), task.recurrence_id, task.recurrence_date, timestamp, timestamp);
-      }
-      context.database.prepare("DELETE FROM tasks WHERE id = ?").run(id);
-    });
-    remove();
-    if (task.parent_id) {
-      refreshParentTaskDueDate(context.database, task.parent_id, timestamp);
-    }
+    if (!deleteStoredTask(context.database, c.req.param("id"), now())) return notFound(c, "task");
     return c.json({ ok: true });
   });
 

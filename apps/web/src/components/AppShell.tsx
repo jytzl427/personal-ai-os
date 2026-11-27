@@ -7,6 +7,7 @@ import {
   AlertIcon,
   ArchiveIcon,
   ArrowRightIcon,
+  SparklesIcon,
   FinanceIcon,
   HealthIcon,
   PlansIcon,
@@ -45,6 +46,8 @@ function getNavIcon(label: string) {
       return <ThinkingIcon />;
     case "归档":
       return <ArchiveIcon />;
+    case "内置 AI":
+      return <SparklesIcon />;
     case "设置":
       return <SettingsIcon />;
     default:

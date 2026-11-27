@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { McpSettings } from "../components/McpSettings.js";
 import { PageHeader } from "../components/PageHeader.js";
-import { apiJson, jsonRequest } from "../lib/api.js";
+import { apiJson } from "../lib/api.js";
 
 type WeeklyBackup = {
   status: "created" | "skipped" | "failed";
@@ -17,21 +17,10 @@ type BackupFile = {
 };
 
 export function SettingsPage({ accountControls }: { accountControls: React.ReactNode }) {
-  const [baseUrl, setBaseUrl] = useState("");
-  const [model, setModel] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [hasKey, setHasKey] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [weeklyBackup, setWeeklyBackup] = useState<WeeklyBackup | null>(null);
   const [weeklyBackups, setWeeklyBackups] = useState<BackupFile[]>([]);
 
   useEffect(() => {
-    apiJson<{ base_url?: string; model?: string }>("/workbench/config").then((result) => {
-      setBaseUrl(result.base_url ?? "");
-      setModel(result.model ?? "");
-    }).catch(() => undefined);
-    apiJson<{ configured: boolean }>("/settings/api-key").then((result) => setHasKey(result.configured)).catch(() => undefined);
     refreshBackups();
   }, []);
 
@@ -45,58 +34,10 @@ export function SettingsPage({ accountControls }: { accountControls: React.React
     }
   }
 
-  async function save() {
-    setSaving(true);
-    setMessage(null);
-    try {
-      const config: Record<string, string> = {};
-      if (baseUrl.trim()) config.base_url = baseUrl.trim();
-      if (model.trim()) config.model = model.trim();
-      if (Object.keys(config).length) await apiJson("/workbench/config", jsonRequest("PATCH", config));
-      if (apiKey.trim()) {
-        await apiJson("/settings/api-key", jsonRequest("PUT", { api_key: apiKey.trim() }));
-        setHasKey(true);
-        setApiKey("");
-      }
-      setMessage("配置已保存");
-    } catch (reason: unknown) {
-      setMessage(reason instanceof Error ? reason.message : "配置保存失败");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function clearKey() {
-    try {
-      await apiJson("/settings/api-key", jsonRequest("PUT", { api_key: "" }));
-      setHasKey(false);
-      setMessage("API Key 已清除");
-    } catch (reason: unknown) {
-      setMessage(reason instanceof Error ? reason.message : "清除失败");
-    }
-  }
-
   return (
     <div className="page-stack page-settings">
-      <PageHeader meta="Key 只保存在本机" title="设置" />
+      <PageHeader title="设置" />
       {accountControls}
-      {message ? <div className="notice">{message}</div> : null}
-      <section className="panel settings-panel">
-        <div className="panel-heading">
-          <h2>AI API 配置</h2>
-          <span className={hasKey ? "key-status ready" : "key-status"}>{hasKey ? "已配置" : "未配置"}</span>
-        </div>
-        <label className="form-field"><span>Base URL</span><input className="cell-input" onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.openai.com/v1" value={baseUrl} /></label>
-        <label className="form-field"><span>模型</span><input className="cell-input" onChange={(event) => setModel(event.target.value)} placeholder="gpt-4o-mini" value={model} /></label>
-        <label className="form-field">
-          <span>API Key {hasKey ? "（留空表示不修改）" : ""}</span>
-          <input className="cell-input" onChange={(event) => setApiKey(event.target.value)} placeholder={hasKey ? "已保存，输入新 Key 可替换" : "输入 API Key"} type="password" value={apiKey} />
-        </label>
-        <div className="settings-actions">
-          <button className="primary-button" onClick={() => void save()} type="button">{saving ? "保存中…" : "保存配置"}</button>
-          {hasKey ? <button className="secondary-button" onClick={() => void clearKey()} type="button">清除 API Key</button> : null}
-        </div>
-      </section>
       <section className="panel settings-panel backup-status-panel">
         <div className="panel-heading">
           <h2>本地周备份</h2>

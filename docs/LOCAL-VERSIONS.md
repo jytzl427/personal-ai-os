@@ -40,3 +40,21 @@ TZ=Asia/Shanghai pnpm test
 - 真实 MCP stdio 通过两账号测试。无凭证或旧凭证会被拒绝，只读授权无法新增，跨账号读取和追加备注均被拒绝。新增普通待办、追加备注、写入审计和相同调用键的安全重试通过。
 - 在同一个已连接的客户端中撤销授权，下一次调用和工具列表读取立即失败。另一账号仍可查询。直连模式还验证了 Web 停止后的本地调用、待恢复状态拒绝，以及暂停和恢复 Web 服务后对撤权的重新检查。
 - Chromium 无头浏览器验证了权限默认未选、签发只读凭证、校验、轮换和撤销。`bash scripts/codex-linux.sh setup` 完整通过，服务端 49/49。
+
+## v1.2
+
+在 Linux 中，服务默认关闭内置 AI。使用 Python 3、Linux 开发头文件和 C 编译器构建隔离进程后，可在独立数据目录启动本地模拟。浏览器中的「内置 AI」会显示「本地模拟」。登录后逐项授权待办权限。
+
+```bash
+export PAIOS_DATA_DIR="$(mktemp -d)"
+PAIOS_AI_MODE=mock bash scripts/codex-linux.sh serve
+```
+
+服务端可通过 `PAIOS_AI_MODE=openai` 选择固定模型入口，凭证仅由服务端的 `PAIOS_AI_MODEL_API_KEY` 环境变量提供。模型请求使用 `gpt-4o-mini` 和固定 HTTPS 地址 `https://api.openai.com/v1/chat/completions`。工作进程只有受限的标准流，服务端负责转发固定模型请求与执行获准的待办操作。旧的可编辑模型地址和旧调用入口对账号服务关闭，旧对话记录保留在各自数据库。
+
+改期、完成和删除均需本人确认。确认与账号、登录会话、授权版本、操作、待办和待办版本绑定，改期还绑定新日期。请求在五分钟后过期。写入、一次性确认标记和审计记录在同一个 SQLite 事务中提交。
+
+- 同一个普通测试账号通过查询、新增和备注测试。授权撤销、其他账号的待办、未授权业务接口、替换确认对象或日期、换会话以及重复确认均被拒绝。旧版本待办变更后，原确认失效。
+- 已验证改期、完成和删除先保持待办不变，经本人操作后才写入，并生成包含确认动作与目标待办的审计记录。Chromium 无头浏览器通过授权、模拟标识和改期确认。模型文本中的确认声明未触发写入。
+- 子进程的额外 seccomp 过滤器、单线程和 `NoNewPrivs=1` 已从 `/proc` 读取验证。用合成源码、合成管理员凭证、测试库及合成备份检查了文件读取拒绝，普通 socket 创建也被阻止。当前环境的 Landlock 查询返回 `ENOSYS`，文件系统拒绝由内核系统调用过滤器验证。测试仅覆盖预期操作及拒绝。 [Linux seccomp 文档](https://docs.kernel.org/userspace-api/seccomp_filter.html) [Linux Landlock 文档](https://docs.kernel.org/userspace-api/landlock.html)
+- `bash scripts/codex-linux.sh setup` 完整通过，服务端 52/52，包含旧库副本迁移回归。模型端使用本地模拟。真实模型连通性、Windows 原生应用和 v1.3 上线均待独立验证。

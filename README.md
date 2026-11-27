@@ -2,7 +2,7 @@
 
 本地优先的个人 AI 管家：**数据库 + 可视化 Web** 是身体，**MCP + Skill** 是钥匙，**AI 管家** 优先外接任意 Agent。
 
-当前源码提供本地多账号和独立 MCP 授权。首次设置和 Linux 验收记录见 [本地版本验收](docs/LOCAL-VERSIONS.md)。已有 Windows 下载包对应各自的发布版本。
+当前源码提供本地多账号、独立 MCP 授权和 Linux 隔离运行的内置 AI。首次设置、本地模拟和验收记录见 [本地版本验收](docs/LOCAL-VERSIONS.md)。已有 Windows 下载包对应各自的发布版本。
 
 - 接手请先读：[交付手册](docs/交付手册.md)
 - 版本演进见 [更新记录](docs/CHANGELOG.html)

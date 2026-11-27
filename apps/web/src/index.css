@@ -2024,6 +2024,12 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 .account-members { padding: 0; list-style: none; }
 .account-members li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
 .mcp-scope { display: inline-flex; align-items: center; gap: 6px; margin: 6px 14px 2px 0; }
+.ai-page .settings-panel { width: min(100%, 720px); max-width: 720px; }
+.ai-page fieldset { margin-bottom: 12px; }
+.ai-prompt { resize: vertical; min-height: 72px; }
+.ai-turn, .ai-confirmation { padding: 12px 0; border-top: 1px solid var(--line); }
+.ai-turn p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-confirmation small { display: block; margin: 6px 0; color: var(--ink-2); overflow-wrap: anywhere; }
 .settings-panel .panel-heading { padding: 0 0 12px; }
 .settings-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .key-status {

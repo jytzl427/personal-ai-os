@@ -12,7 +12,7 @@ export type TaskScope = z.infer<typeof taskScopeSchema>;
 
 export type ToolPrincipal = {
   account: Account;
-  kind: "mcp";
+  kind: "mcp" | "assistant";
   id: string;
   name: string;
   scopes: ReadonlySet<string>;

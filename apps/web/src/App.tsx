@@ -2,7 +2,7 @@ import { AppShell } from "./components/AppShell.js";
 import { AccountGate, AccountSettings, type LocalAccount } from "./components/AccountControls.js";
 import { useHashRoute } from "./hooks/useHashRoute.js";
 import { ArchivePage } from "./pages/ArchivePage.js";
-import { ButlerPage } from "./pages/ButlerPage.js";
+import { AiPage } from "./pages/AiPage.js";
 import { FinancePage } from "./pages/FinancePage.js";
 import { HealthPage } from "./pages/HealthPage.js";
 import { ProjectDetailPage, ProjectsPage } from "./pages/ProjectsPage.js";
@@ -55,7 +55,7 @@ function Page({ route, onNavigate, account, signOut }: {
     case "review":
       return <ReviewDetailPage id={route.id} tab={route.tab} onNavigate={onNavigate} />;
     case "butler":
-      return <TasksPage onNavigate={onNavigate} />;
+      return <AiPage />;
     case "archive":
       return <ArchivePage tab={route.tab} onNavigate={onNavigate} />;
     case "settings":

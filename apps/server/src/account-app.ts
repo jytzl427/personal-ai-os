@@ -6,7 +6,9 @@ import { cors } from "hono/cors";
 import { mkdirSync } from "node:fs";
 import { z } from "zod";
 import { AccountStore, LOCAL_OWNER_ID, SESSION_SECONDS, type Account, type HumanSession } from "./accounts.js";
+import { mountAccountAiApi } from "./account-ai-api.js";
 import { mountAccountMcpApi } from "./account-mcp-api.js";
+import { configuredAiModel, type AiModel } from "./ai-model.js";
 import { createApp } from "./app.js";
 import type { ServerConfig } from "./config.js";
 import { runRecurrenceSyncWithRetry } from "./recurrence-service.js";
@@ -77,7 +79,7 @@ async function openRuntime(config: ServerConfig): Promise<AccountRuntime> {
   }
 }
 
-export async function createAccountApp(config: ServerConfig) {
+export async function createAccountApp(config: ServerConfig, model: AiModel | undefined = configuredAiModel()) {
   const store = new AccountStore(config.dataDir);
   const runtimes = new Map<string, Promise<AccountRuntime>>();
 
@@ -183,6 +185,7 @@ export async function createAccountApp(config: ServerConfig) {
   });
 
   mountAccountMcpApi(app, config, store, runtimeFor);
+  mountAccountAiApi(app, store, model, runtimeFor);
 
   app.all("/api/v1/*", async (c) => {
     const human = c.get("human");
