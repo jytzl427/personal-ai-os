@@ -99,9 +99,10 @@ const MINOR_CATEGORY_COLORS: Record<string, string> = {
 };
 
 function getCategoryColor(name: string, index: number): string {
-  if (MINOR_CATEGORY_COLORS[name]) return MINOR_CATEGORY_COLORS[name];
+  const categoryColor = MINOR_CATEGORY_COLORS[name];
+  if (categoryColor) return categoryColor;
   const palette = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ec4899", "#06b6d4", "#ef4444", "#64748b"];
-  return palette[index % palette.length];
+  return palette[index % palette.length] ?? "#64748b";
 }
 
 function presetKey(preset: QuickPreset) {

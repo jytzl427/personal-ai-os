@@ -22310,6 +22310,32 @@ function createApp(context) {
        ON CONFLICT(log_date) DO UPDATE SET weight_kg = excluded.weight_kg, bedtime_local = excluded.bedtime_local, sleep_onset_local = excluded.sleep_onset_local, wake_local = excluded.wake_local, sleep_duration_minutes = excluded.sleep_duration_minutes, exercise_note = excluded.exercise_note, exercise_minutes = excluded.exercise_minutes, disciplined = excluded.disciplined, cloud_content = excluded.cloud_content, note = excluded.note, updated_at = excluded.updated_at`).run(randomUUID10(), date3, value("weight_kg"), bedtime, value("sleep_onset_local"), wake, computedSleep, value("exercise_note"), value("exercise_minutes"), disciplined, value("cloud_content", value("note")), value("note"), current?.created_at ?? timestamp, timestamp);
     return c.json({ ok: true, health: context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(date3) });
   });
+  app.patch("/api/v1/health/:date", async (c) => {
+    const date3 = c.req.param("date");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date3))
+      return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "date must be YYYY-MM-DD" } }, 400);
+    const body = await c.req.json().catch(() => ({}));
+    const nextDate = typeof body.next_date === "string" ? body.next_date.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate))
+      return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "next_date must be YYYY-MM-DD" } }, 400);
+    const current = context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(date3);
+    if (!current)
+      return notFound(c, "health log");
+    if (nextDate === date3)
+      return c.json({ ok: true, health: current });
+    const conflict = context.database.prepare("SELECT id FROM health_logs WHERE log_date = ?").get(nextDate);
+    if (conflict && !body.overwrite) {
+      return c.json({ ok: false, error: { code: "CONFLICT", message: "target date already has a health log" } }, 409);
+    }
+    const timestamp = now4();
+    context.database.transaction(() => {
+      if (conflict) {
+        context.database.prepare("DELETE FROM health_logs WHERE log_date = ?").run(nextDate);
+      }
+      context.database.prepare("UPDATE health_logs SET log_date = ?, updated_at = ? WHERE log_date = ?").run(nextDate, timestamp, date3);
+    })();
+    return c.json({ ok: true, health: context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(nextDate) });
+  });
   app.delete("/api/v1/health/:date", (c) => {
     const date3 = c.req.param("date");
     const result3 = context.database.prepare("DELETE FROM health_logs WHERE log_date = ?").run(date3);

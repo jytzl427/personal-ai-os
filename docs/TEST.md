@@ -1,13 +1,13 @@
-# MVP verification
+# Project verification
 
-> 现行验收以源码测试和 [`交付手册.md`](./交付手册.md) 第 11 节为准。下文 P6/P7/P8 是历史里程碑描述，不是当前待办。普通支出/收入不联动账户余额。服务端测试先 `pnpm --filter @paios/server build` 再 `test`，当前为 39 项（读取 `dist/*.test.js`）。
+完整验收步骤见 [交付手册](./交付手册.md) 第 11 节。服务端测试读取 `dist/*.test.js`，因此应先构建再运行测试。
 
 Run from the repository root:
 
 ```bash
 pnpm install
-pnpm typecheck
 pnpm build
+pnpm typecheck
 pnpm test
 ```
 

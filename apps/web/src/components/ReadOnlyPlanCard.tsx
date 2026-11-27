@@ -172,25 +172,24 @@ function parseDailyHUD(text?: string | null): DailyHUDData | null {
   let currentSection: { title: string; icon: string; items: Array<{ checked: boolean; text: string }> } | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i]?.trim();
     if (!line) continue;
 
     if (line.startsWith("# ")) {
       const match = line.match(/（([^）]+)）/);
-      if (match) phaseInfo = match[1];
+      phaseInfo = match?.[1] ?? phaseInfo;
       continue;
     }
 
     if (line.startsWith("## ") && (line.includes("板块一") || line.includes("攻坚硬仗聚焦"))) {
-      let j = i + 1;
-      while (j < lines.length && !lines[j].trim().startsWith("## ")) {
-        const item = lines[j].trim();
+      while (true) {
+        const item = lines[i + 1]?.trim();
+        if (item === undefined || item.startsWith("## ")) break;
+        i++;
         if (item.startsWith("* ") || item.startsWith("- ")) {
           focusBattles.push(item.replace(/^[*\-]\s+/, "").trim());
         }
-        j++;
       }
-      i = j - 1;
       continue;
     }
 
@@ -241,8 +240,7 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
 
   let currentBlock = "";
 
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+  for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
 
@@ -270,11 +268,11 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
 
     if (currentBlock === "mainline") {
       if (line.includes("核心主线")) {
-        const m = line.match(/核心主线[*\s：:]+(.+)/);
-        if (m) mainline.title = m[1].replace(/[*#]/g, "").trim();
+        const mainlineTitle = line.match(/核心主线[*\s：:]+(.+)/)?.[1];
+        if (mainlineTitle) mainline.title = mainlineTitle.replace(/[*#]/g, "").trim();
       } else if (line.includes("生活状态")) {
-        const m = line.match(/生活状态[^\s*：:]*[*\s：:]+(.+)/);
-        if (m) baselineMood.title = m[1].replace(/[*#]/g, "").trim();
+        const lifestyleTitle = line.match(/生活状态[^\s*：:]*[*\s：:]+(.+)/)?.[1];
+        if (lifestyleTitle) baselineMood.title = lifestyleTitle.replace(/[*#]/g, "").trim();
       } else if (baselineMood.title) {
         baselineMood.detail += (baselineMood.detail ? " " : "") + clean;
       } else if (mainline.title) {
@@ -296,52 +294,31 @@ function parseStageHUD(text?: string | null): StageHUDData | null {
       let name = "";
       let goal = "";
 
-      const boldMatch = line.match(/\*\*([^*]+)\*\*/);
-      if (boldMatch) {
-        name = boldMatch[1].trim();
-        const goalMatch = line.match(/[（(](?:攻坚目标|目标|阶段目标)[：:]\s*([^）)]+)[）)]/);
-        if (goalMatch) {
-          goal = goalMatch[1].trim();
-        } else {
-          goal = line.replace(/\*\*[^*]+\*\*/, "").replace(/^[*\-\s：:()（）]+/, "").trim();
-        }
+      const boldName = line.match(/\*\*([^*]+)\*\*/)?.[1];
+      if (boldName) {
+        name = boldName.trim();
+        const explicitGoal = line.match(/[（(](?:攻坚目标|目标|阶段目标)[：:]\s*([^）)]+)[）)]/)?.[1];
+        goal = explicitGoal?.trim() ?? line.replace(/\*\*[^*]+\*\*/, "").replace(/^[*\-\s：:()（）]+/, "").trim();
       } else {
-        const bracketMatch = clean.match(/^【([^】]+)】\s*(.*)$/);
-        if (bracketMatch) {
-          name = bracketMatch[1].trim();
-          goal = bracketMatch[2].trim();
-        } else {
-          const colonMatch = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
-          if (colonMatch) {
-            name = colonMatch[1].trim();
-            goal = colonMatch[2].trim();
-          } else {
-            name = clean;
-            goal = "";
-          }
-        }
+        const [, projectName, projectGoal] = clean.match(/^【([^】]+)】\s*(.*)$/)
+          ?? clean.match(/^([^：:]+?)[：:]\s*(.+)$/)
+          ?? [];
+        name = projectName?.trim() ?? clean;
+        goal = projectGoal?.trim() ?? "";
       }
 
       if (name && !name.includes("攻坚节点") && !/^\d{1,2}月\d{1,2}日/.test(name)) {
         projectMilestones.push({ name, goal: goal || name, milestone: goal || name });
       }
     } else if (currentBlock === "maintenance") {
-      const match = clean.match(/^([^：:]+?)[：:]\s*(.+)$/);
-      if (match) {
-        maintenanceProjects.push({ name: match[1].trim(), milestone: match[2].trim() });
-      } else {
-        maintenanceProjects.push({ name: "", milestone: clean });
-      }
+      const [, projectName, milestone] = clean.match(/^([^：:]+?)[：:]\s*(.+)$/) ?? [];
+      maintenanceProjects.push({ name: projectName?.trim() ?? "", milestone: milestone?.trim() ?? clean });
     } else if (currentBlock === "misc") {
       if (line.includes("生效机制")) continue;
       if (clean === "其他重点补充：" || clean === "其他重点补充") continue;
 
-      const colonMatch = clean.match(/^([^：:]+)[：:]\s*(.+)$/);
-      if (colonMatch) {
-        miscItems.push({ title: colonMatch[1].trim(), detail: colonMatch[2].trim() });
-      } else {
-        miscItems.push({ title: clean, detail: "" });
-      }
+      const [, itemTitle, detail] = clean.match(/^([^：:]+)[：:]\s*(.+)$/) ?? [];
+      miscItems.push({ title: itemTitle?.trim() ?? clean, detail: detail?.trim() ?? "" });
     }
   }
 
@@ -714,7 +691,7 @@ export function ReadOnlyPlanCard({ kind, onClose }: { kind: CardKind; onClose: (
                           <span className="milestone-goal-badge">🎯 阶段目标</span>
                         </div>
                         <div className="milestone-deliverable">
-                          {renderInlineMarkdown(proj.goal || proj.milestone)}
+                          {renderInlineMarkdown(proj.goal || proj.milestone || "")}
                         </div>
                       </div>
                     ))}

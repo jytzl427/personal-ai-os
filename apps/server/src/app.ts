@@ -2613,6 +2613,29 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     return c.json({ ok: true, health: context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(date) });
   });
 
+  app.patch("/api/v1/health/:date", async (c) => {
+    const date = c.req.param("date");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "date must be YYYY-MM-DD" } }, 400);
+    const body = await c.req.json().catch(() => ({})) as { next_date?: unknown; overwrite?: unknown };
+    const nextDate = typeof body.next_date === "string" ? body.next_date.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "next_date must be YYYY-MM-DD" } }, 400);
+    const current = context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(date) as Record<string, unknown> | undefined;
+    if (!current) return notFound(c, "health log");
+    if (nextDate === date) return c.json({ ok: true, health: current });
+    const conflict = context.database.prepare("SELECT id FROM health_logs WHERE log_date = ?").get(nextDate) as { id: string } | undefined;
+    if (conflict && !body.overwrite) {
+      return c.json({ ok: false, error: { code: "CONFLICT", message: "target date already has a health log" } }, 409);
+    }
+    const timestamp = now();
+    context.database.transaction(() => {
+      if (conflict) {
+        context.database.prepare("DELETE FROM health_logs WHERE log_date = ?").run(nextDate);
+      }
+      context.database.prepare("UPDATE health_logs SET log_date = ?, updated_at = ? WHERE log_date = ?").run(nextDate, timestamp, date);
+    })();
+    return c.json({ ok: true, health: context.database.prepare("SELECT * FROM health_logs WHERE log_date = ?").get(nextDate) });
+  });
+
   app.delete("/api/v1/health/:date", (c) => {
     const date = c.req.param("date");
     const result = context.database.prepare("DELETE FROM health_logs WHERE log_date = ?").run(date);

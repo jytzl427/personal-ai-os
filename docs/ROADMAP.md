@@ -1,6 +1,6 @@
 # Post-P7 roadmap
 
-P8 follows the plan's rule of one small extension at a time. The MVP and P6 workbench do not depend on any of these items.
+P8 tracks optional extensions to the local app.
 
 ## P8-A — Read-only imports (implemented)
 
@@ -25,7 +25,7 @@ Implementation: `POST /api/v1/imports/preview` creates a fingerprinted preview b
 
 - P8-B encrypted export / SQLCipher evaluation
 - P8-C investment bounded context (`fin_holdings`, snapshots, performance reviews)
-- P8-D habits, meals, mood and additional health metrics
+- P8-D meals, mood and additional health metrics
 - P8-E PWA/offline packaging and stronger remote-access token policy
 
 Each item needs its own data-model, security and migration review before implementation. Do not create placeholder tables now.

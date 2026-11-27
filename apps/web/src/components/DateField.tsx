@@ -11,13 +11,15 @@ export function DateField({
   onChange,
   ariaLabel,
   emptyLabel = "设置日期",
-  className = ""
+  className = "",
+  allowClear = true
 }: {
   value?: string | null;
   onChange: (value: string) => void;
   ariaLabel: string;
   emptyLabel?: string;
   className?: string;
+  allowClear?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -147,7 +149,7 @@ export function DateField({
                 })}
               </div>
               <div className="cal-footer">
-                {value ? (
+                {allowClear && value ? (
                   <button
                     className="cal-clear"
                     onClick={() => {

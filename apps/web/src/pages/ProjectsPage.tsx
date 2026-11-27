@@ -39,6 +39,20 @@ type Project = {
   score?: number | null;
 };
 
+type ProjectDraft = Partial<{
+  name: string;
+  description: string;
+  category: string;
+  status: string;
+  started_at: string;
+  target_date: string;
+  end_date: string;
+  target_result: string;
+  benefit_enabled: string;
+  archive_requested: string;
+  score: number | null;
+}>;
+
 function CheckpointTitleInput({
   initialValue,
   placeholder,
@@ -734,7 +748,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     activities?: ProjectActivity[];
     finance?: ProjectFinance;
   } | null>(null);
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<ProjectDraft>({});
   const [workspace, setWorkspace] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -882,7 +896,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
     }
   }
 
-  async function saveField(updates: Record<string, unknown> = {}) {
+  async function saveField(updates: ProjectDraft = {}) {
     if (!data) return;
     const nextDraft = { ...draft, ...updates };
     setDraft(nextDraft);
@@ -929,6 +943,7 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
     const list = [...data.project_tasks];
     const [moved] = list.splice(fromIndex, 1);
+    if (!moved) return;
     list.splice(toIndex, 0, moved);
 
     setData({ ...data, project_tasks: list });
