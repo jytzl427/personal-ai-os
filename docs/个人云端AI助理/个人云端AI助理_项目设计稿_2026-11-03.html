@@ -1,0 +1,1876 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>个人云端AI助理_项目设计稿_2026-11-03</title><style>body{font-family:system-ui,"Microsoft YaHei",sans-serif;max-width:1280px;margin:32px auto;padding:0 24px;line-height:1.8;color:#20262e}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}td,th{border:1px solid #cbd5e1;padding:8px;min-width:80px;vertical-align:top}th{background:#edf2f7}h1,h2,h3{line-height:1.4}h2{border-bottom:2px solid #dbe5f0;padding-bottom:8px;margin-top:2em}blockquote{background:#f1f5f9;margin:0;padding:14px 20px;border-left:4px solid #64748b}a{color:#1660b0;overflow-wrap:anywhere}code{white-space:pre-wrap;overflow-wrap:anywhere}li{margin:5px 0}@media print{body{max-width:none;margin:0}table{font-size:10px}h2{break-after:avoid}}</style></head><body><blockquote>
+<p>离线完整导出；导出日期：2026-11-21（Asia/Shanghai）。原页面更新时间：2026-11-03 01:26（Asia/Shanghai，北京时间）。
+来源：https://cursor.com/canvas/store-ba30139d-0050-4f90-863e-8522065ee760/ab505146-89bf-4bbe-9e93-ea2908e9a3a1
+历史正文原样保留（只转为可离线阅读的格式，不在本次重新核验历史事实）。讨论记录 2026-11-14 的四版产品路线取代早期路线；设计稿保留原技术阶段，不改写历史。原图转为完整节点/连接清单，原筛选表展开全部条目，无外部图片依赖。</p>
+</blockquote>
+<h1>个人云端 AI 助理（Personal AI OS）项目设计稿</h1>
+<p>推荐以 LibreChat 为核心，先上线一个最小、安全的多模型云端对话；推送、MCP 个人数据、编程子代理按阶段加入。安全是最高优先级，红线守不住就不做。</p>
+<p><strong>原页面目录</strong></p>
+<ul>
+<li>结论与推荐组合</li>
+<li>讨论纪要与决策</li>
+<li>需求摘要</li>
+<li>框架调研</li>
+<li>总体架构</li>
+<li>模块划分</li>
+<li>模型网关</li>
+<li>编程子代理架构</li>
+<li>定时主动推送</li>
+<li>MCP 数据层</li>
+<li>安全设计（核心章节）</li>
+<li>威胁模型</li>
+<li>风险清单</li>
+<li>安全基线配置</li>
+<li>红线</li>
+<li>订阅 CLI 核实结论</li>
+<li>文件下载规则</li>
+<li>安卓端方案</li>
+<li>VPS 配置与成本</li>
+<li>分阶段路线</li>
+<li>运维与每周维护</li>
+<li>审查记录</li>
+<li>风险与待定问题</li>
+<li>参考来源</li>
+</ul>
+<h2>结论与推荐组合</h2>
+<p><strong>一句话：</strong> 核心用 LibreChat（MIT 许可，自带管理后台、强制 2FA、Passkey、MCP 白名单、子代理和定时对话），第一版不加模型网关、不开编程子代理，组件越少攻击面越小。</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>推荐</th>
+<th>备选</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对话与管理核心</td>
+<td>LibreChat</td>
+<td>Open WebUI</td>
+<td>LibreChat 原生支持 Anthropic Messages、OpenAI Responses 和 OpenAI 兼容接口；MIT 许可最宽松</td>
+</tr>
+<tr>
+<td>模型网关</td>
+<td>第一版不用；后期 New API（仅内网）</td>
+<td>LiteLLM（按摘要锁版本）</td>
+<td>New API 可在 Chat、Responses、Messages、Gemini 四种协议间互转，给 CLI 子代理统一出口</td>
+</tr>
+<tr>
+<td>编程子代理</td>
+<td>自写派发服务 + 一次性 gVisor 容器内跑 Codex CLI / Gemini CLI / OpenHands</td>
+<td>Hermes Agent 做编排</td>
+<td>派发逻辑要自己掌控权限和预算；Hermes 有 cron 与子代理委派，但权限面大</td>
+</tr>
+<tr>
+<td>定时推送</td>
+<td>LibreChat Scheduled Chats + ntfy</td>
+<td>自写定时服务 + Web Push</td>
+<td>Scheduled Chats 仍是实验功能，需要管理员开启</td>
+</tr>
+<tr>
+<td>个人数据</td>
+<td>自写 MCP 服务器（官方 SDK，Streamable HTTP）</td>
+<td>无</td>
+<td>只有自写才能做到字段最小化、写确认、审计</td>
+</tr>
+<tr>
+<td>边缘与防护</td>
+<td>Cloudflare Tunnel + Caddy + CrowdSec</td>
+<td>Cloudflare 代理只开 443 + Origin CA 证书；再加 SafeLine 雷池</td>
+<td>Tunnel 只向外连接，源站不开入站端口；后台走 Tailscale 或 Cloudflare Access</td>
+</tr>
+<tr>
+<td>监控告警</td>
+<td>外部心跳与可用性监控，告警发邮箱</td>
+<td>无</td>
+<td>告警不能只靠被监控的同一台服务器</td>
+</tr>
+<tr>
+<td>安卓</td>
+<td>PWA</td>
+<td>TWA 打包</td>
+<td>只下命令、零敏感权限、无 JS 桥接、和网页同一套代码</td>
+</tr>
+<tr>
+<td>备份</td>
+<td>restic 加密备份到对象存储</td>
+<td>服务商快照</td>
+<td>客户端加密后再出服务器</td>
+</tr>
+</tbody>
+</table>
+<p>不推荐：OpenClaw 公开安全公告超过 100 条、能力面过大；Dify 偏工作流平台，许可证限制多租户；NextChat 和 One API 更新放缓。</p>
+<h2>讨论纪要与决策</h2>
+<p><em>截至 2026-11-03 的讨论结论，后续设计以此为准</em></p>
+<ol>
+<li>安卓端只做 PWA，必要时用 TWA 打包；不给助手任何手机权限。
+  - 手机只用来下命令和看结果；通知用 ntfy 自建服务器推送。</li>
+<li>电脑端同样只用浏览器，不装客户端，不给助手读写电脑的权限。
+  - 文件按「文件下载规则」由你在网页上手动点击下载。</li>
+<li>订阅 CLI 只由你本人在自己的服务器上，用官方原版工具登录，不做反代。
+  - 其他用户一律走按量 API。核实依据见「订阅 CLI 核实结论」。</li>
+<li>IP 白名单能挡外人，但挡不住投毒。
+  - 投毒来自你自己信任并主动拉取的依赖、镜像、网页和文件，白名单管不到。
+  - 入口改用 Tailscale 或 Cloudflare Access 做身份校验；另外做沙箱隔离、出网白名单、依赖版本锁定、文件扫描。</li>
+<li>Claude Code 等本地 agent 工具同样有提示词注入风险。
+  - Anthropic 安全文档也建议，处理不可信内容时放进虚拟机或容器里运行。
+  - 在云端一次性沙箱里跑编程任务比在本地电脑直接跑更安全：出事只损失一个可销毁的容器，碰不到你电脑上的文件和登录状态。</li>
+<li>对付黑客入侵后投毒或窃取隐私，防线分两层。
+  - 第一层防止入侵：入口身份校验、2FA、不开放多余端口、及时更新、锁定版本。
+  - 第二层限制入侵后的损失：数据加密、密钥分开存放、API 消费上限、异地防删除备份、审计日志和告警。
+  - AI 的写操作必须由你亲手确认。风险可以压得很低，但做不到零。</li>
+<li>你承诺每周维护一次。
+  - 每周约 15–20 分钟，另有每月深度检查和出事时的应急清单，见「运维与每周维护」。</li>
+</ol>
+<h2>需求摘要</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>形态</td>
+<td>安卓 PWA（必要时 TWA）+ 电脑浏览器，同一后端；两端都不装客户端，不给助手设备权限</td>
+</tr>
+<tr>
+<td>用户</td>
+<td>管理员 1 人 + 邀请注册 2–3 人</td>
+</tr>
+<tr>
+<td>核心大脑</td>
+<td>多家模型可切换，兼容 Chat Completions、Messages、Responses</td>
+</tr>
+<tr>
+<td>主动性</td>
+<td>周度定战略、晨起抓执行、夜间真复盘、断档提醒</td>
+</tr>
+<tr>
+<td>数据</td>
+<td>已有个人管理系统，后续经 MCP 读写</td>
+</tr>
+<tr>
+<td>扩展</td>
+<td>编程子代理，可多级派发，支持 API 与订阅 CLI</td>
+</tr>
+<tr>
+<td>部署</td>
+<td>海外轻量 VPS，不备案，HTTPS + 自有域名</td>
+</tr>
+<tr>
+<td>预算</td>
+<td>服务器 + API 每月 50–150 元</td>
+</tr>
+<tr>
+<td>第一版</td>
+<td>只做简单的云端 AI 对话</td>
+</tr>
+<tr>
+<td>最高原则</td>
+<td>安全第一；AI 不操控手机、App 不读手机权限</td>
+</tr>
+</tbody>
+</table>
+<h2>框架调研</h2>
+<p><em>star、许可证、版本、公告数均为 2026-11-03 01:00（北京时间）通过 GitHub API 查询；公告数指 GitHub Security Advisories 已发布条目，数量多也可能说明项目披露透明</em></p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>Star</th>
+<th>许可证</th>
+<th>最新版本</th>
+<th>安全公告</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LibreChat</td>
+<td>46,642</td>
+<td>MIT</td>
+<td>v0.8.8（v0.8.9-rc1）</td>
+<td>29 条（13 条高危/严重）</td>
+</tr>
+<tr>
+<td>Open WebUI</td>
+<td>157,559</td>
+<td>Open WebUI License（BSD-3 加品牌条款）</td>
+<td>v0.12.5，2026-10-29</td>
+<td>100 条以上（最近 100 条中 36 条高危/严重）</td>
+</tr>
+<tr>
+<td>LobeHub（原 LobeChat）</td>
+<td>83,717</td>
+<td>LobeHub Community License</td>
+<td>v2.3.0，2026-11-01</td>
+<td>15 条（含 XSS 升级 RCE、路径穿越 RCE）</td>
+</tr>
+<tr>
+<td>Dify</td>
+<td>160,243</td>
+<td>改版 Apache 2.0（限制多租户、保留 Logo）</td>
+<td>1.18.0，2026-10-23</td>
+<td>21 条（8 条高危/严重）</td>
+</tr>
+<tr>
+<td>NextChat</td>
+<td>88,937</td>
+<td>MIT</td>
+<td>v2.16.1，2025-07-29</td>
+<td>1 条（高危）</td>
+</tr>
+<tr>
+<td>OpenHands</td>
+<td>92,503</td>
+<td>MIT</td>
+<td>v1.34.0，2026-10-27</td>
+<td>1 条</td>
+</tr>
+<tr>
+<td>LiteLLM</td>
+<td>62,557</td>
+<td>MIT（enterprise 目录除外）</td>
+<td>v1.106.6，2026-10-28</td>
+<td>18 条（含 2 条严重）+ 2026 年两次发布渠道投毒</td>
+</tr>
+<tr>
+<td>New API</td>
+<td>51,214</td>
+<td>AGPL-3.0</td>
+<td>v1.0.0-rc.47，2026-10-25</td>
+<td>15 条（含 root 令牌泄露、额度绕过）</td>
+</tr>
+<tr>
+<td>One API</td>
+<td>37,316</td>
+<td>MIT</td>
+<td>最后提交 2026-01-09</td>
+<td>更新已明显放缓</td>
+</tr>
+<tr>
+<td>OpenClaw</td>
+<td>393,730</td>
+<td>MIT</td>
+<td>v2026.10.9，2026-10-29</td>
+<td>100 条以上（最近 100 条中 51 条高危/严重）</td>
+</tr>
+<tr>
+<td>Hermes Agent</td>
+<td>259,733</td>
+<td>MIT</td>
+<td>v0.22.5，2026-10-23</td>
+<td>0 条公开公告（不代表没有漏洞）</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>LibreChat · 推荐：多用户与角色、独立管理后台（需 v0.8.5+）、强制 TOTP 2FA、Passkey、MCP（stdio / SSE / Streamable HTTP，带 SSRF 防护和域名白名单）、Agents 与子代理、实验性定时对话、可安装为 PWA</li>
+<li>Open WebUI · 备选：生态最大、有原生安卓客户端 Conduit；新注册默认待审批；MCP 只支持 Streamable HTTP 且仅管理员可添加；品牌条款在 50 人以下豁免；公告数量多</li>
+<li>New API · 后期：中文友好的网关，协议互转与渠道额度管理强；安全公告多集中在支付与额度模块，只放内网、关闭支付可规避大部分</li>
+<li>LiteLLM · 谨慎：功能全面，但 2026 年发布渠道两次被投毒，必须按摘要锁定</li>
+<li>OpenHands · 后期：成熟的编程代理，自带沙箱运行时，可作为编程子代理的一种实现</li>
+<li>OpenClaw / Hermes Agent · 不作为核心：个人代理型项目，自带定时、消息渠道、子代理委派；能力面大，不适合做安全优先的核心</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>配套项目</th>
+<th>Star</th>
+<th>许可证</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCP 官方 servers</td>
+<td>91,744</td>
+<td>混合</td>
+<td>参考实现，不建议直接上生产</td>
+</tr>
+<tr>
+<td>MCP Python SDK</td>
+<td>24,738</td>
+<td>MIT</td>
+<td>自写个人数据 MCP 服务器</td>
+</tr>
+<tr>
+<td>MCP TypeScript SDK</td>
+<td>13,694</td>
+<td>混合</td>
+<td>同上，二选一</td>
+</tr>
+<tr>
+<td>mcpo</td>
+<td>4,415</td>
+<td>MIT</td>
+<td>把 stdio MCP 转 OpenAPI，仅 Open WebUI 方案需要</td>
+</tr>
+<tr>
+<td>MetaMCP</td>
+<td>2,744</td>
+<td>MIT</td>
+<td>MCP 聚合；最后提交 2026-06，暂不用</td>
+</tr>
+<tr>
+<td>Conduit</td>
+<td>2,399</td>
+<td>GPL-3.0</td>
+<td>Open WebUI 的原生安卓客户端，v4.2.2</td>
+</tr>
+<tr>
+<td>Caddy</td>
+<td>78,653</td>
+<td>Apache-2.0</td>
+<td>反向代理，自动 HTTPS</td>
+</tr>
+<tr>
+<td>CrowdSec</td>
+<td>15,430</td>
+<td>MIT</td>
+<td>基于社区情报封禁恶意 IP</td>
+</tr>
+<tr>
+<td>SafeLine 雷池</td>
+<td>23,154</td>
+<td>GPL-3.0</td>
+<td>自托管 WAF，可选（吃内存）</td>
+</tr>
+<tr>
+<td>Authelia</td>
+<td>29,479</td>
+<td>Apache-2.0</td>
+<td>前置认证，备选</td>
+</tr>
+<tr>
+<td>ntfy</td>
+<td>35,238</td>
+<td>Apache-2.0</td>
+<td>自托管推送，有安卓客户端</td>
+</tr>
+<tr>
+<td>Capacitor</td>
+<td>17,020</td>
+<td>MIT</td>
+<td>已对比，因 JS 桥接攻击面不采用</td>
+</tr>
+<tr>
+<td>restic</td>
+<td>36,952</td>
+<td>BSD-2-Clause</td>
+<td>加密增量备份</td>
+</tr>
+<tr>
+<td>Codex CLI</td>
+<td>132,866</td>
+<td>Apache-2.0</td>
+<td>编程子代理</td>
+</tr>
+<tr>
+<td>Gemini CLI</td>
+<td>108,671</td>
+<td>Apache-2.0</td>
+<td>编程子代理</td>
+</tr>
+<tr>
+<td>Claude Code</td>
+<td>154,269</td>
+<td>未声明开源许可证</td>
+<td>编程子代理（条款限制见安全章）</td>
+</tr>
+</tbody>
+</table>
+<h2>总体架构</h2>
+<p><em>Page 不渲染 mermaid，这里用原生框图表达同一结构；虚线为后期阶段</em></p>
+<p><strong>原架构图：节点</strong></p>
+<ul>
+<li>u：安卓 PWA/TWA · 电脑浏览器</li>
+<li>cf：Cloudflare — DNS、WAF、速率限制、Access</li>
+<li>caddy：Caddy 反代 — 只接本机 cloudflared 转发</li>
+<li>mon：外部监控（另一家服务） — 心跳、可用性、邮件告警</li>
+<li>lc：LibreChat 核心大脑 — 对话、Agents、定时、2FA</li>
+<li>db：MongoDB / Meilisearch — 仅内网</li>
+<li>llm：模型供应商 API — OpenAI、Anthropic、Gemini、xAI 等</li>
+<li>gw：New API 网关（后期） — 仅内网</li>
+<li>mcp：个人数据 MCP 服务器（后期） — 字段最小化、写确认、审计</li>
+<li>pos：已有个人管理系统</li>
+<li>disp：编程派发服务（后期） — 深度、预算、并发上限</li>
+<li>sb：gVisor 一次性沙箱 — Codex / Gemini CLI / OpenHands</li>
+<li>ntfy：ntfy 推送</li>
+<li>ts：Tailscale — SSH 与后台入口</li>
+</ul>
+<p><strong>原架构图：连接关系</strong></p>
+<ul>
+<li>u → cf</li>
+<li>cf → caddy：Tunnel，源站无入站端口</li>
+<li>lc → mon：心跳</li>
+<li>mon → u：邮件告警</li>
+<li>caddy → lc</li>
+<li>lc → db</li>
+<li>lc → llm：第一版直连</li>
+<li>lc → gw（虚线：后期阶段）</li>
+<li>gw → llm（虚线：后期阶段）</li>
+<li>lc → mcp（虚线：后期阶段）</li>
+<li>mcp → pos（虚线：后期阶段）</li>
+<li>lc → disp：仅编程指令（虚线：后期阶段）</li>
+<li>disp → sb（虚线：后期阶段）</li>
+<li>sb → gw：按量 API，出网白名单（虚线：后期阶段）</li>
+<li>sb → llm：订阅 CLI 直连官方，白名单（虚线：后期阶段）</li>
+<li>lc → ntfy</li>
+<li>ntfy → u</li>
+<li>ts → lc：管理员</li>
+</ul>
+<h2>模块划分</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>实现</th>
+<th>阶段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>接入层</td>
+<td>域名、HTTPS、WAF、限速、源站隐藏</td>
+<td>Cloudflare + Caddy + CrowdSec</td>
+<td>一</td>
+</tr>
+<tr>
+<td>身份与权限</td>
+<td>邀请注册、2FA、Passkey、角色</td>
+<td>LibreChat 自带 + 管理后台</td>
+<td>一</td>
+</tr>
+<tr>
+<td>对话与大脑</td>
+<td>多模型切换、Agents、提示词、记忆</td>
+<td>LibreChat</td>
+<td>一</td>
+</tr>
+<tr>
+<td>主动推送</td>
+<td>晨报、复盘、周战略、断档提醒</td>
+<td>Scheduled Chats + ntfy</td>
+<td>二</td>
+</tr>
+<tr>
+<td>个人数据 MCP</td>
+<td>读写记账、作息、打卡、学业、项目、灵感</td>
+<td>自写 MCP 服务器</td>
+<td>三</td>
+</tr>
+<tr>
+<td>审计与停机</td>
+<td>写操作日志、一键停机</td>
+<td>MCP 层 + 运维脚本</td>
+<td>三</td>
+</tr>
+<tr>
+<td>模型网关</td>
+<td>统一密钥、额度、协议转换</td>
+<td>New API（内网）</td>
+<td>四</td>
+</tr>
+<tr>
+<td>编程子代理</td>
+<td>派发、沙箱执行、PR 交付</td>
+<td>派发服务 + gVisor 沙箱</td>
+<td>四</td>
+</tr>
+<tr>
+<td>个人管理界面</td>
+<td>管理系统看板与对话融合</td>
+<td>网页实现，手机仍用 PWA</td>
+<td>五</td>
+</tr>
+</tbody>
+</table>
+<h2>模型网关</h2>
+<p>第一版不单独部署网关：LibreChat 可直接配置 OpenAI 兼容端点、<code>provider: anthropic</code> 原生 Messages 端点，并用 <code>useResponsesApi</code> 走 Responses 接口，三种格式都能覆盖。</p>
+<p>到第四阶段引入 New API 时，它只监听内网，作用是三件事：给编程子代理统一一个 Base URL 和子 Key；按渠道和用户设额度；在 Chat、Responses、Messages 之间做协议转换。官方文档标注 Claude 与 Responses 互转质量为 fair，协议独有字段可能丢失，所以核心对话优先走原生协议，转换只给子代理兜底。</p>
+<h2>编程子代理架构</h2>
+<ol>
+<li>核心大脑只能调用一个工具：派发编程任务，参数为仓库、目标、预算、允许的模型。</li>
+<li>派发服务校验：调用者是否管理员、任务类型是否为编程、深度不超过 2 层、预算与并发是否在上限内。</li>
+<li>每个任务启动一个一次性 gVisor 容器，挂载任务专用工作区，出网只经白名单代理。</li>
+<li>容器内执行者按任务选择：
+  - 按量 API：Codex CLI、OpenHands 通过网关调用；Gemini CLI 能否指向自建网关地址：不确定，必要时直连 Google API
+  - 订阅 CLI：只给管理员本人用，官方 CLI 在一次性 gVisor 容器里运行。凭证必须随 CLI 进入该容器，CLI 执行的命令有可能读到它，所以该容器出网只放行官方服务和必要的代码托管，任务结束即销毁，异常时到官网吊销（见 C1、S1）</li>
+<li>子代理可再派发下级子代理，但下级权限不得大于上级，任务树共享一个总预算。</li>
+<li>产出只能是独立分支上的 PR 加一份报告，合并必须人工。</li>
+</ol>
+<h2>定时主动推送</h2>
+<table>
+<thead>
+<tr>
+<th>节奏</th>
+<th>时间（北京时间）</th>
+<th>内容</th>
+<th>工具权限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>晨起抓执行</td>
+<td>每天 07:30</td>
+<td>今日三件要事、日程、断档的习惯</td>
+<td>只读</td>
+</tr>
+<tr>
+<td>夜间真复盘</td>
+<td>每天 22:30</td>
+<td>完成情况、记账汇总、明日调整建议</td>
+<td>只读，写入留到确认</td>
+</tr>
+<tr>
+<td>周度定战略</td>
+<td>周日 20:00</td>
+<td>本周回顾、下周重点与学业进度</td>
+<td>只读</td>
+</tr>
+<tr>
+<td>断档提醒</td>
+<td>按规则触发</td>
+<td>连续 N 天未打卡、项目停滞</td>
+<td>只读</td>
+</tr>
+</tbody>
+</table>
+<p>推送渠道优先自托管 ntfy，手机装 ntfy 的 F-Droid 版连自建服务器：它靠常驻连接收消息，不经过 Google 的 FCM，适合没有 Google 服务的手机。推送正文只放摘要，详情需登录后查看，避免锁屏和第三方推送通道泄露隐私。</p>
+<h2>MCP 数据层</h2>
+<ul>
+<li>用 MCP 官方 SDK 自写一个服务器，Streamable HTTP 传输，只在内网监听，LibreChat 用 <code>allowedAddresses</code> 精确放行。</li>
+<li>工具按域拆分：记账、健康作息、习惯、学业、项目任务、灵感；每个域分读工具和写工具。</li>
+<li>读工具默认返回汇总，明细需显式参数；返回内容标注为数据而非指令。</li>
+<li>写工具全部要求人工确认，修改和删除展示前后差异，一律软删除。</li>
+<li>每次调用写审计日志；MCP 服务器用独立数据库账号，只授予所需表权限。</li>
+</ul>
+<h2>安全设计（核心章节）</h2>
+<p><strong>原则：</strong> 默认拒绝、最小权限、纵深防御、可审计、可一键停机。任何新功能先过本章的风险清单，红线守不住就不上线。</p>
+<h3>威胁模型</h3>
+<h4>要保护的资产</h4>
+<ul>
+<li>个人数据：记账、健康、学业、项目、对话历史</li>
+<li>模型 API Key 与账单</li>
+<li>订阅 CLI 登录凭证</li>
+<li>服务器 root 与源码仓库</li>
+<li>其他 2–3 位用户的隐私</li>
+</ul>
+<h4>攻击者</h4>
+<ul>
+<li>互联网自动扫描与撞库</li>
+<li>网页、文件、工具返回里的注入内容</li>
+<li>被投毒的上游包、镜像、插件</li>
+<li>被盗的用户账号或手机</li>
+<li>失控的 AI 自身（误操作、无限循环）</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>信任边界</th>
+<th>跨越方式</th>
+<th>主要控制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>公网 → 源站</td>
+<td>HTTPS 请求</td>
+<td>Cloudflare WAF、只开 443、限速</td>
+</tr>
+<tr>
+<td>用户 → 核心大脑</td>
+<td>登录会话</td>
+<td>邀请制、强制 2FA、Passkey、角色</td>
+</tr>
+<tr>
+<td>大脑 → 模型供应商</td>
+<td>API 调用</td>
+<td>字段最小化、限额、熔断</td>
+</tr>
+<tr>
+<td>大脑 → MCP 数据</td>
+<td>工具调用</td>
+<td>白名单、写确认、审计</td>
+</tr>
+<tr>
+<td>大脑 → 编程沙箱</td>
+<td>任务派发</td>
+<td>gVisor、出网白名单、资源上限</td>
+</tr>
+<tr>
+<td>管理员 → 服务器</td>
+<td>SSH、后台</td>
+<td>Tailscale 或 Cloudflare Access、密钥登录</td>
+</tr>
+</tbody>
+</table>
+<h3>风险清单</h3>
+<p><em>等级为采取措施前的固有风险；方案状态分为有完整方案、部分缓解、暂无方案只能接受；「你」指唯一维护者本人；可按类别筛选</em></p>
+<p><em>原页面筛选项：全部、注入、沙箱、订阅凭证、密钥账单、认证、服务器、供应链、隐私、安卓、写操作、下载、运维、网络、合规、成本、供应商、单人维护、数据、AI 质量；离线版保留全部条目。</em></p>
+<p>共 67 条：有完整方案 26 条，部分缓解 39 条，暂无方案只能接受 2 条。A–K 为初版，L–T 为本次审查新增。</p>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>等级</th>
+<th>风险</th>
+<th>后果</th>
+<th>方案状态</th>
+<th>具体方案</th>
+<th>残余风险</th>
+<th>谁来做 · 多久一次</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>高</td>
+<td>直接提示词注入：用户或被盗账号在对话里诱导 AI 越权调用工具</td>
+<td>AI 绕过人设去读写个人数据、派发编程任务、外发信息</td>
+<td>部分缓解</td>
+<td>工具权限按角色白名单；系统提示不当作安全边界；高危工具强制人工确认；子代理单独账号</td>
+<td>模型仍可能被说服输出错误内容，但无法越过服务端权限</td>
+<td>你 · 部署时配置，每月复查工具权限</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>高</td>
+<td>间接注入：网页搜索结果、上传文件、邮件正文里藏指令</td>
+<td>AI 把私密数据拼进外链或工具参数外泄（数据渗出），或擅自改数据</td>
+<td>部分缓解</td>
+<td>外部内容一律标记为不可信数据；含外部内容的回合自动降权（禁用写工具与外发类工具）；渲染层禁止自动加载外链图片和 Markdown 链接预取；出网白名单</td>
+<td>注入无法根治（OWASP LLM01），只能把爆炸半径压到只读、可撤销</td>
+<td>你 · 部署时配置，每月复查</td>
+</tr>
+<tr>
+<td>A3</td>
+<td>高</td>
+<td>MCP 工具返回内容注入，或恶意/被篡改的 MCP 服务器（工具描述投毒）</td>
+<td>一个工具的返回值指挥 AI 调用另一个写工具；MCP 服务器窃取会话令牌</td>
+<td>部分缓解</td>
+<td>只装自写或固定版本的 MCP 服务器；LibreChat <code>mcpSettings.allowedDomains</code> 严格白名单；工具描述变更需管理员重新批准；写工具返回值不得触发连锁写操作</td>
+<td>自写 MCP 服务器本身有 bug 的风险，靠代码审查和最小权限兜底</td>
+<td>你 · 每次新增或升级 MCP 工具时</td>
+</tr>
+<tr>
+<td>A4</td>
+<td>中</td>
+<td>定时任务（晨报/复盘）在无人值守时读到注入内容</td>
+<td>夜里自动执行写操作，第二天才发现</td>
+<td>有完整方案</td>
+<td>定时任务只授予只读工具，产出仅为一条推送；任何写操作留到人在线时确认</td>
+<td>推送内容可能被污染，误导决策</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>B1</td>
+<td>极高</td>
+<td>编程子代理执行任意代码（这是功能本身，不是漏洞）</td>
+<td>恶意依赖或注入代码在服务器上运行，读取密钥、横向攻击其他容器</td>
+<td>部分缓解</td>
+<td>每个任务一个一次性容器，gVisor（runsc）运行时；非 root、只读根文件系统、去掉全部 capabilities、seccomp 默认；不挂 Docker socket；不挂主机目录，只挂任务工作区</td>
+<td>gVisor 降低内核逃逸概率但不是零；需及时更新 runsc 与内核</td>
+<td>你 · 每周随系统更新升级 gVisor</td>
+</tr>
+<tr>
+<td>B2</td>
+<td>高</td>
+<td>沙箱无限制出网</td>
+<td>代码把源码、凭证发到攻击者服务器；被当作肉鸡挖矿/发包导致 VPS 被封</td>
+<td>部分缓解</td>
+<td>沙箱放在独立 Docker 网络，默认拒绝出网；只经出站代理放行白名单（包仓库镜像、Git 托管、模型网关）；记录所有出站连接</td>
+<td>白名单内的域名（如 GitHub）仍可被用作外传渠道</td>
+<td>你 · 部署时配置，每月看出站日志</td>
+</tr>
+<tr>
+<td>B3</td>
+<td>中</td>
+<td>资源耗尽：死循环、fork 炸弹、塞满磁盘</td>
+<td>主服务（对话、推送）一起宕机</td>
+<td>有完整方案</td>
+<td>每容器 CPU、内存、PID 数、磁盘配额和最长运行时间；同时运行任务数上限 1–2；超时强杀</td>
+<td>1 台小 VPS 上编程任务和主服务仍会互相抢资源，必要时拆第二台机</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>B4</td>
+<td>高</td>
+<td>子代理再派发子代理，权限逐级放大或无限递归</td>
+<td>失控的任务树烧光额度、绕过确认</td>
+<td>有完整方案</td>
+<td>派发深度上限（例如 2 层）、任务总数与总预算上限；下级只能继承同级或更小权限；只接受「编程」类型指令</td>
+<td>上限内的任务仍可能产出低质量代码，需人工合并</td>
+<td>派发服务代码 · 部署时一次</td>
+</tr>
+<tr>
+<td>B5</td>
+<td>高</td>
+<td>子代理直接改正式仓库或推送到主分支</td>
+<td>破坏代码、泄露私有仓库</td>
+<td>部分缓解</td>
+<td>子代理只能推到独立分支并开 PR；Git 凭证用单仓库、短期、最小权限的令牌；合并必须人工</td>
+<td>PR 中隐藏的恶意改动需人工审阅才能发现</td>
+<td>你 · 每次合并 PR</td>
+</tr>
+<tr>
+<td>C1</td>
+<td>极高</td>
+<td>Codex/Claude Code/Gemini 等订阅 CLI 的登录凭证存放在服务器（如 <code>~/.codex/auth.json</code>，官方称其为明文文件，应像密码一样对待）</td>
+<td>凭证被盗后他人用你的订阅额度，账号异常被风控</td>
+<td>部分缓解</td>
+<td>官方 CLI 在一次性 gVisor 容器内运行，凭证只读挂载、权限 600，任务结束即销毁容器；该容器出网只放行对应官方服务和必要的代码托管；Codex 可设 <code>cli_auth_credentials_store</code>；每月重新登录一次</td>
+<td>CLI 执行的代码和凭证在同一个环境里，恶意依赖仍可能读到凭证并经白名单域名外传（见 S1）；服务器被完全攻破时凭证必然泄露，需要能在官网一键吊销会话</td>
+<td>你 · 每月重新登录，异常时立即吊销</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>极高</td>
+<td>违反服务条款导致封号</td>
+<td>订阅账号被封，影响你的日常使用</td>
+<td>部分缓解</td>
+<td>Anthropic 已明确：订阅 OAuth 只能用于原生 Claude Code/Claude.ai，不能用于第三方工具或 Agent SDK，自动化应改用 API Key；OpenAI 官方也写明自动化首选 API Key，<code>auth.json</code> 方式只适用于受信任的私有自动化；四家逐条核实结论见「订阅 CLI 核实结论」一节</td>
+<td>条款会变；即使合规，高频无人值守调用也可能触发风控</td>
+<td>你 · 每季度复核条款</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>高</td>
+<td>把个人订阅给另外 1–2 个注册用户共用</td>
+<td>构成账号共享，属于封号高风险</td>
+<td>有完整方案</td>
+<td>订阅 CLI 子代理只对管理员本人开放；其他用户只能用按量 API</td>
+<td>靠你自己守规则和配置正确；配错时可能把订阅误开放给他人，部署后要用其他账号实测确认调不到</td>
+<td>你 · 持续遵守，部署后实测一次</td>
+</tr>
+<tr>
+<td>D1</td>
+<td>高</td>
+<td>模型 API Key 泄露（写进代码、日志、前端、Git、备份）</td>
+<td>被盗刷，几小时内产生大额账单</td>
+<td>部分缓解</td>
+<td>密钥只在服务端环境变量或 secret 文件，禁止进前端和仓库；仓库开 secret scanning；日志脱敏；每家供应商单独 Key，用后台可限额的子 Key</td>
+<td>服务器被攻破时运行中的 Key 仍可被读到</td>
+<td>你 · 每周看用量，每季度轮换 Key</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>高</td>
+<td>失控循环或滥用导致账单失控</td>
+<td>一夜烧掉整月预算</td>
+<td>有完整方案</td>
+<td>三层熔断：供应商后台硬上限（优先选预付费充值）；网关/LibreChat 每用户余额与速率限制；编程任务单任务预算；超阈值推送告警并自动停用</td>
+<td>部分供应商只有软告警没有硬上限，需选预付费渠道</td>
+<td>自动熔断 + 你每周看用量</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>中</td>
+<td>第三方中转站（非官方 API 转售）</td>
+<td>对话内容被中转方记录，跑路后余额归零</td>
+<td>有完整方案</td>
+<td>核心大脑只接官方 API 或信誉明确的聚合平台；敏感对话禁止走中转</td>
+<td>官方 API 也会按其政策保留数据</td>
+<td>你 · 选型时一次</td>
+</tr>
+<tr>
+<td>E1</td>
+<td>高</td>
+<td>开放注册被陌生人注册滥用</td>
+<td>被蹭额度、被当作攻击跳板</td>
+<td>有完整方案</td>
+<td>关闭公开注册，改为管理员发邀请或注册后待审批；邮箱域白名单</td>
+<td>邀请链接外泄，需设置一次性和有效期</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>E2</td>
+<td>高</td>
+<td>暴力破解与撞库</td>
+<td>账号被接管，进而读写全部个人数据</td>
+<td>部分缓解</td>
+<td>LibreChat 设 <code>ENFORCE_TWO_FACTOR_AUTHENTICATION=true</code> 强制 TOTP；开启 <code>ALLOW_PASSKEY_LOGIN=true</code> 用 Passkey；登录限速 + CrowdSec 封 IP；Cloudflare 速率限制</td>
+<td>钓鱼仍可能骗走 TOTP 码；Passkey 抗钓鱼更强</td>
+<td>自动拦截 + 你每周看登录记录</td>
+</tr>
+<tr>
+<td>E3</td>
+<td>高</td>
+<td>管理后台、网关后台暴露在公网</td>
+<td>一个后台漏洞即可全盘失守</td>
+<td>有完整方案</td>
+<td>后台不开公网端口，只通过 Tailscale 或 Cloudflare Access（再加一层身份校验）访问</td>
+<td>Tailscale/Cloudflare 账号本身成为新的关键账号，需开 2FA</td>
+<td>你 · 部署时一次，每月外部端口扫描</td>
+</tr>
+<tr>
+<td>E4</td>
+<td>中</td>
+<td>会话令牌被盗（XSS、恶意网站）</td>
+<td>无需密码直接登录</td>
+<td>部分缓解</td>
+<td>严格 CSP、HttpOnly/Secure Cookie、短期访问令牌；及时打补丁（Open WebUI 2026-09 就有一条高危：任意网站可窃取已登录用户会话令牌）</td>
+<td>零日漏洞窗口期</td>
+<td>你 · 每周更新</td>
+</tr>
+<tr>
+<td>F1</td>
+<td>高</td>
+<td>SSH 被爆破或弱口令</td>
+<td>拿到 root，全部失守</td>
+<td>有完整方案</td>
+<td>禁用密码登录与 root 登录，只用密钥；SSH 只监听 Tailscale 网卡或限制来源 IP；fail2ban/CrowdSec</td>
+<td>本地私钥丢失需能通过服务商控制台救援</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>F2</td>
+<td>高</td>
+<td>开放端口过多、源站 IP 暴露</td>
+<td>被扫描直连绕过 WAF</td>
+<td>有完整方案</td>
+<td>首选 Cloudflare Tunnel：cloudflared 只向外连接，源站不开任何入站端口；不用 Tunnel 时，防火墙只对 Cloudflare IP 段开放 443，并改用 Cloudflare Origin CA 证书（因为只开 443 又走代理时，自动签证书容易失败）；Docker 端口只绑 127.0.0.1（注意 Docker 会绕过 ufw）</td>
+<td>Cloudflare 账号成为单点（见 L6、P3）；历史 DNS 记录可能暴露源站 IP，可换 IP</td>
+<td>你 · 部署时一次，每月外部端口扫描</td>
+</tr>
+<tr>
+<td>F3</td>
+<td>中</td>
+<td>系统与镜像不更新</td>
+<td>已知漏洞被利用</td>
+<td>有完整方案</td>
+<td>unattended-upgrades 自动装系统安全更新；容器镜像每周人工审阅后升级</td>
+<td>自动更新偶尔引起服务异常</td>
+<td>自动更新 + 你每周升级镜像</td>
+</tr>
+<tr>
+<td>F4</td>
+<td>中</td>
+<td>海外 VPS 服务商跑路、宕机、被墙</td>
+<td>数据丢失或无法访问</td>
+<td>部分缓解</td>
+<td>异地加密备份；可一键在新机恢复；Cloudflare 能否改善中国大陆访问：不确定，以实测为准</td>
+<td>切换期间服务中断</td>
+<td>你 · 每月恢复演练</td>
+</tr>
+<tr>
+<td>G1</td>
+<td>极高</td>
+<td>上游包或镜像被投毒</td>
+<td>安装即被盗全部凭证</td>
+<td>部分缓解</td>
+<td>LiteLLM 2026 年两次发布渠道被攻破（3 月 1.82.7/1.82.8；10 月 1.107.0 连 Docker <code>latest</code> 标签一起被污染）。对策：镜像按 sha256 摘要锁定，禁止用 <code>latest</code>；升级前等待 3–7 天观察；构建环境与运行环境的密钥分离</td>
+<td>锁定版本也会锁住漏洞，需定期审阅升级</td>
+<td>你 · 每次升级</td>
+</tr>
+<tr>
+<td>G2</td>
+<td>高</td>
+<td>框架自身漏洞（见框架调研表的公告数）</td>
+<td>越权、XSS、SSRF、任意文件写</td>
+<td>部分缓解</td>
+<td>订阅 GitHub Security Advisories 通知；不启用用不到的功能（代码执行、插件市场、公开分享）；最少组件原则</td>
+<td>公告发布前的零日</td>
+<td>你 · 每周看安全公告</td>
+</tr>
+<tr>
+<td>G3</td>
+<td>高</td>
+<td>第三方插件、技能、MCP 服务器、社区工具</td>
+<td>插件即代码，等同给陌生人执行权</td>
+<td>有完整方案</td>
+<td>不装社区市场的插件；只用自写或官方仓库并审阅源码后锁定版本</td>
+<td>官方仓库也可能出问题</td>
+<td>你 · 持续遵守</td>
+</tr>
+<tr>
+<td>H1</td>
+<td>高</td>
+<td>第三方模型 API 看到全部对话和 MCP 读出的个人数据</td>
+<td>记账、健康、学业数据离开你的服务器</td>
+<td>部分缓解</td>
+<td>MCP 返回最小字段（汇总而非明细）；敏感字段（金额明细、病历）可配置为只发摘要；选择承诺不用 API 数据训练的供应商并关闭留存选项</td>
+<td>只要用云端模型，传入的内容就会被供应商处理</td>
+<td>你 · 设计 MCP 时一次，每季度复核供应商数据政策</td>
+</tr>
+<tr>
+<td>H2</td>
+<td>高</td>
+<td>服务器磁盘、数据库、备份被窃</td>
+<td>全部历史对话与个人数据泄露</td>
+<td>部分缓解</td>
+<td>磁盘或数据卷加密；restic 备份客户端加密后再上传对象存储；备份密钥离线保存</td>
+<td>运行中的服务器内存与已挂载数据仍可读</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>H3</td>
+<td>中</td>
+<td>管理员可看其他用户聊天</td>
+<td>另外 2–3 个用户的隐私</td>
+<td>暂无方案只能接受</td>
+<td>明确告知；Open WebUI 有 <code>ENABLE_ADMIN_CHAT_ACCESS</code> 类开关，LibreChat 需核实对应配置</td>
+<td>拥有服务器 root 的人技术上总能看到</td>
+<td>你 · 向其他用户书面告知一次</td>
+</tr>
+<tr>
+<td>I1</td>
+<td>中</td>
+<td>App 申请过多权限、被用来控制手机</td>
+<td>违背「AI 禁止操控手机」原则</td>
+<td>有完整方案</td>
+<td>只用 PWA/TWA，无 JS 桥接；不申请联系人、短信、位置、无障碍、悬浮窗、存储等权限；唯一可选的是通知权限；不集成任何设备控制或无障碍服务</td>
+<td>浏览器本身的漏洞</td>
+<td>你 · 打包时一次</td>
+</tr>
+<tr>
+<td>I2</td>
+<td>中</td>
+<td>中间人攻击、假冒域名</td>
+<td>令牌和对话被截获</td>
+<td>有完整方案</td>
+<td>全站 HTTPS + HSTS；TWA 只绑定自己的域名；证书由浏览器标准校验</td>
+<td>手机被装了恶意根证书时仍有风险</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>I3</td>
+<td>中</td>
+<td>手机丢失</td>
+<td>别人打开 App 直接看到数据</td>
+<td>有完整方案</td>
+<td>短会话 + 生物识别/Passkey 重新验证；后台可一键吊销所有会话</td>
+<td>吊销前的短窗口</td>
+<td>你 · 手机丢失时立即执行</td>
+</tr>
+<tr>
+<td>J1</td>
+<td>高</td>
+<td>AI 误写或被诱导删除个人数据</td>
+<td>记账、任务数据被改乱</td>
+<td>部分缓解</td>
+<td>写工具分级：新增类需确认，修改/删除类需确认并展示差异；不提供批量删除工具；软删除可恢复</td>
+<td>人工确认疲劳后可能随手点同意</td>
+<td>你 · 每次确认写操作</td>
+</tr>
+<tr>
+<td>J2</td>
+<td>中</td>
+<td>事后无法追查</td>
+<td>不知道谁、何时、因为哪条提示改了数据</td>
+<td>有完整方案</td>
+<td>MCP 层追加只写审计日志：时间、用户、会话、工具、参数、结果、确认人；日志与业务库分开存放</td>
+<td>日志本身需保护和定期备份</td>
+<td>自动记录 + 你每周抽看</td>
+</tr>
+<tr>
+<td>J3</td>
+<td>高</td>
+<td>发现异常时来不及止损</td>
+<td>损失持续扩大</td>
+<td>部分缓解</td>
+<td>一键停机：后台总开关同时停用写工具、编程子代理、定时任务，并吊销模型 Key；手机上也能触发（经 Cloudflare Access 保护的页面）；服务器失控时改用云厂商控制台直接关机或断网，再去各模型供应商后台吊销 Key 和会话（步骤清单离线保存）</td>
+<td>停机脚本本身需要定期演练</td>
+<td>你 · 每月演练一次</td>
+</tr>
+<tr>
+<td>K1</td>
+<td>高</td>
+<td>子代理产出的文件被下载到电脑后执行（恶意脚本、带毒压缩包）</td>
+<td>服务器端的风险蔓延到你的电脑</td>
+<td>部分缓解</td>
+<td>独立下载目录、登录后下载、限时链接、默认禁止可执行文件、ClamAV 扫描、审计日志；电脑端无客户端、无读写权限</td>
+<td>ClamAV 查不出新型或定制恶意代码；文档类文件（如带宏的 Office）仍需你自己警惕</td>
+<td>自动扫描 + 你下载时自己警惕</td>
+</tr>
+<tr>
+<td>K2</td>
+<td>中</td>
+<td>下载链接被转发或泄露</td>
+<td>别人拿到你的文件</td>
+<td>有完整方案</td>
+<td>链接一次性或 10–30 分钟失效，且必须同时持有登录会话；链接里不带任何长期令牌</td>
+<td>有效期内且会话被盗时仍可下载</td>
+<td>你 · 部署时一次</td>
+</tr>
+<tr>
+<td>L1</td>
+<td>高</td>
+<td>告警通道（自托管 ntfy）和被监控的服务在同一台机器上</td>
+<td>服务器宕机或被入侵时，恰好收不到告警</td>
+<td>有完整方案</td>
+<td>另找一家外部服务做可用性检测和心跳监控（备份、定时任务完成后发心跳），告警发到邮箱；不依赖本机</td>
+<td>外部监控服务本身也可能漏报</td>
+<td>你 · 部署时一次，每周看一眼</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>高</td>
+<td>一键停机按钮依赖可能已被攻破的服务器</td>
+<td>最需要停机时停不了</td>
+<td>有完整方案</td>
+<td>把云厂商控制台关机/断网、各供应商后台吊销 Key 和会话写成离线清单；控制台账号开 2FA</td>
+<td>云厂商控制台账号本身成为关键账号</td>
+<td>你 · 每月演练一次</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>中</td>
+<td>升级弄坏服务（LibreChat 大版本迁移、MongoDB 升级）</td>
+<td>服务停摆或数据损坏</td>
+<td>部分缓解</td>
+<td>升级前先做 VPS 快照和一次备份；读发布说明；镜像按摘要记录，可退回上一个摘要</td>
+<td>数据库结构迁移后不一定能直接回退，只能从备份恢复</td>
+<td>你 · 每次升级</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>中</td>
+<td>磁盘被日志、旧镜像、沙箱工作区占满</td>
+<td>数据库写入失败、整站宕机</td>
+<td>有完整方案</td>
+<td>日志轮转；定期清理旧镜像和沙箱工作区；磁盘用量超过 80% 告警</td>
+<td>突发大文件仍可能瞬间占满</td>
+<td>自动清理 + 你每周看一眼</td>
+</tr>
+<tr>
+<td>L5</td>
+<td>中</td>
+<td>域名或证书过期</td>
+<td>网站和 PWA 全部打不开</td>
+<td>有完整方案</td>
+<td>域名开自动续费并记日历；源站证书用 Cloudflare Tunnel 或 Cloudflare Origin CA（官方文档写明最长可签 15 年）；监控服务检查证书到期</td>
+<td>付款卡失效导致自动续费失败</td>
+<td>你 · 每月看到期日</td>
+</tr>
+<tr>
+<td>L6</td>
+<td>高</td>
+<td>域名注册商或 Cloudflare 账号被盗</td>
+<td>DNS 被改，整站被接管或钓鱼</td>
+<td>有完整方案</td>
+<td>两个账号都开 2FA（优先硬件密钥或 Passkey）；开启注册商锁；绑定的邮箱同样开 2FA</td>
+<td>服务商自身被攻破或社工客服</td>
+<td>你 · 每季度检查一次</td>
+</tr>
+<tr>
+<td>L7</td>
+<td>高</td>
+<td>找回密码用的邮箱被盗</td>
+<td>攻击者通过「忘记密码」接管 VPS、域名、模型供应商账号</td>
+<td>部分缓解</td>
+<td>该邮箱开 2FA 和 Passkey；关键账号使用单独邮箱；恢复码离线保存</td>
+<td>邮箱服务商自身的问题</td>
+<td>你 · 每季度检查一次</td>
+</tr>
+<tr>
+<td>L8</td>
+<td>中</td>
+<td>有人登录了但没人发现（没有登录告警）</td>
+<td>入侵持续多日</td>
+<td>部分缓解</td>
+<td>新设备、新 IP 登录和管理操作即时推送，并同时发到外部邮箱；每周看登录记录</td>
+<td>攻击者用已登录会话操作时不会触发新登录告警</td>
+<td>自动告警 + 你每周看</td>
+</tr>
+<tr>
+<td>M1</td>
+<td>高</td>
+<td>VPS 的 IP 被墙，或国内访问质量差</td>
+<td>手机和电脑都连不上</td>
+<td>部分缓解</td>
+<td>选对中国大陆线路友好的机房并先实测；准备好换 IP 或迁机流程（靠备份恢复）</td>
+<td>被墙的时间和范围无法预测；Cloudflare、Tailscale 在大陆的可达性也不确定</td>
+<td>你 · 发生时处理</td>
+</tr>
+<tr>
+<td>M2</td>
+<td>中</td>
+<td>VPS 被服务商停机（滥用投诉、沙箱被当肉鸡、违反服务商使用政策）</td>
+<td>服务中断，数据可能拿不回</td>
+<td>部分缓解</td>
+<td>沙箱出网白名单（B2）；开工前读服务商使用政策；异地备份保证可迁移</td>
+<td>服务商误判时申诉周期不可控</td>
+<td>你 · 选服务商时一次</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>中</td>
+<td>在中国大陆访问境外服务器所涉及的网络管理规定</td>
+<td>不确定</td>
+<td>暂无方案只能接受</td>
+<td>本稿不作法律判断</td>
+<td>不确定</td>
+<td>你自行判断</td>
+</tr>
+<tr>
+<td>N1</td>
+<td>高</td>
+<td>模型 API 的地区限制：OpenAI 和 Anthropic 的支持地区都不包括中国大陆</td>
+<td>API 账号可能被封，余额可能拿不回</td>
+<td>部分缓解</td>
+<td>API 调用只从海外 VPS 发出；每家只放少量预付余额；同一功能准备两家以上可切换的供应商</td>
+<td>账号注册信息、付款方式、本人所在地仍可能被判定为不支持地区：不确定</td>
+<td>你 · 每季度复核政策</td>
+</tr>
+<tr>
+<td>N2</td>
+<td>中</td>
+<td>另外 2–3 位用户的个人信息</td>
+<td>隐私纠纷</td>
+<td>部分缓解</td>
+<td>《个人信息保护法》第七十二条规定自然人因个人或家庭事务处理个人信息不适用该法，但给非家庭成员的朋友用是否属于这种情形：不确定。做法：书面告知管理员可见、只存必要数据、可随时导出和删除</td>
+<td>法律适用不确定</td>
+<td>你 · 邀请用户时一次</td>
+</tr>
+<tr>
+<td>N3</td>
+<td>中</td>
+<td>《生成式人工智能服务管理暂行办法》适用于向境内公众提供服务</td>
+<td>若被认定为向公众提供服务，需要履行相应义务</td>
+<td>部分缓解</td>
+<td>保持邀请制、只给自己和少数熟人、不对外宣传；邀请制 2–3 人是否算「公众」：不确定</td>
+<td>不确定</td>
+<td>你 · 持续遵守</td>
+</tr>
+<tr>
+<td>N4</td>
+<td>中</td>
+<td>订阅或 API 服务条款变更，原本合规的用法突然违规</td>
+<td>被封号或被迫改架构</td>
+<td>部分缓解</td>
+<td>每季度复核四家条款；订阅 CLI 都可替换成 API Key</td>
+<td>条款可能不经通知就生效</td>
+<td>你 · 每季度</td>
+</tr>
+<tr>
+<td>O1</td>
+<td>中</td>
+<td>模型 API 涨价、模型下线或停服</td>
+<td>超预算或功能失效</td>
+<td>部分缓解</td>
+<td>多供应商配置化切换；不依赖某家独有的接口字段；低价模型做日常</td>
+<td>切换后效果可能变差</td>
+<td>你 · 每月看账单和公告</td>
+</tr>
+<tr>
+<td>O2</td>
+<td>中</td>
+<td>海外付款失败（卡被拒、充值渠道断）</td>
+<td>API 停用、VPS 到期被删</td>
+<td>部分缓解</td>
+<td>保留至少 1 个月预付余额；VPS 开到期提醒</td>
+<td>付款渠道变化不可控</td>
+<td>你 · 每月</td>
+</tr>
+<tr>
+<td>O3</td>
+<td>中</td>
+<td>预算表漏项：订阅费、编程子代理的第二台 VPS、编程任务的 API 费用都不在 66–148 元里</td>
+<td>实际花费超出 50–150 元预算</td>
+<td>有完整方案</td>
+<td>预算表已补充说明；编程子代理上线前重新估算</td>
+<td>编程任务用量难以预估</td>
+<td>你 · 阶段 4 前一次</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>中</td>
+<td>LibreChat 已于 2025-11-04 被 ClickHouse 收购，产品方向可能偏向企业数据分析</td>
+<td>个人场景需要的功能被冷落或改动</td>
+<td>部分缓解</td>
+<td>官方声明继续保持 MIT 开源；锁定版本；数据在自己的 MongoDB 里可导出；必要时可以分叉维护或换 Open WebUI</td>
+<td>迁移成本</td>
+<td>你 · 每季度看项目动态</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>中</td>
+<td>依赖的框架停更（New API 仍是 rc 版本、One API 已放缓、MetaMCP 停滞）</td>
+<td>漏洞没人修</td>
+<td>部分缓解</td>
+<td>核心只依赖 LibreChat 和自写组件；网关、MCP 聚合可替换</td>
+<td>替换要花时间</td>
+<td>你 · 每月看更新</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>中</td>
+<td>Cloudflare、Tailscale 单点：账号被封或服务中断</td>
+<td>网站入口和管理入口一起失效</td>
+<td>部分缓解</td>
+<td>保留云厂商网页控制台（VNC）作为最后的管理入口；可临时改回直接开放 443</td>
+<td>中断期间无法使用</td>
+<td>你 · 发生时处理</td>
+</tr>
+<tr>
+<td>Q1</td>
+<td>高</td>
+<td>你是唯一维护者，忙、生病、出差时会几周不维护</td>
+<td>漏洞和告警堆积</td>
+<td>部分缓解</td>
+<td>系统安全更新自动安装；设计「无人值守降级」：超过 30 天未做维护登记，自动停用编程子代理和写工具，只留对话</td>
+<td>对话功能本身仍在线，上游漏洞仍需人修</td>
+<td>自动 + 你每周登记维护</td>
+</tr>
+<tr>
+<td>Q2</td>
+<td>高</td>
+<td>配置失误（例如 Docker 端口绕过防火墙、误开公网端口）</td>
+<td>自以为安全实际暴露</td>
+<td>部分缓解</td>
+<td>所有配置进 Git 版本管理；每月从另一台机器做外部端口扫描；关键配置改动后复查本表</td>
+<td>扫描只能发现端口，发现不了逻辑错误</td>
+<td>你 · 每月</td>
+</tr>
+<tr>
+<td>Q3</td>
+<td>高</td>
+<td>密码、2FA 恢复码、备份密钥只存在一台手机或你记忆里</td>
+<td>手机丢了就永远打不开备份和账号</td>
+<td>有完整方案</td>
+<td>密码管理器保存；另做一份纸质恢复包（备份密钥、恢复码）放在安全处</td>
+<td>恢复包本身被盗</td>
+<td>你 · 每季度检查</td>
+</tr>
+<tr>
+<td>R1</td>
+<td>极高</td>
+<td>攻击者用服务器上的备份凭证把异地备份一起删掉</td>
+<td>数据永久丢失</td>
+<td>部分缓解</td>
+<td>restic rest-server 的 <code>--append-only</code> 模式只允许新增不允许删改，或对象存储开启版本保留；清理旧快照只在另一台可信机器上做，并使用 <code>--keep-within</code></td>
+<td>保留期过后的旧快照仍可能被清理；官方文档提示攻击者可伪造快照</td>
+<td>你 · 部署时一次，每周看快照</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>高</td>
+<td>备份静默失败，真要恢复时才发现不可用</td>
+<td>以为有备份其实没有</td>
+<td>有完整方案</td>
+<td>每次备份成功后发心跳给外部监控，缺失即告警；每周看快照时间；每月恢复演练</td>
+<td>演练间隔内的问题</td>
+<td>自动 + 你每周、每月</td>
+</tr>
+<tr>
+<td>R3</td>
+<td>中</td>
+<td>数据库损坏或误删</td>
+<td>丢失最近的数据</td>
+<td>有完整方案</td>
+<td>每日备份；升级前额外备份和快照；软删除</td>
+<td>最多丢失约一天的数据</td>
+<td>自动每日</td>
+</tr>
+<tr>
+<td>S1</td>
+<td>高</td>
+<td>官方 CLI 执行命令的环境就是它保存凭证的环境</td>
+<td>仓库里的恶意依赖或注入指令能读到订阅令牌</td>
+<td>部分缓解</td>
+<td>一次性容器、只读挂载、出网白名单、任务结束销毁、只跑你自己的可信仓库；CLI 自带沙箱能否阻止读取凭证：不确定</td>
+<td>无法完全避免，泄露后只能靠吊销</td>
+<td>你 · 每次任务</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>中</td>
+<td>手机没有 Chrome 或 Google 服务（国产安卓常见）</td>
+<td>TWA 会退回自定义标签页或默认浏览器；网页推送依赖 Google 推送，在大陆网络下可达性不确定</td>
+<td>部分缓解</td>
+<td>主力用 PWA；通知改用 ntfy 安卓 F-Droid 版连自建服务器，它靠常驻连接收消息，不经过 Google 的 FCM</td>
+<td>常驻连接会耗一点电，部分手机会杀后台</td>
+<td>你 · 安装时一次</td>
+</tr>
+<tr>
+<td>T1</td>
+<td>中</td>
+<td>推送和复盘内容出错（模型算错账、编造事实）</td>
+<td>基于错误信息做决定</td>
+<td>部分缓解</td>
+<td>金额、次数等数字由 MCP 服务端计算后给模型；推送里标注数据来源和时间</td>
+<td>模型的建议和总结仍可能出错</td>
+<td>你 · 阅读时判断</td>
+</tr>
+</tbody>
+</table>
+<h3>安全基线配置</h3>
+<table>
+<thead>
+<tr>
+<th>领域</th>
+<th>基线</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>注册</td>
+<td>关闭公开注册，管理员邀请；新账号待审批</td>
+</tr>
+<tr>
+<td>认证</td>
+<td><code>ENFORCE_TWO_FACTOR_AUTHENTICATION=true</code>，<code>ALLOW_PASSKEY_LOGIN=true</code> 并固定 <code>PASSKEY_RP_ID</code></td>
+</tr>
+<tr>
+<td>后台</td>
+<td>LibreChat 管理后台、网关后台、ntfy 管理均不对公网开放</td>
+</tr>
+<tr>
+<td>网络</td>
+<td>首选 Cloudflare Tunnel，源站不开任何入站端口；不用 Tunnel 时仅 443 对 Cloudflare 段开放并用 Origin CA 证书；容器端口只绑 127.0.0.1；每月从外部扫描端口自检</td>
+</tr>
+<tr>
+<td>SSH</td>
+<td>仅密钥、禁 root、仅 Tailscale 网卡</td>
+</tr>
+<tr>
+<td>更新</td>
+<td>系统安全更新自动安装；镜像按 sha256 锁定，订阅上游安全公告</td>
+</tr>
+<tr>
+<td>密钥</td>
+<td>只在服务端 secret 文件，权限 600；每供应商独立、可限额、可吊销</td>
+</tr>
+<tr>
+<td>容器</td>
+<td>非 root、只读根文件系统、去 capabilities、不挂 Docker socket；沙箱用 gVisor</td>
+</tr>
+<tr>
+<td>备份</td>
+<td>restic 每日加密备份到异地；备份端用 rest-server <code>--append-only</code> 或对象存储版本保留，防止被入侵者删除；清理只在另一台可信机器上做；每次备份发心跳；每月做一次恢复演练</td>
+</tr>
+<tr>
+<td>监控</td>
+<td>外部可用性与心跳监控；新设备登录、管理操作、额度接近上限、磁盘超 80% 告警，同时发到外部邮箱</td>
+</tr>
+<tr>
+<td>恢复包</td>
+<td>密码管理器 + 纸质恢复包（备份密钥、2FA 恢复码），每季度检查</td>
+</tr>
+<tr>
+<td>审计</td>
+<td>登录、管理操作、MCP 写操作、编程任务全部记录</td>
+</tr>
+<tr>
+<td>停机</td>
+<td>一键停用写工具、子代理、定时任务并吊销 Key；服务器失控时用云厂商控制台关机或断网</td>
+</tr>
+<tr>
+<td>无人值守降级</td>
+<td>超过 30 天没有维护登记，自动停用编程子代理和写工具</td>
+</tr>
+</tbody>
+</table>
+<h3>红线</h3>
+<p><strong>以下任一条做不到，就不做对应功能；涉及核心的，整个项目不做：</strong> 宁可少功能，不留无法控制的风险。</p>
+<ol>
+<li>无法强制 2FA 或无法关闭公开注册：整个项目不上线。</li>
+<li>管理后台或数据库必须暴露在公网才能用：不上线。</li>
+<li>模型 API 没有硬上限或预付费方式：不接入该供应商。</li>
+<li>编程沙箱做不到出网白名单和 gVisor 级隔离：不做编程子代理。</li>
+<li>订阅 CLI 的用法与其服务条款冲突（如 Claude 订阅 OAuth 用于第三方工具）：不用订阅，改用 API Key。</li>
+<li>订阅需要给其他用户共用：不做。</li>
+<li>AI 写个人数据无法做到人工确认和审计：MCP 只开只读。</li>
+<li>无法做异地、加密、防删除（append-only 或版本保留）的备份并验证能恢复：不迁入个人数据。</li>
+<li>告警只能发到被监控的同一台服务器、没有外部监控：不上线。</li>
+<li>安卓端需要敏感权限或设备控制能力：不做该功能。</li>
+</ol>
+<h2>订阅 CLI 核实结论</h2>
+<p><em>场景：本人在自己的海外 VPS 上用官方 CLI 正常登录自己的订阅，作为编程子代理，不做反代、不给别人用。2026-11-03 按官方文档与条款核实</em></p>
+<p><strong>结论：</strong> 四家都提供官方认可的无浏览器/远程服务器登录方式，本人在自己服务器上用官方 CLI 属于正常用法。真正的红线是两条：不能把订阅凭证放进非官方软件（反代、第三方代理框架），不能给别人共用。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>本人服务器自用</th>
+<th>官方服务器登录方式</th>
+<th>自用与共享</th>
+<th>封号风险与限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gemini CLI（Google 账号，含 Google AI Pro/Ultra）</td>
+<td>允许</td>
+<td>设 <code>NO_BROWSER=true</code> 后运行 <code>gemini</code>，选 Google 登录，把显示的网址复制到自己电脑浏览器登录，再把返回的验证码粘回终端；之后无人值守模式沿用缓存的登录凭证</td>
+<td>Pro/Ultra 用户须用订阅绑定的账号登录。CLI 条款页未找到专门讲共享的条款，按不确定处理，不共享</td>
+<td>官方条款明确：用第三方软件借 Gemini CLI 的 OAuth 直接访问其背后服务（例子就是 OpenClaw）属于违规，可能被暂停或终止账号。官方 CLI 本身不在此列</td>
+</tr>
+<tr>
+<td>Codex CLI（ChatGPT 订阅）</td>
+<td>允许</td>
+<td><code>codex login --device-auth</code> 设备码登录（测试版，需先在 ChatGPT 安全设置里开启）；备选是在自己电脑登录后把 <code>~/.codex/auth.json</code> 拷到服务器</td>
+<td>使用条款禁止共享账号凭证或把账号给他人使用</td>
+<td><code>auth.json</code> 是明文令牌，官方要求像密码一样保管。官方说自动化首选 API Key，用订阅账号跑流水线只适用于受信任的私有自动化。条款禁止绕过速率限制；Pro 说明页写明禁止转售或用 ChatGPT 驱动第三方服务，违规可能被临时限制使用</td>
+</tr>
+<tr>
+<td>Grok Build（<code>grok</code>，SuperGrok / X Premium+）</td>
+<td>允许</td>
+<td><code>grok login --device-auth</code>，官方文档注明适用于 SSH、容器、无界面主机；官方还提供 <code>grok -p</code> 无人值守模式和 ACP，并说明可用于脚本、机器人和代理编排</td>
+<td>xAI 消费者条款禁止共享账号凭证或把账号给他人使用</td>
+<td>官方文档建议 CI 和无人值守自动化用 <code>XAI_API_KEY</code>，它与订阅分开计费。订阅额度和频率上限的具体数值未查到，按不确定处理</td>
+</tr>
+<tr>
+<td>Claude Code（Pro/Max 订阅）</td>
+<td>允许，有条件</td>
+<td>通过 SSH 登录时，终端给出网址，在自己电脑浏览器完成登录后把验证码粘回；也可用 <code>claude setup-token</code> 生成长期令牌，设为 <code>CLAUDE_CODE_OAUTH_TOKEN</code></td>
+<td>只能本人用；订阅额度按「普通个人使用」设计</td>
+<td>中国大陆、香港、澳门不在 Anthropic 支持地区之内，在不支持的地区创建或使用账号本身就有封号风险，这是四家里最大的风险。服务器上设了 <code>ANTHROPIC_API_KEY</code> 时会改走按量计费</td>
+</tr>
+</tbody>
+</table>
+<h3>Claude：自用 Claude Code 与「第三方工具不能用订阅登录」的区别</h3>
+<h3>允许</h3>
+<ul>
+<li>在自己的服务器上运行未修改的官方 <code>claude</code> 程序，用自己的订阅登录</li>
+<li>官方原文：这些限制不妨碍用户用自己的订阅登录未修改的 Claude Code 程序</li>
+<li>派发服务只是启动官方 <code>claude</code> 进程，凭证留在 Claude Code 自己的存储里</li>
+</ul>
+<h3>禁止</h3>
+<ul>
+<li>把订阅 OAuth 令牌放进 OpenClaw、Hermes 等非 Anthropic 的工具</li>
+<li>用 Agent SDK 自己写的程序走订阅额度（这类应使用 API Key）</li>
+<li>自建反代，把订阅额度转成 API 给别的程序或别人用</li>
+<li>第三方程序代为收集、保存、转手 Claude 登录凭证或会话令牌</li>
+</ul>
+<p>两者不是一回事：此前说的禁令针对的是把订阅凭证用在 Claude Code 以外的软件上，而你的用法是本人运行官方程序。仍不确定的是无人值守高频调用的尺度，官方只说额度按普通个人使用设计，没有给出具体界限，所以设计上限定为本人触发、低并发。</p>
+<ul>
+<li>四家共同规则：只用官方 CLI 二进制，不改程序，不抽取令牌给其他软件；每家一个专用 worker 容器，凭证卷权限 600，任务沙箱不挂载凭证。</li>
+<li>只对管理员本人开放；另外 2–3 位注册用户的编程任务一律走按量 API Key。</li>
+<li>出现异常登录或额度异常时，先在官网吊销会话，再在服务器上 <code>logout</code> 并删除缓存凭证。</li>
+</ul>
+<h2>文件下载规则</h2>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>设计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独立下载目录</td>
+<td>服务器上单独设一个导出目录，只有子代理的交付物经人工确认后才会放进来；与工作区、数据库、凭证卷完全分开，下载服务对它只读</td>
+</tr>
+<tr>
+<td>登录后才能下载</td>
+<td>必须持有有效登录会话并通过 2FA，下载服务不对公网匿名开放</td>
+</tr>
+<tr>
+<td>限时链接</td>
+<td>每个链接单次有效或 10–30 分钟后失效，签名中绑定用户与文件，过期即作废</td>
+</tr>
+<tr>
+<td>默认禁止可执行文件</td>
+<td>按文件内容而不是扩展名判断，拦截 <code>.exe</code>、<code>.msi</code>、<code>.bat</code>、<code>.ps1</code>、<code>.sh</code>、<code>.apk</code>、<code>.jar</code>、<code>.dll</code>、<code>.lnk</code> 等；压缩包先检查内部文件；确需下载时由管理员逐个放行</td>
+</tr>
+<tr>
+<td>ClamAV 扫描</td>
+<td>文件放入下载目录时以及下载前各扫描一次，病毒库每日更新；扫描失败按拒绝处理</td>
+</tr>
+<tr>
+<td>审计日志</td>
+<td>记录时间、用户、文件名、哈希、大小、扫描结果、来源任务、下载 IP</td>
+</tr>
+<tr>
+<td>电脑端零权限</td>
+<td>电脑端只用浏览器访问网页，不安装任何客户端，助理没有任何读写你电脑的权限，文件只能由你手动点击下载</td>
+</tr>
+</tbody>
+</table>
+<h2>安卓端方案</h2>
+<p><strong>已定方案：</strong> 手机端只做 PWA 或浏览器套壳，只用来下命令和看结果，不给助理任何手机权限。首选 PWA，需要桌面图标和独立 APK 时再用 TWA。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>运行环境</th>
+<th>JS 桥接</th>
+<th>证书校验</th>
+<th>权限</th>
+<th>安全结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PWA</td>
+<td>系统 Chrome，自动更新</td>
+<td>无</td>
+<td>浏览器标准校验，无法被关闭</td>
+<td>无；通知可选</td>
+<td>首选</td>
+</tr>
+<tr>
+<td>TWA（Bubblewrap 打包）</td>
+<td>同样是系统 Chrome，经 Digital Asset Links 绑定域名</td>
+<td>无</td>
+<td>同浏览器</td>
+<td>Manifest 可删到只剩联网</td>
+<td>可用</td>
+</tr>
+<tr>
+<td>Capacitor</td>
+<td>系统 WebView + 原生插件桥</td>
+<td>有，是主要攻击面</td>
+<td>默认校验，插件可改动</td>
+<td>插件引入权限风险</td>
+<td>不用</td>
+</tr>
+<tr>
+<td>自写原生 WebView 壳</td>
+<td>系统 WebView</td>
+<td>可能误开 <code>addJavascriptInterface</code></td>
+<td>易被错误代码忽略证书错误</td>
+<td>取决于代码</td>
+<td>不用</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>控制项</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>域名白名单</td>
+<td>只加载自己的一个域名；TWA 用 Digital Asset Links 绑定，站外链接一律跳到外部浏览器；服务端 CSP 限制脚本、图片、连接来源</td>
+</tr>
+<tr>
+<td>强制 HTTPS</td>
+<td>全站 HTTPS + HSTS（可提交 preload）；不允许 HTTP 回退和混合内容</td>
+</tr>
+<tr>
+<td>证书校验</td>
+<td>由浏览器完成标准校验，不写任何绕过证书错误的代码；不做证书公钥固定，避免 Cloudflare/Let's Encrypt 轮换时自锁</td>
+</tr>
+<tr>
+<td>不暴露桥接</td>
+<td>不存在任何 JS 到原生的桥接；不开文件、相机、麦克风、剪贴板、定位接口；服务端发 <code>Permissions-Policy</code> 头关闭这些浏览器能力</td>
+</tr>
+<tr>
+<td>零敏感权限</td>
+<td>TWA 的 Manifest 只留联网；不申请联系人、短信、位置、存储、无障碍、悬浮窗、设备管理；通知权限由你自行决定是否给</td>
+</tr>
+<tr>
+<td>会话超时</td>
+<td>短期访问令牌 + 有限期刷新令牌；空闲超时自动登出</td>
+</tr>
+<tr>
+<td>远程注销</td>
+<td>电脑端可吊销指定设备或全部会话；手机丢失时一键全部登出</td>
+</tr>
+<tr>
+<td>2FA</td>
+<td>与网页同一套强制 TOTP 2FA，可加 Passkey</td>
+</tr>
+</tbody>
+</table>
+<p><strong>要记住：</strong> 套壳只是把手机这一端的风险降到最低。主要风险仍然在服务器端：提示词注入、密钥和订阅凭证、编程沙箱、供应链、后台暴露，都不会因为用 PWA 而变少。</p>
+<h2>VPS 配置与成本</h2>
+<p><em>人民币每月，均为估算，以下单时的实际价格为准</em></p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>配置</th>
+<th>低</th>
+<th>高</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VPS</td>
+<td>KVM，2 核 4 GB，50 GB SSD，日本/新加坡/美西</td>
+<td>30</td>
+<td>50</td>
+</tr>
+<tr>
+<td>域名</td>
+<td>年付折算</td>
+<td>6</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Cloudflare / Tailscale</td>
+<td>免费套餐</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>备份对象存储</td>
+<td>10 GB 以内</td>
+<td>0</td>
+<td>5</td>
+</tr>
+<tr>
+<td>模型 API</td>
+<td>日常对话 + 定时推送，以低价模型为主</td>
+<td>30</td>
+<td>85</td>
+</tr>
+<tr>
+<td>合计</td>
+<td></td>
+<td>66</td>
+<td>148</td>
+</tr>
+</tbody>
+</table>
+<p>编程子代理上线后若沙箱与主服务抢资源，建议加一台独立小机专跑沙箱，届时预算需重新评估。</p>
+<p><strong>不在上表内的费用：</strong> 你已有的各家订阅费；编程子代理的按量 API 费用；第二台 VPS；外部监控如超出免费额度的费用。上表只覆盖第一版到阶段 3。</p>
+<h2>分阶段路线</h2>
+<ul>
+<li>阶段 0 · 安全底座：服务器加固、Cloudflare Tunnel、Tailscale、外部监控、防删除备份、纸质恢复包，恢复演练和停机演练通过</li>
+<li>阶段 1 · 云端 AI 对话（第一版）：LibreChat 多模型、邀请制、强制 2FA、PWA 可用</li>
+<li>阶段 2 · 主动推送：晨报、复盘、周战略、断档提醒，全部只读</li>
+<li>阶段 3 · MCP 接入个人系统：先只读，审计与一键停机就绪后再开写操作</li>
+<li>阶段 4 · 编程子代理：网关、派发服务、gVisor 沙箱，PR 交付</li>
+<li>阶段 5 · 个人管理界面：管理系统看板与对话融合，仍以网页和 PWA 交付</li>
+</ul>
+<h2>运维与每周维护</h2>
+<h3>每周维护清单（约 15–20 分钟）</h3>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>做什么</th>
+<th>约用时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 看监控</td>
+<td>外部监控里本周的可用性，有没有没处理的告警</td>
+<td>2 分钟</td>
+</tr>
+<tr>
+<td>2. 更新</td>
+<td>确认系统安全更新已自动装好、是否需要重启；查看所用镜像的新版本和安全公告，发布满 3–7 天且没出问题的再按新摘要升级（升级前先备份）</td>
+<td>4 分钟</td>
+</tr>
+<tr>
+<td>3. 看日志和告警</td>
+<td>失败登录次数、CrowdSec 封禁、新设备登录、MCP 写操作审计、编程任务记录、出站被拒记录</td>
+<td>4 分钟</td>
+</tr>
+<tr>
+<td>4. 核对备份</td>
+<td>最近一次快照时间、快照数量有没有异常（防伪造快照）、备份心跳是否正常</td>
+<td>2 分钟</td>
+</tr>
+<tr>
+<td>5. 检查 API 用量</td>
+<td>各供应商后台本周花费、余额、是否接近上限；订阅额度有没有异常消耗</td>
+<td>3 分钟</td>
+</tr>
+<tr>
+<td>6. 检查登录会话</td>
+<td>LibreChat 活动会话、Tailscale 设备列表、Cloudflare Access 记录、各订阅官网的设备和会话列表，陌生的立即吊销</td>
+<td>3 分钟</td>
+</tr>
+<tr>
+<td>7. 扫一眼并登记</td>
+<td>磁盘和内存用量、域名和证书到期时间；在维护日志里记一行（用于「无人值守降级」计时）</td>
+<td>1 分钟</td>
+</tr>
+</tbody>
+</table>
+<h3>每月深度检查（约 1 小时）</h3>
+<ul>
+<li>恢复演练：把最新备份恢复到临时环境，确认能登录并看到数据，然后销毁临时环境。</li>
+<li>停机演练：走一遍一键停机，以及云厂商控制台关机的步骤。</li>
+<li>外部端口扫描：从另一台机器扫描 VPS，确认没有预期外的开放端口。</li>
+<li>用户与权限：用户列表、角色、MCP 工具权限、未使用的邀请链接。</li>
+<li>密钥：各供应商后台的 Key 列表，删掉不用的；每季度轮换一次。</li>
+<li>订阅 CLI 重新登录一次；复查出站白名单和出站日志。</li>
+<li>框架健康：所用项目有没有停更、重大安全公告、收购或许可证变化。</li>
+<li>每季度加做：复核四家订阅条款和 API 地区政策；检查域名注册商、Cloudflare、邮箱、云厂商账号的 2FA；检查纸质恢复包。</li>
+</ul>
+<h3>出事时的应急清单</h3>
+<ol>
+<li>止损：触发一键停机；后台打不开或怀疑服务器已被控制，直接在云厂商控制台关机或断网。</li>
+<li>吊销：各模型供应商后台吊销全部 API Key；四家订阅官网登出全部会话；吊销 Git 令牌、Tailscale 节点、Cloudflare Tunnel 令牌；重置所有用户密码并强制重新登录。</li>
+<li>保全证据：先给磁盘做快照，导出审计日志和访问日志，不要急着删。</li>
+<li>判断范围：从审计日志确定开始时间、动了哪些数据、哪些密钥可能泄露；检查 API 账单有没有异常调用。</li>
+<li>重建：不在原机上「清理」，新开一台机器，从入侵前的备份恢复，所有密钥换新，镜像按已知安全的摘要重新拉取。</li>
+<li>通知：涉及其他用户的数据就告诉他们；有盗刷就联系供应商申诉。</li>
+<li>复盘：写下原因和修复，补进风险清单。</li>
+</ol>
+<h2>审查记录</h2>
+<p><em>2026-11-03 以安全审计和项目管理视角通读全稿后的发现，均已在正文中修正</em></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>类型</th>
+<th>问题</th>
+<th>修正</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>矛盾</td>
+<td>C1 和编程子代理一节写「凭证不进任务容器，由 worker 代为调用」。但官方 CLI 本身就在执行命令，凭证在哪，命令就在哪跑，这条做不到</td>
+<td>改为 CLI 在一次性沙箱内运行、凭证随行并只读、出网白名单、用完销毁；新增 S1 写明残余风险</td>
+</tr>
+<tr>
+<td>2</td>
+<td>错误</td>
+<td>边缘只开 443 给 Cloudflare 代理时，没交代源站证书怎么签，Caddy 自动签证书容易失败</td>
+<td>首选 Cloudflare Tunnel（源站零入站端口），备选 Cloudflare Origin CA 证书</td>
+</tr>
+<tr>
+<td>3</td>
+<td>遗漏</td>
+<td>告警走自托管 ntfy，和被监控的服务在同一台机器上，服务器出事时收不到告警</td>
+<td>新增外部监控与邮件告警（L1），列入红线和阶段 0</td>
+</tr>
+<tr>
+<td>4</td>
+<td>遗漏</td>
+<td>备份凭证在服务器上，入侵者可以连异地备份一起删掉</td>
+<td>append-only 或版本保留，清理放到另一台机器（R1），红线同步修改</td>
+</tr>
+<tr>
+<td>5</td>
+<td>遗漏</td>
+<td>一键停机依赖服务器本身，被攻破时可能失效</td>
+<td>补充云厂商控制台关机和离线吊销清单（J3、L2）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>遗漏</td>
+<td>PWA 和 TWA 默认依赖 Chrome 与 Google 推送，没有考虑国产手机和大陆网络</td>
+<td>通知改用 ntfy F-Droid 版直连自建服务器；新增 S2</td>
+</tr>
+<tr>
+<td>7</td>
+<td>无来源</td>
+<td>F4 写「套 Cloudflare 改善可达性」，没有依据</td>
+<td>改为「不确定，以实测为准」</td>
+</tr>
+<tr>
+<td>8</td>
+<td>遗漏</td>
+<td>合规只讲了订阅条款，没讲 API 地区限制、个人信息、生成式 AI 管理办法</td>
+<td>新增 N1–N4、M3，拿不准的标「不确定」</td>
+</tr>
+<tr>
+<td>9</td>
+<td>遗漏</td>
+<td>成本表没有订阅费、编程任务 API 费、第二台 VPS</td>
+<td>成本一节补充说明，新增 O3</td>
+</tr>
+<tr>
+<td>10</td>
+<td>不一致</td>
+<td>需求摘要写「安卓 App」，与已定的 PWA 方案不一致</td>
+<td>改为 PWA（必要时 TWA），两端都不装客户端</td>
+</tr>
+<tr>
+<td>11</td>
+<td>不严谨</td>
+<td>C3 残余风险写「无」，不现实</td>
+<td>改为依赖自律和配置正确，并要求部署后实测</td>
+</tr>
+<tr>
+<td>12</td>
+<td>无来源</td>
+<td>写了 Gemini CLI 通过网关调用，但没核实它能否指向自建网关</td>
+<td>标为不确定</td>
+</tr>
+<tr>
+<td>13</td>
+<td>遗漏</td>
+<td>架构图里沙箱只连网关，漏了订阅 CLI 直连官方服务，也没有外部监控</td>
+<td>架构图已补上</td>
+</tr>
+<tr>
+<td>14</td>
+<td>遗漏</td>
+<td>没写 LibreChat 已被 ClickHouse 收购这一供应商变化</td>
+<td>新增 P1</td>
+</tr>
+<tr>
+<td>15</td>
+<td>遗漏</td>
+<td>没有考虑单人维护：长期不维护、配置失误、恢复码只存在手机里，也没有域名、证书、邮箱账号的风险</td>
+<td>新增 Q1–Q3、L5–L7，并加入无人值守降级和纸质恢复包</td>
+</tr>
+<tr>
+<td>16</td>
+<td>遗漏</td>
+<td>原有风险没写方案状态、谁来做、多久做一次</td>
+<td>风险清单增加这三项，A–K 全部补齐</td>
+</tr>
+</tbody>
+</table>
+<h2>风险与待定问题</h2>
+<ul>
+<li>订阅 CLI 已核实：四家都提供官方的服务器/无浏览器登录方式，本人自用可行；仍不确定的是无人值守高频自动调用的尺度，按低频、本人触发执行。</li>
+<li>LibreChat 是否有关闭管理员查看他人聊天的开关，需部署时确认。</li>
+<li>LibreChat 定时对话仍属实验功能，稳定性未知，必要时自写定时服务。</li>
+<li>你已有的个人管理系统用什么技术栈、数据库，决定 MCP 服务器的写法。</li>
+<li>另外 2–3 位用户是谁、能否接受管理员技术上可见其数据。</li>
+<li>VPS 选哪家、哪个机房，影响国内电信与移动访问质量。</li>
+<li>你的手机有没有 Chrome 和 Google 服务，决定用 PWA 还是 TWA，以及通知怎么收。</li>
+<li>模型 API 账号的注册地和付款方式是否会被判定为不支持地区：不确定。</li>
+<li>外部监控服务选哪家（只需要心跳和可用性检测）。</li>
+</ul>
+<h2>参考来源</h2>
+<ul>
+<li><a href="https://www.librechat.ai/docs/configuration/authentication">LibreChat 认证（2FA、Passkey）</a>（librechat.ai）</li>
+<li><a href="https://www.librechat.ai/docs/features/admin_panel">LibreChat 管理后台</a>（librechat.ai）</li>
+<li><a href="https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/mcp_settings">LibreChat MCP 安全设置</a>（librechat.ai）</li>
+<li><a href="https://www.librechat.ai/docs/features/scheduled_chats">LibreChat 定时对话</a>（librechat.ai）</li>
+<li><a href="https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/custom_endpoint">LibreChat 自定义端点（Anthropic 原生）</a>（librechat.ai）</li>
+<li><a href="https://docs.openwebui.com/features/extensibility/mcp/">Open WebUI MCP</a>（docs.openwebui.com）</li>
+<li><a href="https://docs.openwebui.com/getting-started/advanced-topics/hardening.md">Open WebUI 加固指南</a>（docs.openwebui.com）</li>
+<li><a href="https://github.com/QuantumNous/new-api/blob/main/relaykit/README.md">New API RelayKit 协议转换</a>（github.com）</li>
+<li><a href="https://docs.litellm.ai/blog/security-incident-oct-21-2026">LiteLLM 2026-10-21 供应链事件</a>（docs.litellm.ai）</li>
+<li><a href="https://docs.litellm.ai/blog/security-update-march-2026">LiteLLM 2026-03 供应链事件</a>（docs.litellm.ai）</li>
+<li><a href="https://code.claude.com/docs/en/legal-and-compliance">Claude Code 法律与合规（订阅 OAuth 限制）</a>（code.claude.com）</li>
+<li><a href="https://learn.chatgpt.com/docs/auth">Codex 认证与凭证存储</a>（learn.chatgpt.com）</li>
+<li><a href="https://hermes-agent.nousresearch.com/docs/guides/delegation-patterns">Hermes Agent 子代理委派</a>（nousresearch.com）</li>
+<li><a href="https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md">Gemini CLI 服务条款与隐私（第三方软件用 OAuth 违规）</a>（github.com）</li>
+<li><a href="https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.mdx">Gemini CLI 认证文档</a>（github.com）</li>
+<li><a href="https://github.com/google-gemini/gemini-cli/pull/3985">Gemini CLI 无浏览器登录（NO_BROWSER）</a>（github.com）</li>
+<li><a href="https://learn.chatgpt.com/docs/auth/ci-cd-auth">Codex 在 CI 中使用账号登录</a>（learn.chatgpt.com）</li>
+<li><a href="https://openai.com/policies/row-terms-of-use/">OpenAI 使用条款</a>（openai.com）</li>
+<li><a href="https://help.openai.com/pt-pt/articles/9793128-about-chatgpt-pro-plans">ChatGPT Pro 说明（禁止共享与转售）</a>（help.openai.com）</li>
+<li><a href="https://docs.x.ai/build/enterprise">Grok Build 认证方式（含设备码）</a>（docs.x.ai）</li>
+<li><a href="https://docs.x.ai/build/cli/headless-scripting">Grok Build 无人值守与脚本</a>（docs.x.ai）</li>
+<li><a href="https://x.ai/terms-of-service">xAI 消费者服务条款</a>（x.ai）</li>
+<li><a href="https://code.claude.com/docs/en/authentication">Claude Code 认证</a>（code.claude.com）</li>
+<li><a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan">Claude Code 搭配 Pro/Max 使用</a>（support.claude.com）</li>
+<li><a href="https://www.anthropic.com/legal/supported-regions">Anthropic 支持地区政策</a>（anthropic.com）</li>
+<li><a href="https://developers.openai.com/api/docs/supported-countries">OpenAI API 支持国家和地区</a>（openai.com）</li>
+<li><a href="https://code.claude.com/docs/en/security">Claude Code 安全（提示词注入）</a>（code.claude.com）</li>
+<li><a href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/">Cloudflare Tunnel（只向外连接）</a>（cloudflare.com）</li>
+<li><a href="https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/">Cloudflare Origin CA 证书</a>（cloudflare.com）</li>
+<li><a href="https://github.com/restic/rest-server">restic rest-server append-only 模式</a>（github.com）</li>
+<li><a href="https://restic.readthedocs.io/en/latest/060_forget.html">restic append-only 安全注意事项</a>（restic.readthedocs.io）</li>
+<li><a href="https://docs.ntfy.sh/subscribe/phone/">ntfy 安卓即时推送（不经 FCM）</a>（docs.ntfy.sh）</li>
+<li><a href="https://github.com/GoogleChrome/android-browser-helper/tree/main/demos/twa-webview-fallback">TWA 无 Chrome 时的回退方式</a>（github.com）</li>
+<li><a href="https://clickhouse.com/blog/clickhouse-acquires-librechat">ClickHouse 收购 LibreChat</a>（clickhouse.com）</li>
+<li><a href="http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html">个人信息保护法（第七十二条）</a>（npc.gov.cn）</li>
+<li><a href="https://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm">生成式人工智能服务管理暂行办法</a>（cac.gov.cn）</li>
+</ul>
+<h2>页面原始来源标注</h2>
+<ul>
+<li>GitHub REST API，2026-11-03 01:00（北京时间）查询的 star、许可证、最新版本与安全公告</li>
+<li>https://www.librechat.ai/docs</li>
+<li>https://docs.openwebui.com</li>
+<li>https://docs.litellm.ai/blog/security-incident-oct-21-2026</li>
+<li>https://code.claude.com/docs/en/legal-and-compliance</li>
+<li>https://learn.chatgpt.com/docs/auth</li>
+</ul></body></html>

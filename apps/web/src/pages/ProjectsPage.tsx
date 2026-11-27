@@ -6,6 +6,7 @@ import { DeleteButton } from "../components/DeleteButton.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { MarkdownView } from "../components/MarkdownView.js";
 import { PlusIcon } from "../components/Icons.js";
+import { clearProjectsScroll, peekProjectsScroll, rememberProjectsScroll } from "../hooks/useHashRoute.js";
 import { apiJson, jsonRequest } from "../lib/api.js";
 import type { Route } from "../lib/route.js";
 
@@ -477,6 +478,17 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
 
   useEffect(load, []);
 
+  useEffect(() => {
+    if (loading) return;
+    const targetY = peekProjectsScroll();
+    if (targetY === null) return;
+    const frame = requestAnimationFrame(() => {
+      window.scrollTo({ top: targetY, behavior: "auto" });
+      clearProjectsScroll();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loading]);
+
   async function addProject() {
     if (!name.trim()) return;
     try {
@@ -539,7 +551,14 @@ export function ProjectsPage({ onNavigate }: { onNavigate: (route: Route) => voi
 
     return (
       <article className={`project-card ${isCompleted ? "is-completed" : ""} ${isMaint ? "is-maintenance" : ""} ${urgencyClass}`} key={project.id}>
-        <button className="project-card-open" onClick={() => onNavigate({ name: "project", id: project.id })} type="button">
+        <button
+          className="project-card-open"
+          onClick={() => {
+            rememberProjectsScroll();
+            onNavigate({ name: "project", id: project.id });
+          }}
+          type="button"
+        >
           <div className="project-card-top">
             <div className="project-card-tags">
               {renderStatusPill(project.status, isMaint, isCompleted)}
@@ -758,6 +777,16 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
   const [activityKind, setActivityKind] = useState("progress");
   const [savingActivity, setSavingActivity] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function handleScroll() {
+      setScrolled(window.scrollY > 36);
+    }
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   function load() {
     apiJson<{
@@ -987,11 +1016,14 @@ export function ProjectDetailPage({ id, onNavigate }: { id: string; onNavigate: 
 
   return (
     <div className="page-stack page-project-detail">
-      <div className="project-detail-toolbar">
-        <button className="secondary-button project-back-button" onClick={() => onNavigate({ name: "projects" })} type="button">
-          <span aria-hidden="true">←</span>
-          <span>返回项目列表</span>
-        </button>
+      <div className={`project-detail-toolbar ${scrolled ? "is-scrolled" : ""}`}>
+        <div className="project-detail-toolbar-left">
+          <button className="secondary-button project-back-button" onClick={() => onNavigate({ name: "projects" })} type="button">
+            <span aria-hidden="true">←</span>
+            <span>返回项目列表</span>
+          </button>
+          <span className="project-toolbar-title" title={data.project.name}>{data.project.name}</span>
+        </div>
         <span className="muted">{isMaint ? "维护项目工作区" : "推进项目工作区"}</span>
       </div>
 

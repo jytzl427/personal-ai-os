@@ -2483,13 +2483,49 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
 
 /* Project detail workspace: clear navigation with a denser, scannable layout. */
 .project-detail-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 32px 0;
+  padding: 14px 32px 12px;
+  background: rgba(253, 255, 254, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.project-detail-toolbar.is-scrolled {
+  border-bottom-color: #dceae2;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+.project-detail-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.project-toolbar-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.project-detail-toolbar.is-scrolled .project-toolbar-title {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 .project-back-button {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -2498,7 +2534,7 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   border-radius: 9px;
 }
 .project-back-button span:first-child { color: var(--accent); font-size: 16px; line-height: 1; }
-.project-detail-hero { padding: 18px 32px 22px; }
+.project-detail-hero { padding: 8px 32px 22px; }
 .project-detail-hero h1 { font-size: 26px; line-height: 1.2; }
 .project-detail-grid { gap: 16px; padding: 0 32px; margin-bottom: 16px; }
 .project-detail-panel,
@@ -2586,8 +2622,8 @@ h3 { font-size: 13.5px; line-height: 22px; font-weight: 600; color: var(--ink); 
   .conversation-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .today-board, .detail-grid, .review-grid { grid-template-columns: 1fr; }
   .project-finance-strip { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
-  .project-detail-toolbar { padding-left: 16px; padding-right: 16px; }
-  .project-detail-hero { padding: 18px 16px 22px; }
+  .project-detail-toolbar { position: static; padding-left: 16px; padding-right: 16px; }
+  .project-detail-hero { padding: 10px 16px 22px; }
   .project-detail-grid { padding-left: 16px; padding-right: 16px; }
   .project-detail-section { margin-left: 16px; margin-right: 16px; }
 }
