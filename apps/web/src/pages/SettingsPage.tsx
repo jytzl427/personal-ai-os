@@ -48,7 +48,7 @@ type BackupFile = {
   valid?: boolean;
 };
 
-export function SettingsPage() {
+export function SettingsPage({ accountControls }: { accountControls: React.ReactNode }) {
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -195,6 +195,7 @@ export function SettingsPage() {
   return (
     <div className="page-stack page-settings">
       <PageHeader meta="Key 只保存在本机" title="设置" />
+      {accountControls}
       {message ? <div className="notice">{message}</div> : null}
       <section className="panel settings-panel">
         <div className="panel-heading">

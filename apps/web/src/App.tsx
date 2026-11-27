@@ -1,4 +1,5 @@
 import { AppShell } from "./components/AppShell.js";
+import { AccountGate, AccountSettings, type LocalAccount } from "./components/AccountControls.js";
 import { useHashRoute } from "./hooks/useHashRoute.js";
 import { ArchivePage } from "./pages/ArchivePage.js";
 import { ButlerPage } from "./pages/ButlerPage.js";
@@ -18,14 +19,16 @@ import type { Route } from "./lib/route.js";
 export default function App() {
   const { route, navigate } = useHashRoute();
 
-  return (
-    <AppShell route={route} onNavigate={navigate}>
-      <Page route={route} onNavigate={navigate} />
+  return <AccountGate>{(account, signOut) => (
+    <AppShell key={account.id} route={route} onNavigate={navigate}>
+      <Page route={route} onNavigate={navigate} account={account} signOut={signOut} />
     </AppShell>
-  );
+  )}</AccountGate>;
 }
 
-function Page({ route, onNavigate }: { route: Route; onNavigate: (route: Route) => void }) {
+function Page({ route, onNavigate, account, signOut }: {
+  route: Route; onNavigate: (route: Route) => void; account: LocalAccount; signOut: () => Promise<void>;
+}) {
   switch (route.name) {
     case "today":
       return <TodayPage onNavigate={onNavigate} />;
@@ -56,6 +59,6 @@ function Page({ route, onNavigate }: { route: Route; onNavigate: (route: Route) 
     case "archive":
       return <ArchivePage tab={route.tab} onNavigate={onNavigate} />;
     case "settings":
-      return <SettingsPage />;
+      return <SettingsPage accountControls={<AccountSettings account={account} signOut={signOut} />} />;
   }
 }

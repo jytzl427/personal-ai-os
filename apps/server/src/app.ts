@@ -5,9 +5,8 @@ import { getSetting, createBackup, isBackupValid, WEEKLY_BACKUP_RETAIN, type Pai
 import { ACCOUNT_LABELS, BUTLER_ALLOWED_TOOLS, EXPENSE_MAJORS, EXPENSE_MINORS, INCOME_MAJORS, INCOME_MINORS, assertNoCycle, computeProjectProgress, financeQuickParse, localDateInTimezone, monthStart, parseCsv, parseIcs, shouldArchiveIdea, shouldArchiveTask, sleepMinutes } from "@paios/core";
 import { butlerChatRequestSchema, createIdeaSchema, createProjectSchema, createTaskSchema, financeEntrySchema, healthLogSchema, patchFinanceEntrySchema, patchIdeaSchema, patchProjectSchema, patchTaskSchema } from "@paios/api-types";
 import { createHash, randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import { serveStatic } from "@hono/node-server/serve-static";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import type { ServerConfig } from "./config.js";
 import { hasLlmApiKey, readLlmApiKey, writeLlmApiKey } from "./secrets.js";
 import { inspectRecurrences, runRecurrenceSync, type RecurrenceSyncResult } from "./recurrence.js";
@@ -21,6 +20,7 @@ import { generateDailyPlanForDate, readDailyPlan } from "./planner.js";
 import { generateDailyReviewDraft } from "./review-drafts.js";
 import { agentCannotWriteProject, agentProjectAdvancementBlocked, buildAttentionSnapshot, buildDailyPlanningContext, buildStagePlanningContext, countTasksByExecutionPeriod, currentStagePlan, generatePeriodReviewDraft, isButlerWriteIntent, PAUSED_PROJECT_ADVANCEMENT_ERROR, projectIdForMilestone, shiftIsoDate, updateDailyPlanText, upsertPeriodPlan } from "./planning.js";
 import { runArchiveRetentionCleanup } from "./archive-retention.js";
+import { serveWeb } from "./web.js";
 import { addProjectActivity, AUTO_SYNC_CONTENT, getActiveStageWindow, getOrCreateProjectParentTask, normalizeProjectMilestoneSortOrders, PROJECT_TEMPLATES, projectActivities, projectFinanceSummary, projectTaskPlans, projectTemplate, refreshParentTaskDueDate, syncProjectPlansForTodo, syncUpcomingCheckpointsToTodos } from "./project-service.js";
 
 type AppContext = {
@@ -233,6 +233,25 @@ function parseBody<T>(value: unknown, schema: { safeParse: (input: unknown) => {
 
 function notFound(c: Context, entity: string) {
   return c.json({ ok: false, error: { code: "NOT_FOUND", message: `${entity} not found` } }, 404);
+}
+
+function hasRecord(database: PaiosDatabase, table: "tasks" | "projects" | "milestones", id: string): boolean {
+  return Boolean(database.prepare("SELECT 1 FROM " + table + " WHERE id = ?").get(id));
+}
+
+function accountFile(dataDir: string, folder: "backups" | "exports", name: string): string | null {
+  if (!name || name === "." || name === ".." || /[/\\:\0]/.test(name)) return null;
+  const directory = join(dataDir, folder);
+  if (!lstatSync(directory, { throwIfNoEntry: false })?.isDirectory()) return null;
+  const path = join(directory, name);
+  return lstatSync(path, { throwIfNoEntry: false })?.isFile() ? path : null;
+}
+
+function accountBackup(dataDir: string, input: string): string | null {
+  const name = basename(input);
+  if (!name.endsWith(".db")) return null;
+  const path = accountFile(dataDir, "backups", name);
+  return path && resolve(path) === resolve(isAbsolute(input) ? input : join(dataDir, "backups", input)) && isBackupValid(path) ? path : null;
 }
 
 function localToday(database: PaiosDatabase): string {
@@ -553,6 +572,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
 
   app.post("/api/v1/conversations", async (c) => {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+    if (typeof body.project_id === "string" && !hasRecord(context.database, "projects", body.project_id)) return notFound(c, "project");
     const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 100) : "新对话";
     const id = randomUUID();
     const timestamp = now();
@@ -692,10 +712,10 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
 
   app.get("/api/v1/system/backups", (c) => {
     const backupDir = join(context.config.dataDir, "backups");
-    if (!existsSync(backupDir)) return c.json({ ok: true, backups: [], weekly_backups: [], weekly_retention: WEEKLY_BACKUP_RETAIN, weekly_backup: context.weeklyBackup ?? null });
-    const backups = readdirSync(backupDir).filter((file) => file.endsWith(".db")).map((file) => {
-      const path = join(backupDir, file);
-      return { name: file, path, size: statSync(path).size, valid: isBackupValid(path) };
+    if (!lstatSync(backupDir, { throwIfNoEntry: false })?.isDirectory()) return c.json({ ok: true, backups: [], weekly_backups: [], weekly_retention: WEEKLY_BACKUP_RETAIN, weekly_backup: context.weeklyBackup ?? null });
+    const backups = readdirSync(backupDir).filter((file) => file.endsWith(".db")).flatMap((file) => {
+      const path = accountFile(context.config.dataDir, "backups", file);
+      return path ? [{ name: file, path, size: statSync(path).size, valid: isBackupValid(path) }] : [];
     }).sort((a, b) => b.name.localeCompare(a.name));
     const weeklyBackups = backups.filter((backup) => /^weekly-\d{4}-\d{2}-\d{2}\.db$/.test(backup.name));
     return c.json({ ok: true, backups, weekly_backups: weeklyBackups, weekly_retention: WEEKLY_BACKUP_RETAIN, weekly_backup: context.weeklyBackup ?? null });
@@ -704,10 +724,8 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   app.post("/api/v1/system/restore", async (c) => {
     const body = await c.req.json() as Record<string, unknown>;
     if (typeof body.path !== "string") return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "backup path is required" } }, 400);
-    const backupDir = resolve(join(context.config.dataDir, "backups"));
-    const candidate = resolve(isAbsolute(body.path) ? body.path : join(backupDir, body.path));
-    const relativePath = relative(backupDir, candidate);
-    if (!existsSync(candidate) || relativePath.startsWith("..") || isAbsolute(relativePath) || !candidate.endsWith(".db") || !isBackupValid(candidate)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "restore path must be an existing, valid backup in .data/backups" } }, 400);
+    const candidate = accountBackup(context.config.dataDir, body.path);
+    if (!candidate) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "restore path must be an existing, valid backup for this account" } }, 400);
     const ticketId = randomUUID();
     const timestamp = new Date();
     context.database.prepare("INSERT INTO confirmation_tickets (id, action, payload_json, human_summary, ttl_class, status, created_at, expires_at) VALUES (?, 'system.restore', ?, ?, 'parked', 'pending', ?, ?)").run(ticketId, JSON.stringify({ path: candidate }), `恢复备份 ${candidate}（批准后需要重启服务）`, timestamp.toISOString(), new Date(timestamp.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString());
@@ -716,9 +734,23 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
 
   app.get("/api/v1/system/exports", (c) => {
     const exportDir = join(context.config.dataDir, "exports");
-    if (!existsSync(exportDir)) return c.json({ ok: true, exports: [] });
-    const exports = readdirSync(exportDir).filter((file) => file.endsWith(".json")).map((file) => ({ name: file, path: join(exportDir, file), size: statSync(join(exportDir, file)).size })).sort((a, b) => b.name.localeCompare(a.name));
+    if (!lstatSync(exportDir, { throwIfNoEntry: false })?.isDirectory()) return c.json({ ok: true, exports: [] });
+    const exports = readdirSync(exportDir).filter((file) => file.endsWith(".json")).flatMap((file) => {
+      const path = accountFile(context.config.dataDir, "exports", file);
+      return path ? [{ name: file, path, size: statSync(path).size }] : [];
+    }).sort((a, b) => b.name.localeCompare(a.name));
     return c.json({ ok: true, exports });
+  });
+
+  app.get("/api/v1/system/exports/:filename", (c) => {
+    const filename = c.req.param("filename");
+    if (!/^export-\d{14}(?:-[a-f0-9-]{36})?\.json$/.test(filename)) return notFound(c, "export");
+    const path = accountFile(context.config.dataDir, "exports", filename);
+    if (!path) return notFound(c, "export");
+    return c.body(readFileSync(path, "utf8"), 200, {
+      "Content-Type": "application/json",
+      "Content-Disposition": 'attachment; filename="' + filename + '"'
+    });
   });
 
   app.post("/api/v1/system/export", async (c) => {
@@ -1046,6 +1078,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
       const parsed = patchFinanceEntrySchema.safeParse(await c.req.json());
       if (!parsed.success) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: parsed.error.message } }, 400);
       const data = parsed.data;
+      if (data.project_id && !hasRecord(context.database, "projects", data.project_id)) return notFound(c, "project");
       const amount = data.amount_cents ?? Number(current.amount_cents);
       const occurredDate = data.occurred_date ?? String(current.occurred_date);
       if (!Number.isInteger(amount) || amount <= 0) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "amount_cents must be a positive integer" } }, 400);
@@ -1119,6 +1152,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const parsed = createTaskSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: parsed.error.message } }, 400);
     const data = parsed.data;
+    if (data.parent_id && !hasRecord(context.database, "tasks", data.parent_id)) return notFound(c, "parent task");
+    if (data.project_id && !hasRecord(context.database, "projects", data.project_id)) return notFound(c, "project");
+    if (data.milestone_id && !hasRecord(context.database, "milestones", data.milestone_id)) return notFound(c, "milestone");
     if (c.get("agentAuth") && (data.project_id || data.milestone_id)) {
       const linkedProjectId = data.project_id ?? (data.milestone_id ? projectIdForMilestone(context.database, data.milestone_id) : null);
       const rejected = rejectAgentProjectWrite(c, context.database, linkedProjectId);
@@ -1255,6 +1291,8 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const projectId = typeof body.project_id === "string" ? body.project_id : null;
     const milestoneId = typeof body.milestone_id === "string" ? body.milestone_id : null;
     if (!projectId && !milestoneId) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "project_id or milestone_id is required" } }, 400);
+    if (projectId && !hasRecord(context.database, "projects", projectId)) return notFound(c, "project");
+    if (milestoneId && !hasRecord(context.database, "milestones", milestoneId)) return notFound(c, "milestone");
     if (c.get("agentAuth")) {
       const linkedProjectId = projectId ?? (milestoneId ? projectIdForMilestone(context.database, milestoneId) : null);
       const rejected = rejectAgentProjectWrite(c, context.database, linkedProjectId);
@@ -1281,6 +1319,9 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const parsed = patchTaskSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: parsed.error.message } }, 400);
     const data = parsed.data;
+    if (data.parent_id && !hasRecord(context.database, "tasks", data.parent_id)) return notFound(c, "parent task");
+    if (data.project_id && !hasRecord(context.database, "projects", data.project_id)) return notFound(c, "project");
+    if (data.milestone_id && !hasRecord(context.database, "milestones", data.milestone_id)) return notFound(c, "milestone");
     if (c.get("agentAuth") && data.archive_requested !== undefined) return c.json({ ok: false, error: { code: "FORBIDDEN", message: "Agents cannot archive tasks; use the human UI" } }, 403);
     if (c.get("agentAuth") && (data.project_id || data.milestone_id)) {
       const linkedProjectId = data.project_id ?? (data.milestone_id ? projectIdForMilestone(context.database, data.milestone_id) : null);
@@ -1444,6 +1485,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const parsed = createProjectSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: parsed.error.message } }, 400);
     const data = parsed.data;
+    if (data.parent_id && !hasRecord(context.database, "projects", data.parent_id)) return notFound(c, "parent project");
     const id = randomUUID();
     const timestamp = now();
     const initialStatus = data.status ?? (data.category === "maintenance" || data.category === "long_term" ? "active" : "idea");
@@ -1705,6 +1747,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const parsed = patchProjectSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: parsed.error.message } }, 400);
     const data = parsed.data;
+    if (data.parent_id && !hasRecord(context.database, "projects", data.parent_id)) return notFound(c, "parent project");
     if (c.get("agentAuth") && (data.status === "paused" || data.status === "abandoned")) return c.json({ ok: false, error: { code: "FORBIDDEN", message: "Agents cannot pause or abandon projects; use the human UI" } }, 403);
     if (c.get("agentAuth") && data.archive_requested) return c.json({ ok: false, error: { code: "FORBIDDEN", message: "Agents cannot archive projects; use the human UI" } }, 403);
     if (c.get("agentAuth") && (current.status === "paused" || current.status === "abandoned")) return c.json({ ok: false, error: { code: "FORBIDDEN", message: PAUSED_PROJECT_ADVANCEMENT_ERROR } }, 403);
@@ -1885,6 +1928,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
   app.post("/api/v1/deps", async (c) => {
     const body = await c.req.json() as Record<string, unknown>;
     if (typeof body.blocked_task_id !== "string" || typeof body.blocking_task_id !== "string") return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "blocked_task_id and blocking_task_id are required" } }, 400);
+    if (!hasRecord(context.database, "tasks", body.blocked_task_id) || !hasRecord(context.database, "tasks", body.blocking_task_id)) return notFound(c, "task");
     const edges = (context.database.prepare("SELECT blocked_task_id AS from_task, blocking_task_id AS to_task FROM task_dependencies").all() as Array<{ from_task: string; to_task: string }>).map((edge) => ({ from: edge.from_task, to: edge.to_task }));
     try {
       assertNoCycle(edges, { from: body.blocked_task_id, to: body.blocking_task_id });
@@ -2428,7 +2472,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
         const scope = (payload.scope && typeof payload.scope === "object" ? payload.scope : {}) as { include_finance?: boolean; include_health?: boolean };
         const exportDir = join(context.config.dataDir, "exports");
         mkdirSync(exportDir, { recursive: true });
-        const filename = `export-${timestamp.replace(/[-:TZ.]/g, "").slice(0, 14)}.json`;
+        const filename = "export-" + timestamp.replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + ticket.id + ".json";
         const exportData: Record<string, unknown> = {
           format_version: 1,
           exported_at: timestamp,
@@ -2461,13 +2505,13 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
         exportData.reviews = context.database.prepare("SELECT * FROM reviews").all();
         exportData.review_snapshots = context.database.prepare("SELECT * FROM review_snapshots").all();
         const exportPath = join(exportDir, filename);
-        writeFileSync(exportPath, JSON.stringify(exportData, null, 2), "utf8");
+        writeFileSync(exportPath, JSON.stringify(exportData, null, 2), { encoding: "utf8", mode: 0o600 });
         context.database.prepare("UPDATE confirmation_tickets SET status = 'executed', resolved_at = ?, resolved_by = 'user', executed_at = ? WHERE id = ?").run(timestamp, timestamp, ticket.id);
         return { exportPath, containsSecrets: false };
       }
       if (ticket.action === "system.restore") {
-        const backupPath = typeof payload.path === "string" ? payload.path : "";
-        if (!backupPath || !existsSync(backupPath)) throw new Error("BACKUP_NOT_FOUND");
+        const backupPath = typeof payload.path === "string" ? accountBackup(context.config.dataDir, payload.path) : null;
+        if (!backupPath) throw new Error("BACKUP_NOT_FOUND");
         const pendingPath = join(context.config.dataDir, "restore.pending.db");
         copyFileSync(backupPath, pendingPath);
         context.database.prepare("UPDATE confirmation_tickets SET status = 'executed', resolved_at = ?, resolved_by = 'user', executed_at = ? WHERE id = ?").run(timestamp, timestamp, ticket.id);
@@ -2818,6 +2862,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     const date = c.req.query("date");
     const from = c.req.query("from");
     const to = c.req.query("to");
+    const search = c.req.query("q")?.trim();
     const undated = c.req.query("undated") === "1" || c.req.query("undated") === "true";
     const overdue = c.req.query("overdue") === "1" || c.req.query("overdue") === "true";
     if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ ok: false, error: { code: "BAD_REQUEST", message: "date must be YYYY-MM-DD" } }, 400);
@@ -2832,6 +2877,8 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
             ? " AND due_date BETWEEN ? AND ?"
             : "";
     const params = overdue ? [today] : date ? [date] : from && to ? [from, to] : [];
+    const searchFilter = search ? " AND (instr(lower(tasks.title), lower(?)) > 0 OR instr(lower(tasks.description), lower(?)) > 0)" : "";
+    if (search) params.push(search, search);
     const rows = context.database.prepare(
       `SELECT tasks.id, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.due_date, tasks.scheduled_date, tasks.recurrence_id, tasks.recurrence_date, tasks.parent_id, tasks.archive_requested, tasks.archived_at, tasks.row_version, tasks.created_at, tasks.updated_at,
         COALESCE(
@@ -2844,7 +2891,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
         ) AS project_name,
         (SELECT COUNT(*) FROM tasks sub WHERE sub.parent_id = tasks.id AND sub.archived_at IS NULL) AS subtask_count,
         (SELECT COUNT(*) FROM tasks sub WHERE sub.parent_id = tasks.id AND sub.archived_at IS NULL AND sub.status = 'done') AS subtask_done_count
-       FROM tasks WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"}${extra}
+       FROM tasks WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"}${extra}${searchFilter}
        ORDER BY due_date IS NULL, due_date ASC, created_at ASC`
     ).all(...params) as Array<Record<string, unknown>>;
     return c.json({ ok: true, tasks: rows.map((row) => ({ ...row, status: normalizeTaskStatus(row.status), archive_requested: Number(row.archive_requested ?? 0) })) });
@@ -2856,13 +2903,7 @@ export function createApp(context: AppContext): Hono<{ Variables: { agentAuth: A
     return c.json({ ok: true, path, createdAt: new Date().toISOString() });
   });
 
-  const webRoot = join(process.cwd(), "apps", "web", "dist");
-  if (existsSync(join(webRoot, "index.html"))) {
-    app.use("/assets/*", serveStatic({ root: webRoot }));
-    app.get("/", (c) => c.html(readFileSync(join(webRoot, "index.html"), "utf8")));
-  }
-
-  app.get("/", (c) => c.html("<!doctype html><html><body><h1>Personal AI OS</h1><p>服务已运行。开发时请打开 Vite 页面。</p></body></html>"));
+  serveWeb(app);
   app.onError((error, c) => {
     console.error(error);
     return c.json({ ok: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } }, 500);

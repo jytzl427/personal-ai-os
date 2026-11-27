@@ -25,7 +25,7 @@ async function freePort(): Promise<number> {
 async function waitForService(url: string, process?: ChildProcess, getStderr?: () => string): Promise<void> {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     try {
-      const response = await fetch(`${url}/api/v1/system/status`);
+      const response = await fetch(`${url}/api/v1/account/session`);
       if (response.ok) return;
     } catch {
       // The server may still be starting.
@@ -89,6 +89,16 @@ test("real MCP stdio exposes scoped tools, resources and named batches", async (
     let startupStderr = "";
     serverProcess.stderr?.on("data", (chunk: Buffer) => { startupStderr += chunk.toString(); });
     await waitForService(baseUrl, serverProcess, () => startupStderr);
+    const setup = await fetch(baseUrl + "/api/v1/account/setup", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "test-owner", password: "fixture-only-mcp-password",
+        setup_code: readFileSync(join(dataDir, ".accounts", "setup-code.txt"), "utf8").trim()
+      })
+    });
+    assert.equal(setup.status, 200);
+    const cookie = setup.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(cookie);
     const token = readFileSync(join(dataDir, "mcp-token.txt"), "utf8").trim();
     ({ client, transport } = await connectMcp(baseUrl, token));
 
@@ -173,7 +183,7 @@ test("real MCP stdio exposes scoped tools, resources and named batches", async (
     await transport?.close();
     transport = undefined;
 
-    const readonlyResponse = await fetch(`${baseUrl}/api/v1/settings/agent-tokens`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "MCP 只读", preset: "readonly" }) });
+    const readonlyResponse = await fetch(`${baseUrl}/api/v1/settings/agent-tokens`, { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify({ name: "MCP 只读", preset: "readonly" }) });
     assert.equal(readonlyResponse.status, 201);
     const readonlyToken = (await readonlyResponse.json() as { token: { value: string } }).token.value;
     ({ client, transport } = await connectMcp(baseUrl, readonlyToken));

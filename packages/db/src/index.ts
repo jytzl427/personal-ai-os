@@ -1318,7 +1318,15 @@ function openDatabase(dataDir, options = {}): any {
   if (hadDatabase && !hasStandaloneRecurrenceMigration)
     createBackup(database, dataDir, WEEKLY_BACKUP_RETAIN);
   applyMigrations(database);
-  seedDatabase(database, dataDir);
+  seedDatabase(database, dataDir, options.seedAgentToken !== false);
+  return database;
+}
+
+function openAccountRegistryDatabase(filename: string): PaiosDatabase {
+  const database = new Database(filename);
+  database.pragma("journal_mode = WAL");
+  database.pragma("busy_timeout = 5000");
+  database.pragma("foreign_keys = ON");
   return database;
 }
 function isProcessAlive(pid) {
@@ -1453,7 +1461,7 @@ function applyPendingRestore(dataDir) {
     throw error2;
   }
 }
-function seedDatabase(database, dataDir) {
+function seedDatabase(database, dataDir, seedAgentToken) {
   const createdAt = nowIso2();
   database.prepare("INSERT OR IGNORE INTO users (id, display_name, timezone, created_at) VALUES (?, ?, ?, ?)").run("local", "\u672C\u5730\u7528\u6237", Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai", createdAt);
   const settings = {
@@ -1511,6 +1519,7 @@ function seedDatabase(database, dataDir) {
   for (const [scope, spec] of Object.entries(specs)) {
     workflowStatement.run(randomUUID(), scope, JSON.stringify(spec), createdAt);
   }
+  if (!seedAgentToken) return;
   const tokenPath = join(dataDir, "mcp-token.txt");
   if (!existsSync(tokenPath)) {
     const token = `paios_${randomBytes(24).toString("hex")}`;
@@ -1769,5 +1778,5 @@ export type PaiosDatabase = {
   close: () => void;
 };
 export type WeeklyBackupResult = { status: "created" | "skipped" | "failed"; anchorDate: string; path?: string; error?: string };
-export { WEEKLY_BACKUP_RETAIN, acquireDirectMcpMarker, createBackup, ensureWeeklyBackup, getSetting, isBackupValid, openDatabase, recoverFromLatestBackup };
+export { WEEKLY_BACKUP_RETAIN, acquireDirectMcpMarker, createBackup, ensureWeeklyBackup, getSetting, isBackupValid, openAccountRegistryDatabase, openDatabase, recoverFromLatestBackup };
 
